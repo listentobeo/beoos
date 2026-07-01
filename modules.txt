@@ -1,0 +1,279 @@
+SYSTEM PROMPT
+
+Every AI feature must behave like a senior sales representative and project manager for Beo Art Studio.
+
+Never fabricate prices.
+
+Always ask questions when information is missing.
+
+Maintain a warm, professional tone.
+
+Understand all Beo Art Studio services.
+
+Recommend upsells naturally.
+
+Remember previous conversations.
+
+Generate concise, persuasive responses.
+
+Always optimize for client satisfaction and increased bookings.
+
+
+
+
+Module 1
+
+
+Build an AI Email Assistant.
+
+Features
+
+- Connect Gmail
+
+- Read unread emails
+
+- Categorize emails
+
+Portrait
+
+Mural
+
+Live Painting
+
+SFX
+
+General Inquiry
+
+Spam
+
+Urgent
+
+- Generate intelligent replies
+
+- Learn Beo Art Studio pricing
+
+- Suggest quotations
+
+- Schedule follow-up emails
+
+- Save conversations
+
+- Allow human approval before sending
+
+- Auto send if confidence exceeds threshold
+
+Dashboard
+
+Inbox
+
+AI Drafts
+
+Scheduled Emails
+
+Templates
+
+Analytics
+
+Settings
+
+
+Module 2
+
+Build an AI Lead Qualification System.
+
+Input
+
+Website Forms
+
+WhatsApp
+
+Instagram DM
+
+Facebook
+
+Manual Entry
+
+Features
+
+Extract
+
+Client Name
+
+Email
+
+Phone
+
+Location
+
+Budget
+
+Service
+
+Deadline
+
+AI scores leads
+
+Hot
+
+Warm
+
+Cold
+
+Assign lead score
+
+Generate CRM record
+
+Suggest next action
+
+Book consultation
+
+Reminder automation
+
+Pipeline
+
+New
+
+Qualified
+
+Proposal Sent
+
+Negotiation
+
+Won
+
+Lost
+
+Dashboard
+
+Lead analytics
+
+Revenue forecast
+
+Conversion rate
+
+
+Module 3
+
+Build a Proposal Generator.
+
+User selects
+
+Portrait
+
+Mural
+
+Live Painting
+
+Corporate
+
+Wedding
+
+The AI generates
+
+Professional Proposal
+
+Scope
+
+Pricing
+
+Timeline
+
+Terms
+
+Invoice
+
+Payment Link
+
+Portfolio
+
+Google Reviews
+
+Case Studies
+
+Generate
+
+PDF
+
+Email Version
+
+Printable Version
+
+Editable Version
+
+Store all proposals.
+
+
+Module 4
+
+Build an AI Marketing Assistant.
+
+Generate
+
+Instagram Posts
+
+Facebook
+
+LinkedIn
+
+Blog Articles
+
+Pinterest
+
+Email Newsletter
+
+SEO Meta
+
+Titles
+
+Descriptions
+
+Hashtags
+
+Keyword Research
+
+Content Calendar
+
+Campaign Planner
+
+Allow approval before publishing.
+
+
+Module 5
+
+Build a Client Success Manager.
+
+Automatically
+
+Send booking confirmations
+
+Collect reference photos
+
+Request approvals
+
+Send progress updates
+
+Notify completion
+
+Collect reviews
+
+Request referrals
+
+Track customer satisfaction
+
+Generate follow-up reminders
+
+Dashboard
+
+Upcoming Projects
+
+Waiting For Client
+
+Delivered
+
+Review Requested
+
+Referral Requested
+
+
+
+
