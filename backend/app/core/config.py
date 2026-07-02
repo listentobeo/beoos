@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     zoho_mail_base_url: str = "https://mail.zoho.com"
 
     resend_api_key: str = ""
-    alert_from_email: str = "alerts@beoarts.com"
+    alert_from_email: str = "beoos@alerts.beoarts.com"
     cors_origins: list[str] = Field(default_factory=list)
 
     @field_validator("cors_origins", mode="before")

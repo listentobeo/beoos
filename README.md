@@ -62,10 +62,10 @@ docs/modules/              Approved module specifications
 
 Deploy `frontend/` to Vercel. Deploy `backend/` to Railway twice:
 
-- API service: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Worker service: `python -m app.worker`
+- API service: repository root, config path `/railway.json`
+- Worker service: repository root, config path `/railway.worker.json`
 
-Run `alembic -c alembic.ini upgrade head` as a single pre-deploy/release command. Both Railway services use the same environment variables and Supabase `DATABASE_URL`.
+The API configuration runs `alembic -c alembic.ini upgrade head` as its pre-deploy command. Both Railway services use the same environment variables and Supabase `DATABASE_URL`. In Vercel Project Settings, set the Root Directory to `frontend`; do not deploy the FastAPI backend on Vercel.
 
 ## Verification
 
@@ -80,4 +80,3 @@ npm.cmd run typecheck
 npm.cmd run build
 npm.cmd audit --omit=dev
 ```
-
