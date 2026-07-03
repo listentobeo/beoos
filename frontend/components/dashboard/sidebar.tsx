@@ -38,6 +38,9 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
           <p className="text-base font-bold tracking-tight">BeoOS</p>
           <p className="text-[11px] text-white/45">Creative business intelligence</p>
         </div>
+        <div className="ml-auto" aria-label="Account menu">
+          <UserButton />
+        </div>
       </div>
 
       <button className="mt-7 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-3 text-left">
@@ -76,13 +79,6 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
           <Sparkles className="size-4 text-[#f69a7e]" /> AI email assistant
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">Policy-gated replies are active.</p>
-      </div>
-      <div className="mt-4 flex items-center gap-3 px-2">
-        <UserButton />
-        <div>
-          <p className="text-xs font-semibold">Benjamin Odeke</p>
-          <p className="text-[10px] text-white/40">Owner</p>
-        </div>
       </div>
     </aside>
   );
