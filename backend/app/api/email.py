@@ -12,6 +12,8 @@ from app.domain.email import (
     DraftQueueItem,
     DraftView,
     InboxStats,
+    MailboxStatus,
+    MailboxSyncResult,
     ThreadDetail,
     ThreadListItem,
     ThreadMessageView,
@@ -21,13 +23,54 @@ from app.infrastructure.models import (
     Contact,
     DraftStatus,
     EmailDraft,
+    EmailMessage,
     EmailThread,
+    MailboxConnection,
     ThreadCategory,
     ThreadStatus,
 )
 from app.services.email_sync import EmailSyncService
 
 router = APIRouter(prefix="/businesses/{business_id}/email", tags=["email"])
+
+
+@router.get("/mailbox", response_model=MailboxStatus)
+async def mailbox_status(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> MailboxStatus:
+    mailbox = await session.scalar(
+        select(MailboxConnection)
+        .where(MailboxConnection.business_id == business_id)
+        .order_by(MailboxConnection.updated_at.desc())
+        .limit(1)
+    )
+    return await _mailbox_status(session, business_id, mailbox)
+
+
+@router.post("/mailbox/sync", response_model=MailboxSyncResult)
+async def sync_mailbox_now(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> MailboxSyncResult:
+    mailbox = await session.scalar(
+        select(MailboxConnection)
+        .where(MailboxConnection.business_id == business_id, MailboxConnection.active.is_(True))
+        .order_by(MailboxConnection.updated_at.desc())
+        .limit(1)
+    )
+    if mailbox is None:
+        raise HTTPException(status_code=404, detail="Zoho Mail is not connected")
+    service = EmailSyncService(settings)
+    try:
+        imported = await service.sync_mailbox(session, mailbox)
+    finally:
+        await service.close()
+    status = await _mailbox_status(session, business_id, mailbox)
+    return MailboxSyncResult(**status.model_dump(), imported=imported)
 
 
 @router.get("/threads", response_model=list[ThreadListItem])
@@ -235,4 +278,41 @@ def _thread_view(thread: EmailThread) -> ThreadListItem:
         is_professional=thread.is_professional,
         unread_count=thread.unread_count,
         latest_message_at=thread.latest_message_at,
+    )
+
+
+async def _mailbox_status(
+    session: AsyncSession,
+    business_id: UUID,
+    mailbox: MailboxConnection | None,
+) -> MailboxStatus:
+    thread_count = int(
+        await session.scalar(
+            select(func.count(EmailThread.id)).where(EmailThread.business_id == business_id)
+        )
+        or 0
+    )
+    message_count = int(
+        await session.scalar(
+            select(func.count(EmailMessage.id))
+            .join(EmailThread, EmailThread.id == EmailMessage.thread_id)
+            .where(EmailThread.business_id == business_id)
+        )
+        or 0
+    )
+    if mailbox is None:
+        return MailboxStatus(
+            connected=False,
+            thread_count=thread_count,
+            message_count=message_count,
+        )
+    return MailboxStatus(
+        connected=bool(mailbox.provider_account_id and mailbox.refresh_token_encrypted),
+        email_address=mailbox.email_address,
+        active=mailbox.active,
+        history_start_at=mailbox.history_start_at,
+        last_synced_at=mailbox.last_synced_at,
+        sync_lease_until=mailbox.sync_lease_until,
+        thread_count=thread_count,
+        message_count=message_count,
     )

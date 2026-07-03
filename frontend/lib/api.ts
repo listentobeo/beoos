@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 export type Business = {
   id: string;
@@ -16,6 +17,16 @@ export type InboxStats = {
   urgent: number;
   routed_whatsapp: number;
   existing_clients: number;
+};
+export type MailboxStatus = {
+  connected: boolean;
+  email_address: string | null;
+  active: boolean;
+  history_start_at: string | null;
+  last_synced_at: string | null;
+  sync_lease_until: string | null;
+  thread_count: number;
+  message_count: number;
 };
 export type Thread = {
   id: string;
@@ -59,7 +70,7 @@ export type PriceItem = {
   approved_by: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { getToken } = await auth();
@@ -74,9 +85,13 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+const getBusinesses = cache(() => apiFetch<Business[]>("/businesses"));
+
 export const beoApi = {
-  businesses: () => apiFetch<Business[]>("/businesses"),
+  businesses: getBusinesses,
   stats: (businessId: string) => apiFetch<InboxStats>(`/businesses/${businessId}/email/stats`),
+  mailbox: (businessId: string) =>
+    apiFetch<MailboxStatus>(`/businesses/${businessId}/email/mailbox`),
   threads: (businessId: string, filters?: { category?: string; status?: string }) => {
     const params = new URLSearchParams(filters);
     const suffix = params.size ? `?${params.toString()}` : "";

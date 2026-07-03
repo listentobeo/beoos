@@ -1,25 +1,39 @@
 import { Bell, FilePenLine, Inbox, MessageCircleMore, Search, ShieldAlert, UsersRound } from "lucide-react";
 import { InboxTable } from "@/components/dashboard/inbox-table";
+import { SyncMailboxButton } from "@/components/dashboard/sync-mailbox-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type InboxStats, type Thread } from "@/lib/api";
+import { activeBusiness, beoApi, type InboxStats, type MailboxStatus, type Thread } from "@/lib/api";
 
-const emptyStats: InboxStats = { unread: 0, needs_approval: 0, urgent: 0, routed_whatsapp: 0, existing_clients: 0 };
+const emptyStats: InboxStats = {
+  unread: 0,
+  needs_approval: 0,
+  urgent: 0,
+  routed_whatsapp: 0,
+  existing_clients: 0,
+};
 
 export const metadata = { title: "Inbox" };
 
 export default async function InboxPage() {
   let stats = emptyStats;
   let threads: Thread[] = [];
+  let mailbox: MailboxStatus | null = null;
   let connected = true;
+  let businessId: string | null = null;
   let businessName = "Beo Art Studio";
 
   try {
     const business = await activeBusiness();
     if (!business) connected = false;
     else {
+      businessId = business.id;
       businessName = business.name;
-      [stats, threads] = await Promise.all([beoApi.stats(business.id), beoApi.threads(business.id)]);
+      [stats, threads, mailbox] = await Promise.all([
+        beoApi.stats(business.id),
+        beoApi.threads(business.id),
+        beoApi.mailbox(business.id),
+      ]);
     }
   } catch {
     connected = false;
@@ -34,12 +48,12 @@ export default async function InboxPage() {
   ] as const;
 
   return (
-    <div className="mx-auto max-w-[1480px] px-5 py-5 md:px-8 md:py-8">
+    <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-5 md:px-8 md:py-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{businessName}</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-[#171b23]">Good morning, Benjamin.</h1>
-          <p className="mt-1 text-sm text-[#747973]">Here’s what needs your attention today.</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] text-[#171b23] sm:text-3xl">Good morning, Benjamin.</h1>
+          <p className="mt-1 text-sm text-[#747973]">Here&apos;s what needs your attention today.</p>
         </div>
         <Button variant="outline" size="icon" aria-label="Notifications"><Bell className="size-4" /></Button>
       </header>
@@ -48,6 +62,27 @@ export default async function InboxPage() {
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           BeoOS could not load your business data. Confirm the latest Railway deployment completed its initial business setup.
         </div>
+      )}
+
+      {connected && (
+        <Card className="mt-6 p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">Zoho Mail status</p>
+              <h2 className="mt-1 text-base font-bold">
+                {mailbox?.connected ? `Connected to ${mailbox.email_address}` : "Not connected yet"}
+              </h2>
+              <p className="mt-1 text-sm text-[#747973]">
+                {mailbox?.last_synced_at
+                  ? `Last synced ${new Date(mailbox.last_synced_at).toLocaleString()} · ${mailbox.message_count} messages imported`
+                  : mailbox?.connected
+                    ? "Connected, but no sync has completed yet. Use Sync now or check the Railway worker."
+                    : "Connect Zoho Mail in Business Settings before BeoOS can pull messages."}
+              </p>
+            </div>
+            {businessId && mailbox?.connected && <SyncMailboxButton businessId={businessId} />}
+          </div>
+        </Card>
       )}
 
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -73,7 +108,7 @@ export default async function InboxPage() {
             <span>Search conversations</span>
           </div>
         </div>
-        <InboxTable threads={threads} />
+        <InboxTable threads={threads} mailboxConnected={Boolean(mailbox?.connected)} />
       </Card>
     </div>
   );

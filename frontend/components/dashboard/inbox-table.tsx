@@ -26,7 +26,13 @@ function relativeTime(dateString: string) {
   return formatter.format(Math.round(hours / 24), "day");
 }
 
-export function InboxTable({ threads }: { threads: Thread[] }) {
+export function InboxTable({
+  threads,
+  mailboxConnected = false,
+}: {
+  threads: Thread[];
+  mailboxConnected?: boolean;
+}) {
   if (threads.length === 0) {
     return (
       <div className="grid min-h-72 place-items-center px-6 text-center">
@@ -36,7 +42,9 @@ export function InboxTable({ threads }: { threads: Thread[] }) {
           </div>
           <h3 className="mt-4 text-sm font-bold">Your inbox is ready</h3>
           <p className="mt-1 max-w-sm text-sm leading-relaxed text-[#727771]">
-            Connect Zoho Mail in Business Settings. New messages will be classified and acknowledged here.
+            {mailboxConnected
+              ? "Zoho is connected. Run Sync now or confirm the Railway worker is running to import messages."
+              : "Connect Zoho Mail in Business Settings. New messages will be classified and acknowledged here."}
           </p>
         </div>
       </div>
@@ -75,4 +83,3 @@ export function InboxTable({ threads }: { threads: Thread[] }) {
     </div>
   );
 }
-

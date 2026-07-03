@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen">
       <Sidebar businesses={businesses} activeId={activeId} />
-      <main className="min-h-screen lg:pl-[264px]">{children}</main>
+      <main className="min-h-screen pt-[150px] lg:pl-[264px] lg:pt-0">{children}</main>
     </div>
   );
 }

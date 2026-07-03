@@ -100,6 +100,21 @@ class InboxStats(BaseModel):
     existing_clients: int
 
 
+class MailboxStatus(BaseModel):
+    connected: bool
+    email_address: EmailStr | None = None
+    active: bool = False
+    history_start_at: datetime | None = None
+    last_synced_at: datetime | None = None
+    sync_lease_until: datetime | None = None
+    thread_count: int = 0
+    message_count: int = 0
+
+
+class MailboxSyncResult(MailboxStatus):
+    imported: int
+
+
 class PriceItemCreate(BaseModel):
     service: str = Field(min_length=1, max_length=80)
     label: str = Field(min_length=1, max_length=200)
