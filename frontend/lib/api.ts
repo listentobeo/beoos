@@ -56,6 +56,29 @@ export type DraftQueueItem = {
   contact_email: string | null;
   created_at: string;
 };
+export type ThreadMessage = {
+  id: string;
+  direction: string;
+  sender_email: string;
+  sender_name: string | null;
+  subject: string;
+  body_text: string;
+  sent_at: string;
+};
+export type DraftView = {
+  id: string;
+  subject: string;
+  body_text: string;
+  status: string;
+  draft_type: string;
+  auto_send_eligible: boolean;
+  policy_reasons: string[];
+};
+export type ThreadDetail = {
+  thread: Thread;
+  messages: ThreadMessage[];
+  drafts: DraftView[];
+};
 export type PriceItem = {
   id: string;
   service: string;
@@ -97,6 +120,8 @@ export const beoApi = {
     const suffix = params.size ? `?${params.toString()}` : "";
     return apiFetch<Thread[]>(`/businesses/${businessId}/email/threads${suffix}`);
   },
+  thread: (businessId: string, threadId: string) =>
+    apiFetch<ThreadDetail>(`/businesses/${businessId}/email/threads/${threadId}`),
   drafts: (businessId: string) =>
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
   prices: (businessId: string) =>

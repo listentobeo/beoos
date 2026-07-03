@@ -1,4 +1,5 @@
 import { ArrowUpRight, Building2, CircleAlert, MessageCircleMore } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { Thread } from "@/lib/api";
 
@@ -54,7 +55,7 @@ export function InboxTable({
   return (
     <div className="divide-y">
       {threads.map((thread) => (
-        <button key={thread.id} className="group grid w-full grid-cols-[32px_1fr_auto] gap-3 px-5 py-4 text-left transition hover:bg-[#fbfaf7] md:grid-cols-[32px_180px_1fr_150px_100px] md:items-center">
+        <Link key={thread.id} href={`/dashboard/inbox/${thread.id}`} className="group grid w-full grid-cols-[32px_1fr_auto] gap-3 px-5 py-4 text-left transition hover:bg-[#fbfaf7] md:grid-cols-[32px_180px_1fr_150px_100px] md:items-center">
           <span className={`mt-1 size-2 rounded-full md:mt-0 ${thread.unread_count ? "bg-[#ed633f]" : "bg-[#d8d8d2]"}`} />
           <div className="hidden min-w-0 md:block">
             <p className="truncate text-sm font-semibold">{thread.contact_name || thread.contact_email || "Unknown sender"}</p>
@@ -78,7 +79,7 @@ export function InboxTable({
             <span>{relativeTime(thread.latest_message_at)}</span>
             <ArrowUpRight className="size-4 opacity-0 transition group-hover:opacity-100" />
           </div>
-        </button>
+        </Link>
       ))}
     </div>
   );

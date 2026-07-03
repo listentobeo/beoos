@@ -1,8 +1,8 @@
 import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
-import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
+import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness } from "@/lib/api";
+import { activeBusiness, beoApi, type MailboxStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
@@ -12,7 +12,9 @@ export default async function SettingsPage() {
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
   let replySignature = "Not configured";
+  let mailbox: MailboxStatus | null = null;
   let setupMessage = "Initial business setup has not completed.";
+
   try {
     const business = await activeBusiness();
     businessId = business?.id ?? null;
@@ -20,14 +22,15 @@ export default async function SettingsPage() {
     primaryEmail = business?.primary_email ?? primaryEmail;
     whatsappNumber = business?.whatsapp_number ?? whatsappNumber;
     replySignature = business?.reply_signature ?? replySignature;
+    if (business) mailbox = await beoApi.mailbox(business.id);
   } catch {
     setupMessage = "Unable to load business data from the BeoOS API.";
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-5 md:px-8">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{businessName}</p>
-      <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em]">Business settings</h1>
+      <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] sm:text-3xl">Business settings</h1>
       <p className="mt-2 text-sm text-[#747973]">Connections, reply policies, and channel rules for this business.</p>
 
       <div className="mt-7 grid gap-5 md:grid-cols-2">
@@ -37,9 +40,16 @@ export default async function SettingsPage() {
             <div>
               <h2 className="font-bold">Zoho Mail</h2>
               <p className="mt-1 text-sm text-[#777c76]">{primaryEmail} · one-year history</p>
+              {mailbox?.connected && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <CheckCircle2 className="size-3.5" /> Connected
+                </p>
+              )}
             </div>
           </div>
-          <div className="mt-5">{businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}</div>
+          <div className="mt-5">
+            {businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}
+          </div>
         </Card>
 
         <Card className="p-5">
@@ -67,6 +77,7 @@ export default async function SettingsPage() {
             <p className="rounded-xl bg-[#f7f6f2] p-3">Prices and commitments need approval</p>
           </div>
         </Card>
+
         <Card className="p-5 md:col-span-2">
           <h2 className="font-bold">Add another Beo business</h2>
           <p className="mt-1 text-sm text-[#777c76]">Each business receives isolated inboxes, contacts, prices, prompts, and analytics.</p>

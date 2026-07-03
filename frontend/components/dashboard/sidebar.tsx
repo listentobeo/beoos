@@ -1,3 +1,5 @@
+"use client";
+
 import { UserButton } from "@clerk/nextjs";
 import {
   BarChart3,
@@ -12,6 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import type { Business } from "@/lib/api";
 
@@ -30,6 +33,27 @@ const manage = [
 ] as const;
 
 export function Sidebar({ businesses, activeId }: { businesses: Business[]; activeId: string | null }) {
+  const pathname = usePathname();
+  const allLinks = [...primary, ...manage];
+
+  function isActive(href: string) {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  function linkClass(href: string, mobile = false) {
+    const active = isActive(href);
+    if (mobile) {
+      return `flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs transition ${
+        active
+          ? "bg-white text-[#171b23]"
+          : "bg-white/[0.06] text-white/70 hover:bg-white/[0.1] hover:text-white"
+      }`;
+    }
+    return `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+      active ? "bg-white text-[#171b23]" : "text-white/65 hover:bg-white/[0.06] hover:text-white"
+    }`;
+  }
+
   return (
     <>
       <div className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#101827] px-4 py-3 text-white lg:hidden">
@@ -50,16 +74,8 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
         </div>
 
         <nav className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
-          {[...primary, ...manage].map(([label, href, Icon], index) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs transition ${
-                index === 0
-                  ? "bg-white text-[#171b23]"
-                  : "bg-white/[0.06] text-white/70 hover:bg-white/[0.1] hover:text-white"
-              }`}
-            >
+          {allLinks.map(([label, href, Icon]) => (
+            <Link key={href} href={href} className={linkClass(href, true)}>
               <Icon className="size-3.5" />
               {label}
             </Link>
@@ -86,14 +102,8 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
         </button>
 
         <nav className="mt-6 space-y-1">
-          {primary.map(([label, href, Icon], index) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
-                index === 0 ? "bg-white text-[#171b23]" : "text-white/65 hover:bg-white/[0.06] hover:text-white"
-              }`}
-            >
+          {primary.map(([label, href, Icon]) => (
+            <Link key={href} href={href} className={linkClass(href)}>
               <Icon className="size-4" />
               {label}
             </Link>
@@ -103,7 +113,7 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
         <p className="mb-2 mt-7 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Manage</p>
         <nav className="space-y-1">
           {manage.map(([label, href, Icon]) => (
-            <Link key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white">
+            <Link key={href} href={href} className={linkClass(href)}>
               <Icon className="size-4" />
               {label}
             </Link>
