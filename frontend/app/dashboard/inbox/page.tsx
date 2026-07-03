@@ -46,7 +46,7 @@ export default async function InboxPage() {
 
       {!connected && (
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          BeoOS is waiting for its Clerk and backend environment variables. Your dashboard will populate after setup.
+          BeoOS could not load your business data. Confirm the latest Railway deployment completed its initial business setup.
         </div>
       )}
 

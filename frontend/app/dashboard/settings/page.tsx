@@ -12,6 +12,7 @@ export default async function SettingsPage() {
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
   let replySignature = "Not configured";
+  let setupMessage = "Initial business setup has not completed.";
   try {
     const business = await activeBusiness();
     businessId = business?.id ?? null;
@@ -19,7 +20,9 @@ export default async function SettingsPage() {
     primaryEmail = business?.primary_email ?? primaryEmail;
     whatsappNumber = business?.whatsapp_number ?? whatsappNumber;
     replySignature = business?.reply_signature ?? replySignature;
-  } catch {}
+  } catch {
+    setupMessage = "Unable to load business data from the BeoOS API.";
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
@@ -36,7 +39,7 @@ export default async function SettingsPage() {
               <p className="mt-1 text-sm text-[#777c76]">{primaryEmail} · one-year history</p>
             </div>
           </div>
-          <div className="mt-5">{businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">Finish Clerk setup first.</p>}</div>
+          <div className="mt-5">{businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}</div>
         </Card>
 
         <Card className="p-5">
