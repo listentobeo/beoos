@@ -9,8 +9,13 @@ Create a Supabase project in the region closest to the Railway deployment. Save 
 For Railway, use the Supabase **session pooler** connection string when direct IPv6 connectivity is unavailable. Change its scheme for SQLAlchemy:
 
 ```text
-postgresql+asyncpg://USER:PASSWORD@HOST:5432/postgres
+postgresql+asyncpg://postgres.PROJECT_REF:URL_ENCODED_PASSWORD@HOST:5432/postgres
 ```
+
+Copy the username, project reference, host, port, and database name directly from Supabase;
+do not type placeholder text such as `PROJECT_REF` into Railway. Replace only the password
+placeholder, URL-encoding password characters when necessary, and change the URI scheme from
+`postgresql://` to `postgresql+asyncpg://`.
 
 Set this as `DATABASE_URL` in the Railway API and worker services. Never expose it as a `NEXT_PUBLIC_` variable.
 
@@ -44,4 +49,3 @@ Module 1 stores attachment metadata only. Before attachment downloading is enabl
 - Do not add public RLS policies to email, contact, draft, or audit tables.
 - Rotate database credentials after any accidental exposure.
 - Run migrations from one deployment step only, never concurrently from API replicas.
-
