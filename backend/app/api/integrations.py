@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -59,12 +60,9 @@ async def zoho_oauth_callback(
     if not refresh_token:
         raise HTTPException(status_code=400, detail="Zoho did not return a refresh token")
     accounts = await zoho.get_accounts(access_token)
+    expected_email = business.primary_email.strip().lower()
     account = next(
-        (
-            item
-            for item in accounts
-            if str(item.get("emailAddress", "")).lower() == business.primary_email.lower()
-        ),
+        (item for item in accounts if expected_email in zoho_account_email_addresses(item)),
         None,
     )
     if account is None:
@@ -95,3 +93,42 @@ async def zoho_oauth_callback(
     return RedirectResponse(
         f"{str(settings.frontend_url).rstrip('/')}/dashboard/settings?zoho=connected"
     )
+
+
+def zoho_account_email_addresses(account: Mapping[str, object]) -> set[str]:
+    """Return verified mailbox addresses from Zoho's account response.
+
+    Zoho's accounts endpoint does not expose the mailbox email in one stable shape.
+    The official response includes fields like primaryEmailAddress, mailboxAddress,
+    incomingUserName, emailAddress as a list of mailId objects, and validated
+    sendMailDetails. Treating emailAddress as a plain string rejects valid accounts.
+    """
+
+    addresses: set[str] = set()
+
+    for field in ("primaryEmailAddress", "mailboxAddress", "incomingUserName"):
+        add_email(addresses, account.get(field))
+
+    email_address = account.get("emailAddress")
+    if isinstance(email_address, str):
+        add_email(addresses, email_address)
+    elif isinstance(email_address, list):
+        for item in email_address:
+            if isinstance(item, str):
+                add_email(addresses, item)
+            elif isinstance(item, Mapping) and bool(item.get("isConfirmed", True)):
+                add_email(addresses, item.get("mailId"))
+
+    send_mail_details = account.get("sendMailDetails")
+    if isinstance(send_mail_details, list):
+        for item in send_mail_details:
+            if isinstance(item, Mapping) and bool(item.get("status", False)):
+                add_email(addresses, item.get("fromAddress"))
+                add_email(addresses, item.get("userName"))
+
+    return addresses
+
+
+def add_email(addresses: set[str], value: object) -> None:
+    if isinstance(value, str) and "@" in value:
+        addresses.add(value.strip().lower())
