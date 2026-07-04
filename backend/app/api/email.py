@@ -1,5 +1,6 @@
 from uuid import UUID
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,7 @@ from app.infrastructure.models import (
 from app.services.email_sync import EmailSyncService
 
 router = APIRouter(prefix="/businesses/{business_id}/email", tags=["email"])
+logger = structlog.get_logger()
 
 
 @router.get("/mailbox", response_model=MailboxStatus)
@@ -42,7 +44,7 @@ async def mailbox_status(
 ) -> MailboxStatus:
     mailbox = await session.scalar(
         select(MailboxConnection)
-        .where(MailboxConnection.business_id == business_id)
+        .where(MailboxConnection.business_id == business_id, MailboxConnection.provider == "zoho")
         .order_by(MailboxConnection.updated_at.desc())
         .limit(1)
     )
@@ -52,25 +54,75 @@ async def mailbox_status(
 @router.post("/mailbox/sync", response_model=MailboxSyncResult)
 async def sync_mailbox_now(
     business_id: UUID,
-    _access: BusinessAccess = Depends(require_admin),
+    access: BusinessAccess = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> MailboxSyncResult:
+    logger.info(
+        "manual_mailbox_sync_requested",
+        business_id=str(business_id),
+        user_id=access.user_id,
+        role=access.role.value,
+        provider="zoho",
+    )
     mailbox = await session.scalar(
         select(MailboxConnection)
-        .where(MailboxConnection.business_id == business_id, MailboxConnection.active.is_(True))
+        .where(
+            MailboxConnection.business_id == business_id,
+            MailboxConnection.provider == "zoho",
+            MailboxConnection.active.is_(True),
+        )
         .order_by(MailboxConnection.updated_at.desc())
         .limit(1)
     )
     if mailbox is None:
+        logger.warning(
+            "manual_mailbox_sync_missing_zoho_mailbox",
+            business_id=str(business_id),
+            user_id=access.user_id,
+        )
         raise HTTPException(status_code=404, detail="Zoho Mail is not connected")
+    logger.info(
+        "manual_mailbox_sync_zoho_mailbox_found",
+        business_id=str(business_id),
+        user_id=access.user_id,
+        mailbox_id=str(mailbox.id),
+        email_address=mailbox.email_address,
+        provider_account_id=mailbox.provider_account_id,
+    )
     service = EmailSyncService(settings)
     try:
-        imported = await service.sync_mailbox(session, mailbox)
+        report = await service.sync_mailbox(session, mailbox)
+    except Exception:
+        logger.exception(
+            "manual_mailbox_sync_failed",
+            business_id=str(business_id),
+            user_id=access.user_id,
+            mailbox_id=str(mailbox.id),
+            provider="zoho",
+        )
+        raise
     finally:
         await service.close()
     status = await _mailbox_status(session, business_id, mailbox)
-    return MailboxSyncResult(**status.model_dump(), imported=imported)
+    logger.info(
+        "manual_mailbox_sync_finished",
+        business_id=str(business_id),
+        user_id=access.user_id,
+        mailbox_id=str(mailbox.id),
+        messages_fetched=report.messages_fetched,
+        messages_created=report.messages_created,
+        duplicates_skipped=report.duplicates_skipped,
+    )
+    return MailboxSyncResult(
+        **status.model_dump(),
+        success=True,
+        mailboxes_checked=1,
+        messages_fetched=report.messages_fetched,
+        messages_created=report.messages_created,
+        duplicates_skipped=report.duplicates_skipped,
+        imported=report.imported,
+    )
 
 
 @router.get("/threads", response_model=list[ThreadListItem])

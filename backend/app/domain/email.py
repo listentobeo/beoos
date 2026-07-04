@@ -112,7 +112,12 @@ class MailboxStatus(BaseModel):
 
 
 class MailboxSyncResult(MailboxStatus):
-    imported: int
+    success: bool = True
+    mailboxes_checked: int = 0
+    messages_fetched: int = 0
+    messages_created: int = 0
+    duplicates_skipped: int = 0
+    imported: int = 0
 
 
 class PriceItemCreate(BaseModel):

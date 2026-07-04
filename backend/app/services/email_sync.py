@@ -1,5 +1,6 @@
 ﻿import html
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from email.utils import parseaddr
@@ -35,6 +36,17 @@ from app.services.zoho_mail import ZohoMailClient
 logger = structlog.get_logger()
 
 
+@dataclass
+class MailboxSyncReport:
+    messages_fetched: int = 0
+    messages_created: int = 0
+    duplicates_skipped: int = 0
+
+    @property
+    def imported(self) -> int:
+        return self.messages_created
+
+
 class EmailSyncService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -43,12 +55,36 @@ class EmailSyncService:
         self._ai = OpenAIEmailService(settings)
         self._alerts = AlertService(settings)
 
-    async def sync_mailbox(self, session: AsyncSession, mailbox: MailboxConnection) -> int:
+    async def sync_mailbox(
+        self, session: AsyncSession, mailbox: MailboxConnection
+    ) -> MailboxSyncReport:
+        report = MailboxSyncReport()
         if not mailbox.provider_account_id or not mailbox.refresh_token_encrypted:
-            return 0
+            logger.warning(
+                "mailbox_sync_skipped_missing_credentials",
+                mailbox_id=str(mailbox.id),
+                business_id=str(mailbox.business_id),
+                provider=mailbox.provider,
+            )
+            return report
         business = await session.get(Business, mailbox.business_id)
         if business is None:
-            return 0
+            logger.warning(
+                "mailbox_sync_skipped_missing_business",
+                mailbox_id=str(mailbox.id),
+                business_id=str(mailbox.business_id),
+                provider=mailbox.provider,
+            )
+            return report
+
+        logger.info(
+            "mailbox_sync_started",
+            mailbox_id=str(mailbox.id),
+            business_id=str(business.id),
+            provider=mailbox.provider,
+            email_address=mailbox.email_address,
+            provider_account_id=mailbox.provider_account_id,
+        )
 
         access_token = await self._valid_access_token(mailbox)
         folders = await self._zoho.get_folders(access_token, mailbox.provider_account_id)
@@ -56,7 +92,6 @@ class EmailSyncService:
             str(item.get("folderName", "")).lower(): str(item.get("folderId", ""))
             for item in folders
         }
-        imported = 0
         first_sync = mailbox.last_synced_at is None
         targets = (
             [("sent", Direction.outbound), ("inbox", Direction.inbound)]
@@ -66,6 +101,13 @@ class EmailSyncService:
         for folder_name, direction in targets:
             folder_id = folder_map.get(folder_name)
             if not folder_id:
+                logger.warning(
+                    "mailbox_sync_folder_missing",
+                    mailbox_id=str(mailbox.id),
+                    business_id=str(business.id),
+                    folder_name=folder_name,
+                    available_folders=list(folder_map.keys()),
+                )
                 continue
             start = 1
             while True:
@@ -75,7 +117,18 @@ class EmailSyncService:
                     folder_id=folder_id,
                     start=start,
                     limit=200,
-                    status=None if first_sync else "unread",
+                    status=None,
+                )
+                report.messages_fetched += len(messages)
+                logger.info(
+                    "mailbox_sync_messages_fetched",
+                    mailbox_id=str(mailbox.id),
+                    business_id=str(business.id),
+                    folder_name=folder_name,
+                    direction=direction.value,
+                    start=start,
+                    fetched=len(messages),
+                    first_sync=first_sync,
                 )
                 if not messages:
                     break
@@ -99,6 +152,7 @@ class EmailSyncService:
                         )
                     )
                     if exists:
+                        report.duplicates_skipped += 1
                         continue
                     content = await self._zoho.get_message_content(
                         access_token=access_token,
@@ -106,7 +160,7 @@ class EmailSyncService:
                         folder_id=folder_id,
                         message_id=provider_message_id,
                     )
-                    await self._import_message(
+                    created = await self._import_message(
                         session,
                         business,
                         mailbox,
@@ -114,7 +168,8 @@ class EmailSyncService:
                         content,
                         direction=direction,
                     )
-                    imported += 1
+                    if created:
+                        report.messages_created += 1
                 await session.commit()
                 mailbox.sync_lease_until = datetime.now(UTC) + timedelta(minutes=5)
                 await session.commit()
@@ -124,7 +179,16 @@ class EmailSyncService:
 
         mailbox.last_synced_at = datetime.now(UTC)
         await session.commit()
-        return imported
+        logger.info(
+            "mailbox_sync_finished",
+            mailbox_id=str(mailbox.id),
+            business_id=str(business.id),
+            provider=mailbox.provider,
+            messages_fetched=report.messages_fetched,
+            messages_created=report.messages_created,
+            duplicates_skipped=report.duplicates_skipped,
+        )
+        return report
 
     async def send_approved_draft(
         self,
@@ -201,7 +265,7 @@ class EmailSyncService:
         content: dict[str, Any],
         *,
         direction: Direction,
-    ) -> None:
+    ) -> bool:
         contact_source = (
             summary.get("fromAddress") or summary.get("sender")
             if direction == Direction.inbound
@@ -210,12 +274,12 @@ class EmailSyncService:
         contact_name, contact_email = parseaddr(str(contact_source or ""))
         contact_email = contact_email.lower()
         if not contact_email:
-            return
+            return False
         if (
             direction == Direction.inbound
             and contact_email == self._settings.alert_from_email.lower()
         ):
-            return
+            return False
 
         contact = await session.scalar(
             select(Contact).where(
@@ -295,7 +359,7 @@ class EmailSyncService:
             thread.category = (
                 ThreadCategory.existing_client if contact.is_existing_client else thread.category
             )
-            return
+            return True
 
         policy = normalized_ai_policy(business.settings)
         context_rows = (
@@ -432,6 +496,8 @@ class EmailSyncService:
             except Exception:
                 logger.exception("urgent_alert_failed", thread_id=str(thread.id))
 
+        return True
+
     async def _valid_access_token(self, mailbox: MailboxConnection) -> str:
         now = datetime.now(UTC)
         if (
@@ -478,6 +544,7 @@ class EmailSyncService:
     def _whatsapp_link(number: str) -> str:
         digits = "".join(character for character in number if character.isdigit())
         return f"https://wa.me/{digits}"
+
 
 
 

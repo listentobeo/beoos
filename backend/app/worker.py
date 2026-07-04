@@ -39,12 +39,14 @@ async def run() -> None:
                 await session.commit()
                 for mailbox in mailboxes:
                     try:
-                        imported = await sync_service.sync_mailbox(session, mailbox)
-                        if imported:
+                        report = await sync_service.sync_mailbox(session, mailbox)
+                        if report.imported:
                             logger.info(
                                 "mailbox_synced",
                                 mailbox_id=str(mailbox.id),
-                                imported=imported,
+                                imported=report.imported,
+                                messages_fetched=report.messages_fetched,
+                                duplicates_skipped=report.duplicates_skipped,
                             )
                     finally:
                         mailbox.sync_lease_until = None
