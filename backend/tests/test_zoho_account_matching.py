@@ -48,3 +48,20 @@ def test_reads_only_validated_send_mail_aliases() -> None:
     assert "admin@beoarts.com" in addresses
     assert "benjamin@beoarts.com" in addresses
     assert "unverified@example.com" not in addresses
+
+
+def test_extracts_email_from_display_name_addresses() -> None:
+    addresses = zoho_account_email_addresses(
+        {
+            "primaryEmailAddress": "AIHD Studio <Contact@AIHDStudio.com>",
+            "sendMailDetails": [
+                {
+                    "status": True,
+                    "fromAddress": "AIHD Studio <contact@aihdstudio.com>",
+                }
+            ],
+        }
+    )
+
+    assert "contact@aihdstudio.com" in addresses
+    assert "aihd studio <contact@aihdstudio.com>" not in addresses

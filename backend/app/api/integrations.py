@@ -1,8 +1,10 @@
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from email.utils import parseaddr
 from uuid import UUID
 
 import jwt
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -16,6 +18,7 @@ from app.services.crypto import SecretCipher
 from app.services.zoho_mail import ZohoMailClient
 
 router = APIRouter(prefix="/integrations/zoho", tags=["integrations"])
+logger = structlog.get_logger()
 
 
 @router.get("/start")
@@ -66,11 +69,20 @@ async def zoho_oauth_callback(
         None,
     )
     if account is None:
+        logger.warning(
+            "zoho_oauth_account_mismatch",
+            business_id=str(business.id),
+            expected_email=expected_email,
+            discovered_addresses=[
+                sorted(zoho_account_email_addresses(item)) for item in accounts
+            ],
+        )
         raise HTTPException(status_code=400, detail="The authorized Zoho account does not match")
 
     mailbox = await session.scalar(
         select(MailboxConnection).where(
             MailboxConnection.business_id == business.id,
+            MailboxConnection.provider == "zoho",
             MailboxConnection.email_address == business.primary_email,
         )
     )
@@ -131,4 +143,7 @@ def zoho_account_email_addresses(account: Mapping[str, object]) -> set[str]:
 
 def add_email(addresses: set[str], value: object) -> None:
     if isinstance(value, str) and "@" in value:
-        addresses.add(value.strip().lower())
+        _display_name, parsed_email = parseaddr(value)
+        email = (parsed_email or value).strip().lower()
+        if email:
+            addresses.add(email)
