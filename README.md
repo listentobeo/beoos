@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline.
 
 ## Structure
 
@@ -14,6 +14,12 @@ backend/prompts/           Versioned AI prompts
 database/migrations/       PostgreSQL/Alembic migrations
 docs/modules/              Approved module specifications
 ```
+
+## Active modules
+
+- [Module 1: AI Email Assistant](docs/modules/module-01-email-assistant.md)
+- [Module 1.5: Tenant Communication Hub](docs/modules/module-015-tenant-communication-hub.md)
+- [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
 
@@ -56,6 +62,7 @@ docs/modules/              Approved module specifications
 - **Zoho:** register a server OAuth client. Callback: `BACKEND_URL/api/v1/integrations/zoho/callback`. Use the Zoho accounts/mail base domains matching the mailbox data centre.
 - **OpenAI:** set `OPENAI_API_KEY`; `OPENAI_MODEL` can override the documented default.
 - **Resend:** verify the alert-sending domain and set `RESEND_API_KEY`.
+- **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
 - **Supabase:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Deployment

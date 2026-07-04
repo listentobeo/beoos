@@ -25,6 +25,7 @@ export type Business = {
   reply_signature: string;
   role: string;
   ai_policy: BusinessAIPolicy;
+  website_form_key: string;
 };
 export type InboxStats = {
   unread: number;

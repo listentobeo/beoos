@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.domain.business import default_business_settings
+from app.domain.business import default_business_settings, ensure_website_form_key
 from app.infrastructure.database import SessionFactory
 from app.infrastructure.models import Business, BusinessMember, PriceCatalogItem, Role
 
@@ -156,6 +156,8 @@ async def seed() -> None:
             )
             session.add(business)
             await session.flush()
+        else:
+            business.settings, _created = ensure_website_form_key(business.settings)
         member = await session.scalar(
             select(BusinessMember).where(
                 BusinessMember.business_id == business.id,

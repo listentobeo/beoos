@@ -1,6 +1,7 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
+import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type BusinessAIPolicy, type MailboxStatus } from "@/lib/api";
@@ -9,7 +10,9 @@ export const metadata = { title: "Business settings" };
 
 export default async function SettingsPage() {
   let businessId: string | null = null;
+  let businessSlug = "";
   let businessName = "Current business";
+  let websiteFormKey = "";
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
   let replySignature = "Not configured";
@@ -20,7 +23,9 @@ export default async function SettingsPage() {
   try {
     const business = await activeBusiness();
     businessId = business?.id ?? null;
+    businessSlug = business?.slug ?? "";
     businessName = business?.name ?? businessName;
+    websiteFormKey = business?.website_form_key ?? "";
     primaryEmail = business?.primary_email ?? primaryEmail;
     whatsappNumber = business?.whatsapp_number ?? whatsappNumber;
     replySignature = business?.reply_signature ?? replySignature;
@@ -65,6 +70,10 @@ export default async function SettingsPage() {
           </div>
           <p className="mt-5 flex items-center gap-2 text-sm text-[#535953]"><CheckCircle2 className="size-4 text-emerald-600" /> Only new deal opportunities</p>
         </Card>
+
+        {businessSlug && (
+          <WebsiteFormCard businessSlug={businessSlug} formKey={websiteFormKey} />
+        )}
 
         <Card className="p-5 md:col-span-2">
           <div className="flex items-start gap-3">

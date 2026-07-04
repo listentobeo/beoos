@@ -35,3 +35,39 @@ class AlertService:
             )
 
         await asyncio.to_thread(send)
+
+    async def send_website_lead_email(
+        self,
+        *,
+        recipient: str,
+        sender_email: str,
+        sender_name: str | None,
+        service: str | None,
+        budget: str | None,
+        deadline: str | None,
+        message: str,
+    ) -> None:
+        if not self._settings.resend_api_key:
+            return
+
+        def send() -> None:
+            resend.Emails.send(
+                {
+                    "from": self._settings.alert_from_email,
+                    "to": [recipient],
+                    "subject": f"[BeoOS Lead] Website enquiry from {sender_name or sender_email}",
+                    "text": (
+                        "A new website form enquiry entered BeoOS.\n\n"
+                        f"Name: {sender_name or 'Not provided'}\n"
+                        f"Email: {sender_email}\n"
+                        f"Service: {service or 'Not provided'}\n"
+                        f"Budget: {budget or 'Not provided'}\n"
+                        f"Deadline: {deadline or 'Not provided'}\n\n"
+                        f"Message:\n{message[:1800]}\n\n"
+                        "Open BeoOS Inbox to review and handle it."
+                    ),
+                    "headers": {"X-BeoOS-System": "website-lead-alert"},
+                }
+            )
+
+        await asyncio.to_thread(send)

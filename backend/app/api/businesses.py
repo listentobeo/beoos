@@ -6,7 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import AuthenticatedUser, BusinessAccess, require_admin, require_user
-from app.domain.business import BusinessAIPolicy, default_business_settings, normalized_ai_policy
+from app.domain.business import (
+    BusinessAIPolicy,
+    default_business_settings,
+    ensure_website_form_key,
+    normalized_ai_policy,
+    website_form_key,
+)
 from app.infrastructure.database import get_session
 from app.infrastructure.models import Business, BusinessMember, Role
 
@@ -30,6 +36,7 @@ class BusinessView(BaseModel):
     reply_signature: str
     role: str
     ai_policy: BusinessAIPolicy
+    website_form_key: str
 
 
 @router.get("", response_model=list[BusinessView])
@@ -45,6 +52,14 @@ async def list_businesses(
             .order_by(Business.name)
         )
     ).all()
+    changed = False
+    for business, _role in rows:
+        settings, created = ensure_website_form_key(business.settings)
+        if created:
+            business.settings = settings
+            changed = True
+    if changed:
+        await session.commit()
     return [
         BusinessView(
             id=str(business.id),
@@ -55,6 +70,7 @@ async def list_businesses(
             reply_signature=business.reply_signature,
             role=role.value,
             ai_policy=normalized_ai_policy(business.settings),
+            website_form_key=website_form_key(business.settings),
         )
         for business, role in rows
     ]
@@ -108,4 +124,5 @@ async def update_business_policy(
         reply_signature=business.reply_signature,
         role=access.role.value,
         ai_policy=payload,
+        website_form_key=website_form_key(settings),
     )
