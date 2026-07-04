@@ -16,6 +16,13 @@ export type BusinessAIPolicy = {
   custom_instructions: string;
 };
 
+export type BusinessWhatsAppSettings = {
+  enabled: boolean;
+  phone_number_id: string;
+  business_account_id: string;
+  display_phone_number: string;
+};
+
 export type Business = {
   id: string;
   slug: string;
@@ -25,6 +32,7 @@ export type Business = {
   reply_signature: string;
   role: string;
   ai_policy: BusinessAIPolicy;
+  whatsapp_connection: BusinessWhatsAppSettings;
   website_form_key: string;
 };
 export type InboxStats = {

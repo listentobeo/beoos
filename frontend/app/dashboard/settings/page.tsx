@@ -1,10 +1,11 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
+import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-form";
 import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type BusinessAIPolicy, type MailboxStatus } from "@/lib/api";
+import { activeBusiness, beoApi, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
@@ -15,6 +16,7 @@ export default async function SettingsPage() {
   let websiteFormKey = "";
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
+  let whatsappConnection: BusinessWhatsAppSettings | null = null;
   let replySignature = "Not configured";
   let aiPolicy: BusinessAIPolicy | null = null;
   let mailbox: MailboxStatus | null = null;
@@ -28,6 +30,7 @@ export default async function SettingsPage() {
     websiteFormKey = business?.website_form_key ?? "";
     primaryEmail = business?.primary_email ?? primaryEmail;
     whatsappNumber = business?.whatsapp_number ?? whatsappNumber;
+    whatsappConnection = business?.whatsapp_connection ?? null;
     replySignature = business?.reply_signature ?? replySignature;
     aiPolicy = business?.ai_policy ?? null;
     if (business) mailbox = await beoApi.mailbox(business.id);
@@ -64,11 +67,20 @@ export default async function SettingsPage() {
           <div className="flex items-start gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><MessageCircleMore className="size-4" /></div>
             <div>
-              <h2 className="font-bold">WhatsApp handoff</h2>
+              <h2 className="font-bold">WhatsApp Cloud API</h2>
               <p className="mt-1 text-sm text-[#777c76]">{whatsappNumber}</p>
+              {whatsappConnection?.enabled && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <CheckCircle2 className="size-3.5" /> Webhook enabled
+                </p>
+              )}
             </div>
           </div>
-          <p className="mt-5 flex items-center gap-2 text-sm text-[#535953]"><CheckCircle2 className="size-4 text-emerald-600" /> Only new deal opportunities</p>
+          {businessId && whatsappConnection ? (
+            <WhatsAppSettingsForm businessId={businessId} settings={whatsappConnection} />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+          )}
         </Card>
 
         {businessSlug && (

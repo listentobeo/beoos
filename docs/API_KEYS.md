@@ -113,17 +113,17 @@ Google setup required:
 - Gmail scopes approved;
 - Pub/Sub topic for push/watch if using near-real-time sync.
 
-## Planned next: WhatsApp Cloud API
+## Active in Module 1.6: WhatsApp Cloud API
 
-Needed later:
+Used for inbound WhatsApp messages and approval-based replies.
 
 ```env
-META_APP_ID=
 META_APP_SECRET=
 WHATSAPP_VERIFY_TOKEN=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_BUSINESS_ACCOUNT_ID=
+WHATSAPP_GRAPH_BASE_URL=https://graph.facebook.com/v20.0
 ```
 
 Meta setup required:
@@ -131,9 +131,17 @@ Meta setup required:
 - Meta Business account;
 - WhatsApp Business Account;
 - connected phone number;
-- webhook callback URL;
+- webhook callback URL:
+
+  ```text
+  BACKEND_URL/api/v1/webhooks/whatsapp
+  ```
+
 - webhook verify token;
-- message templates for business-initiated conversations.
+- per-business phone number ID saved in Business Settings;
+- message templates for later business-initiated conversations.
+
+Module 1.6 receives WhatsApp text messages and queues AI/manual replies for approval. Media, templates, delivery receipts, and automatic sends remain planned improvements.
 
 ## Planned next: PWA/mobile push
 

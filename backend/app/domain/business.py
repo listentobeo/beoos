@@ -24,6 +24,13 @@ class BusinessAIPolicy(BaseModel):
     )
 
 
+class BusinessWhatsAppSettings(BaseModel):
+    enabled: bool = False
+    phone_number_id: str = Field(default="", max_length=120)
+    business_account_id: str = Field(default="", max_length=120)
+    display_phone_number: str = Field(default="", max_length=40)
+
+
 def default_ai_policy() -> dict[str, Any]:
     return BusinessAIPolicy().model_dump()
 
@@ -35,6 +42,13 @@ def normalized_ai_policy(settings: dict[str, Any] | None) -> BusinessAIPolicy:
     return BusinessAIPolicy.model_validate(raw_policy)
 
 
+def normalized_whatsapp_settings(settings: dict[str, Any] | None) -> BusinessWhatsAppSettings:
+    raw_settings = (settings or {}).get("whatsapp", {})
+    if not isinstance(raw_settings, dict):
+        raw_settings = {}
+    return BusinessWhatsAppSettings.model_validate(raw_settings)
+
+
 def default_business_settings() -> dict[str, Any]:
     return {
         "history_days": 365,
@@ -42,6 +56,7 @@ def default_business_settings() -> dict[str, Any]:
         "blog_prices_are_estimates": True,
         "website_form_key": secrets.token_urlsafe(24),
         "ai_policy": default_ai_policy(),
+        "whatsapp": BusinessWhatsAppSettings().model_dump(),
     }
 
 

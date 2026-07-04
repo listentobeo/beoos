@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import AuthenticatedUser, BusinessAccess, require_admin, require_user
 from app.domain.business import (
     BusinessAIPolicy,
+    BusinessWhatsAppSettings,
     default_business_settings,
     ensure_website_form_key,
     normalized_ai_policy,
+    normalized_whatsapp_settings,
     website_form_key,
 )
 from app.infrastructure.database import get_session
@@ -36,6 +38,7 @@ class BusinessView(BaseModel):
     reply_signature: str
     role: str
     ai_policy: BusinessAIPolicy
+    whatsapp_connection: BusinessWhatsAppSettings
     website_form_key: str
 
 
@@ -70,6 +73,7 @@ async def list_businesses(
             reply_signature=business.reply_signature,
             role=role.value,
             ai_policy=normalized_ai_policy(business.settings),
+            whatsapp_connection=normalized_whatsapp_settings(business.settings),
             website_form_key=website_form_key(business.settings),
         )
         for business, role in rows
@@ -124,5 +128,34 @@ async def update_business_policy(
         reply_signature=business.reply_signature,
         role=access.role.value,
         ai_policy=payload,
+        whatsapp_connection=normalized_whatsapp_settings(settings),
+        website_form_key=website_form_key(settings),
+    )
+
+
+@router.patch("/{business_id}/whatsapp", response_model=BusinessView)
+async def update_business_whatsapp(
+    business_id: UUID,
+    payload: BusinessWhatsAppSettings,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> BusinessView:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+    settings = dict(business.settings or {})
+    settings["whatsapp"] = payload.model_dump()
+    business.settings = settings
+    await session.commit()
+    return BusinessView(
+        id=str(business.id),
+        slug=business.slug,
+        name=business.name,
+        primary_email=business.primary_email,
+        whatsapp_number=business.whatsapp_number,
+        reply_signature=business.reply_signature,
+        role=access.role.value,
+        ai_policy=normalized_ai_policy(settings),
+        whatsapp_connection=payload,
         website_form_key=website_form_key(settings),
     )

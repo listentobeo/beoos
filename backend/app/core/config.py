@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     zoho_accounts_base_url: str = "https://accounts.zoho.com"
     zoho_mail_base_url: str = "https://mail.zoho.com"
 
+    meta_app_secret: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_access_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_business_account_id: str = ""
+    whatsapp_graph_base_url: str = "https://graph.facebook.com/v20.0"
+
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
     cors_origins: str = ""

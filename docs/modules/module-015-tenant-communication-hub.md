@@ -7,7 +7,7 @@ Module 1.5 upgrades BeoOS from a Zoho-only email assistant into a tenant-based c
 BeoOS becomes the front desk for a business:
 
 ```text
-Website forms / Zoho Mail / future Gmail / future WhatsApp
+Website forms / Zoho Mail / WhatsApp / future Gmail
         -> Unified BeoOS Inbox
         -> Contact + lead record
         -> Business AI policy
@@ -58,9 +58,9 @@ Gmail OAuth -> Gmail message sync/watch -> BeoOS inbox
 
 ### WhatsApp
 
-Requires Meta Business, WhatsApp Cloud API, phone number, webhook verification, and message-template compliance.
+Activated in Module 1.6 for text-message intake and approval-based replies. It requires Meta Business, WhatsApp Cloud API, phone number, webhook verification, and message-template compliance.
 
-Planned adapter:
+Adapter:
 
 ```text
 WhatsApp webhook -> BeoOS inbox -> AI policy -> reply/template/approval
@@ -93,4 +93,3 @@ Requires browser push subscriptions, VAPID keys, service worker registration, an
 - Submitted content is treated as untrusted user input.
 - AI output is still checked by deterministic policy before any action.
 - Website form submissions are not auto-sent until an outbound channel is connected.
-

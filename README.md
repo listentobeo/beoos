@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies.
 
 ## Structure
 
@@ -19,6 +19,7 @@ docs/modules/              Approved module specifications
 
 - [Module 1: AI Email Assistant](docs/modules/module-01-email-assistant.md)
 - [Module 1.5: Tenant Communication Hub](docs/modules/module-015-tenant-communication-hub.md)
+- [Module 1.6: WhatsApp Communication Layer](docs/modules/module-016-whatsapp-communication-layer.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
@@ -63,6 +64,7 @@ docs/modules/              Approved module specifications
 - **OpenAI:** set `OPENAI_API_KEY`; `OPENAI_MODEL` can override the documented default.
 - **Resend:** verify the alert-sending domain and set `RESEND_API_KEY`.
 - **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
+- **WhatsApp Cloud API:** configure Meta webhook credentials globally, then save each tenant's phone number ID in Business Settings.
 - **Supabase:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Deployment

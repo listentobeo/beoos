@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -21,7 +22,10 @@ from app.domain.email import (
 )
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
+    AuditLog,
+    Business,
     Contact,
+    Direction,
     DraftStatus,
     EmailDraft,
     EmailMessage,
@@ -31,6 +35,7 @@ from app.infrastructure.models import (
     ThreadStatus,
 )
 from app.services.email_sync import EmailSyncService
+from app.services.whatsapp import WhatsAppCloudService
 
 router = APIRouter(prefix="/businesses/{business_id}/email", tags=["email"])
 logger = structlog.get_logger()
@@ -309,12 +314,90 @@ async def approve_draft(
         raise HTTPException(status_code=404, detail="Draft not found")
     if draft.status.value not in {"pending", "rejected", "failed"}:
         raise HTTPException(status_code=409, detail="Draft is not awaiting approval")
+    source_message = await session.get(EmailMessage, draft.source_message_id)
+    source_mailbox = (
+        await session.get(MailboxConnection, source_message.mailbox_id) if source_message else None
+    )
+    if source_mailbox and source_mailbox.provider == "whatsapp":
+        await _send_approved_whatsapp_draft(
+            session,
+            draft,
+            actor_id=access.user_id,
+            settings=settings,
+        )
+        return {"status": "sent", "draft_id": str(draft.id)}
     service = EmailSyncService(settings)
     try:
         await service.send_approved_draft(session, draft, actor_id=access.user_id)
     finally:
         await service.close()
     return {"status": "sent", "draft_id": str(draft.id)}
+
+
+async def _send_approved_whatsapp_draft(
+    session: AsyncSession,
+    draft: EmailDraft,
+    *,
+    actor_id: str,
+    settings: Settings,
+) -> None:
+    source_message = await session.get(EmailMessage, draft.source_message_id)
+    thread = await session.get(EmailThread, draft.thread_id)
+    if source_message is None or thread is None:
+        raise HTTPException(status_code=404, detail="Draft source thread was not found")
+    business = await session.get(Business, thread.business_id)
+    contact = await session.get(Contact, thread.contact_id) if thread.contact_id else None
+    if business is None or contact is None or not contact.phone:
+        raise HTTPException(status_code=409, detail="WhatsApp contact phone number is missing")
+
+    service = WhatsAppCloudService(settings)
+    draft.status = DraftStatus.approved
+    draft.approved_by = actor_id
+    await session.commit()
+    try:
+        provider_id = await service.send_text(
+            business=business,
+            recipient_phone=contact.phone,
+            body=draft.body_text,
+        )
+    except Exception:
+        draft.status = DraftStatus.failed
+        await session.commit()
+        raise
+    finally:
+        await service.close()
+
+    now = datetime.now(UTC)
+    draft.status = DraftStatus.sent
+    draft.sent_at = now
+    draft.provider_message_id = provider_id
+    thread.status = ThreadStatus.acknowledged
+    source_mailbox = await session.get(MailboxConnection, source_message.mailbox_id)
+    session.add(
+        EmailMessage(
+            thread_id=thread.id,
+            mailbox_id=source_message.mailbox_id,
+            provider_message_id=provider_id or f"whatsapp-outbound:{draft.id}",
+            direction=Direction.outbound,
+            sender_email=source_mailbox.email_address if source_mailbox else "whatsapp@beoos.local",
+            recipients=[contact.phone],
+            subject=draft.subject,
+            body_text=draft.body_text,
+            sent_at=now,
+            processed_at=now,
+        )
+    )
+    session.add(
+        AuditLog(
+            business_id=thread.business_id,
+            actor_id=actor_id,
+            action="whatsapp_draft.approved_and_sent",
+            resource_type="email_draft",
+            resource_id=str(draft.id),
+            details={"provider_message_id": provider_id},
+        )
+    )
+    await session.commit()
 
 
 def _thread_view(thread: EmailThread) -> ThreadListItem:
