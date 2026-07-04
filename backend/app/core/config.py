@@ -1,7 +1,7 @@
+import json
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,18 +35,21 @@ class Settings(BaseSettings):
 
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
-    cors_origins: list[str] = Field(default_factory=list)
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
+    cors_origins: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:
-        return self.cors_origins or [str(self.frontend_url).rstrip("/")]
+        value = self.cors_origins.strip()
+        if not value:
+            return [str(self.frontend_url).rstrip("/")]
+        if value.startswith("["):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                parsed = []
+            if isinstance(parsed, list):
+                return [str(origin).strip().rstrip("/") for origin in parsed if str(origin).strip()]
+        return [origin.strip().rstrip("/") for origin in value.split(",") if origin.strip()]
 
 
 @lru_cache
