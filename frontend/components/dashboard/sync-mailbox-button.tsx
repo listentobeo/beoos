@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 type SyncResult = {
-  success: boolean;
-  mailboxes_checked: number;
-  messages_fetched: number;
-  messages_created: number;
-  duplicates_skipped: number;
-  imported: number;
+  success?: boolean;
+  mailboxes_checked?: number;
+  messages_fetched?: number;
+  messages_created?: number;
+  duplicates_skipped?: number;
+  imported?: number;
+  message_count?: number;
 };
 
 export function SyncMailboxButton({ businessId }: { businessId: string }) {
@@ -41,9 +42,16 @@ export function SyncMailboxButton({ businessId }: { businessId: string }) {
         throw new Error(response.status === 404 ? "Connect Zoho Mail first." : `Sync failed.${detail}`);
       }
       const result = (await response.json()) as SyncResult;
-      setMessage(
-        `Fetched ${result.messages_fetched}, saved ${result.messages_created}, skipped ${result.duplicates_skipped} duplicate${result.duplicates_skipped === 1 ? "" : "s"}.`,
-      );
+      const created = result.messages_created ?? result.imported ?? 0;
+      const fetched = result.messages_fetched;
+      const duplicates = result.duplicates_skipped;
+      if (typeof fetched === "number" && typeof duplicates === "number") {
+        setMessage(
+          `Fetched ${fetched}, saved ${created}, skipped ${duplicates} duplicate${duplicates === 1 ? "" : "s"}.`,
+        );
+      } else {
+        setMessage(`Saved ${created} new message${created === 1 ? "" : "s"}.`);
+      }
       router.refresh();
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Sync failed.");
