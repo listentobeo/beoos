@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends
+﻿from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import AuthenticatedUser, require_user
+from app.core.security import AuthenticatedUser, BusinessAccess, require_admin, require_user
+from app.domain.business import BusinessAIPolicy, default_business_settings, normalized_ai_policy
 from app.infrastructure.database import get_session
 from app.infrastructure.models import Business, BusinessMember, Role
 
@@ -18,11 +21,22 @@ class BusinessCreate(BaseModel):
     reply_signature: str = Field(min_length=2, max_length=500)
 
 
-@router.get("")
+class BusinessView(BaseModel):
+    id: str
+    slug: str
+    name: str
+    primary_email: EmailStr
+    whatsapp_number: str
+    reply_signature: str
+    role: str
+    ai_policy: BusinessAIPolicy
+
+
+@router.get("", response_model=list[BusinessView])
 async def list_businesses(
     user: AuthenticatedUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
-) -> list[dict[str, str]]:
+) -> list[BusinessView]:
     rows = (
         await session.execute(
             select(Business, BusinessMember.role)
@@ -32,15 +46,16 @@ async def list_businesses(
         )
     ).all()
     return [
-        {
-            "id": str(business.id),
-            "slug": business.slug,
-            "name": business.name,
-            "primary_email": business.primary_email,
-            "whatsapp_number": business.whatsapp_number,
-            "reply_signature": business.reply_signature,
-            "role": role.value,
-        }
+        BusinessView(
+            id=str(business.id),
+            slug=business.slug,
+            name=business.name,
+            primary_email=business.primary_email,
+            whatsapp_number=business.whatsapp_number,
+            reply_signature=business.reply_signature,
+            role=role.value,
+            ai_policy=normalized_ai_policy(business.settings),
+        )
         for business, role in rows
     ]
 
@@ -52,18 +67,10 @@ async def create_business(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     if await session.scalar(select(Business.id).where(Business.slug == payload.slug)):
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=409, detail="Business slug already exists")
     business = Business(
         **payload.model_dump(mode="json"),
-        settings={
-            "auto_acknowledge": True,
-            "history_days": 365,
-            "price_authority": "service_pages",
-            "blog_prices_are_estimates": True,
-            "route_only_deals_to_whatsapp": True,
-        },
+        settings=default_business_settings(),
     )
     session.add(business)
     await session.flush()
@@ -76,3 +83,29 @@ async def create_business(
     )
     await session.commit()
     return {"id": str(business.id), "slug": business.slug, "name": business.name}
+
+
+@router.patch("/{business_id}/policy", response_model=BusinessView)
+async def update_business_policy(
+    business_id: UUID,
+    payload: BusinessAIPolicy,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> BusinessView:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+    settings = dict(business.settings or {})
+    settings["ai_policy"] = payload.model_dump()
+    business.settings = settings
+    await session.commit()
+    return BusinessView(
+        id=str(business.id),
+        slug=business.slug,
+        name=business.name,
+        primary_email=business.primary_email,
+        whatsapp_number=business.whatsapp_number,
+        reply_signature=business.reply_signature,
+        role=access.role.value,
+        ai_policy=payload,
+    )

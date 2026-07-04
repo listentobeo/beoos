@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import json
 from pathlib import Path
 
@@ -29,6 +29,7 @@ class OpenAIEmailService:
         business_name: str,
         reply_signature: str,
         whatsapp_link: str,
+        business_policy_instructions: str,
     ) -> tuple[EmailTriageResult, str]:
         input_payload = {
             "subject": subject,
@@ -43,6 +44,8 @@ class OpenAIEmailService:
                 business_name=business_name,
                 signature_block=reply_signature,
                 whatsapp_link=whatsapp_link,
+                business_policy_instructions=business_policy_instructions.strip()
+                or "Follow the default BeoOS business policy.",
             ),
             input=json.dumps(input_payload, ensure_ascii=False),
             reasoning={"effort": "low"},

@@ -1,10 +1,11 @@
-import asyncio
+﻿import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.domain.business import default_business_settings
 from app.infrastructure.database import SessionFactory
 from app.infrastructure.models import Business, BusinessMember, PriceCatalogItem, Role
 
@@ -151,13 +152,7 @@ async def seed() -> None:
                 primary_email="admin@beoarts.com",
                 whatsapp_number="+2349075424681",
                 reply_signature="Benjamin Odeke\nBeo Art Studio",
-                settings={
-                    "auto_acknowledge": True,
-                    "history_days": 365,
-                    "price_authority": "service_pages",
-                    "blog_prices_are_estimates": True,
-                    "route_only_deals_to_whatsapp": True,
-                },
+                settings=default_business_settings(),
             )
             session.add(business)
             await session.flush()
@@ -198,3 +193,4 @@ async def seed() -> None:
 
 if __name__ == "__main__":
     asyncio.run(seed())
+

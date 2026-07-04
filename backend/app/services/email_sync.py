@@ -1,4 +1,4 @@
-import html
+﻿import html
 import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.domain.business import normalized_ai_policy
 from app.domain.email import RecommendedAction
 from app.infrastructure.models import (
     AuditLog,
@@ -296,6 +297,7 @@ class EmailSyncService:
             )
             return
 
+        policy = normalized_ai_policy(business.settings)
         context_rows = (
             await session.scalars(
                 select(EmailMessage)
@@ -317,6 +319,7 @@ class EmailSyncService:
             business_name=business.name,
             reply_signature=business.reply_signature,
             whatsapp_link=self._whatsapp_link(business.whatsapp_number),
+            business_policy_instructions=policy.custom_instructions,
         )
         session.add(
             EmailAnalysis(
@@ -344,6 +347,7 @@ class EmailSyncService:
         decision = EmailPolicyEngine(
             signature=business.reply_signature,
             whatsapp_number=business.whatsapp_number,
+            policy=policy,
         ).evaluate(
             triage,
             is_existing_client=contact.is_existing_client,
@@ -474,3 +478,6 @@ class EmailSyncService:
     def _whatsapp_link(number: str) -> str:
         digits = "".join(character for character in number if character.isdigit())
         return f"https://wa.me/{digits}"
+
+
+

@@ -1,8 +1,9 @@
-import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
+﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
+import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type MailboxStatus } from "@/lib/api";
+import { activeBusiness, beoApi, type BusinessAIPolicy, type MailboxStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
@@ -12,6 +13,7 @@ export default async function SettingsPage() {
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
   let replySignature = "Not configured";
+  let aiPolicy: BusinessAIPolicy | null = null;
   let mailbox: MailboxStatus | null = null;
   let setupMessage = "Initial business setup has not completed.";
 
@@ -22,6 +24,7 @@ export default async function SettingsPage() {
     primaryEmail = business?.primary_email ?? primaryEmail;
     whatsappNumber = business?.whatsapp_number ?? whatsappNumber;
     replySignature = business?.reply_signature ?? replySignature;
+    aiPolicy = business?.ai_policy ?? null;
     if (business) mailbox = await beoApi.mailbox(business.id);
   } catch {
     setupMessage = "Unable to load business data from the BeoOS API.";
@@ -76,6 +79,23 @@ export default async function SettingsPage() {
             <p className="rounded-xl bg-[#f7f6f2] p-3">Existing clients stay on their channel</p>
             <p className="rounded-xl bg-[#f7f6f2] p-3">Prices and commitments need approval</p>
           </div>
+        </Card>
+
+        <Card className="p-5 md:col-span-2">
+          <div className="flex items-start gap-3">
+            <div className="grid size-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><ShieldCheck className="size-4" /></div>
+            <div>
+              <h2 className="font-bold">Business AI policy</h2>
+              <p className="mt-1 text-sm leading-6 text-[#777c76]">
+                These rules belong to this business only. Core BeoOS guardrails still block unsafe actions, but this section controls how aggressive or careful the AI should be for {businessName}.
+              </p>
+            </div>
+          </div>
+          {businessId && aiPolicy ? (
+            <PolicySettingsForm businessId={businessId} policy={aiPolicy} />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+          )}
         </Card>
 
         <Card className="p-5 md:col-span-2">

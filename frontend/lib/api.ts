@@ -1,6 +1,20 @@
-import { auth } from "@clerk/nextjs/server";
+﻿import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { cache } from "react";
+
+export type BusinessAIPolicy = {
+  auto_acknowledge: boolean;
+  auto_route_whatsapp: boolean;
+  confidence_threshold: number;
+  require_approval_for_prices: boolean;
+  require_approval_for_commitments: boolean;
+  require_approval_for_risk_flags: boolean;
+  existing_clients_stay_on_current_channel: boolean;
+  art_school_stays_in_email: boolean;
+  professionals_stay_in_email: boolean;
+  route_only_deals_to_whatsapp: boolean;
+  custom_instructions: string;
+};
 
 export type Business = {
   id: string;
@@ -10,6 +24,7 @@ export type Business = {
   whatsapp_number: string;
   reply_signature: string;
   role: string;
+  ai_policy: BusinessAIPolicy;
 };
 export type InboxStats = {
   unread: number;
@@ -133,3 +148,4 @@ export async function activeBusiness(existingBusinesses?: Business[]) {
   const selectedId = (await cookies()).get("beoos_business_id")?.value;
   return businesses.find((business) => business.id === selectedId) ?? businesses[0] ?? null;
 }
+
