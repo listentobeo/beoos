@@ -473,7 +473,7 @@ def _digits(value: str) -> str:
 
 def _synthetic_whatsapp_email(phone: str) -> str:
     digits = _digits(phone) or "unknown"
-    return f"whatsapp+{digits}@beoos.local"
+    return f"whatsapp+{digits}@channels.beoos.app"
 
 
 def _whatsapp_link(number: str) -> str:

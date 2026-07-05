@@ -60,7 +60,7 @@ class ThreadListItem(BaseModel):
 class ThreadMessageView(BaseModel):
     id: UUID
     direction: str
-    sender_email: EmailStr
+    sender_email: str
     sender_name: str | None
     subject: str
     body_text: str
