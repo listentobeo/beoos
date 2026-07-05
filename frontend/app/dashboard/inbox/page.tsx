@@ -101,7 +101,7 @@ export default async function InboxPage() {
         <div className="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-bold tracking-tight">Unified inbox</h2>
-            <p className="mt-0.5 text-xs text-[#858a84]">Zoho Mail, classified by BeoOS</p>
+            <p className="mt-0.5 text-xs text-[#858a84]">Zoho Mail, website forms, and WhatsApp, classified by BeoOS</p>
           </div>
           <div className="flex items-center gap-2 rounded-xl border bg-[#faf9f6] px-3 py-2 text-sm text-[#777c76] sm:w-64">
             <Search className="size-4" />

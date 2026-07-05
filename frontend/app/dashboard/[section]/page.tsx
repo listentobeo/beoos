@@ -5,10 +5,10 @@ import { activeBusiness, beoApi, type Thread } from "@/lib/api";
 
 export default async function DashboardSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
-  const filters: Record<string, { category?: string; status?: string }> = {
+  const filters: Record<string, { category?: string; status?: string; provider?: string }> = {
     urgent: { category: "urgent" },
     clients: { category: "existing_client" },
-    whatsapp: { status: "routed_whatsapp" },
+    whatsapp: { provider: "whatsapp" },
   };
   let threads: Thread[] | null = null;
   if (filters[section]) {

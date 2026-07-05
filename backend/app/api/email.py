@@ -135,6 +135,7 @@ async def list_threads(
     business_id: UUID,
     category: ThreadCategory | None = None,
     status: ThreadStatus | None = None,
+    provider: str | None = Query(default=None, max_length=32),
     search: str | None = Query(default=None, max_length=160),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -153,6 +154,13 @@ async def list_threads(
         query = query.where(EmailThread.category == category)
     if status:
         query = query.where(EmailThread.status == status)
+    if provider:
+        query = (
+            query.join(EmailMessage, EmailMessage.thread_id == EmailThread.id)
+            .join(MailboxConnection, MailboxConnection.id == EmailMessage.mailbox_id)
+            .where(MailboxConnection.provider == provider)
+            .distinct()
+        )
     if search:
         query = query.outerjoin(Contact).where(
             EmailThread.subject.ilike(f"%{search}%") | Contact.email.ilike(f"%{search}%")
@@ -230,11 +238,20 @@ async def inbox_stats(
             EmailThread.business_id == business_id
         )
     )
+    whatsapp_value = await session.scalar(
+        select(func.count(func.distinct(EmailThread.id)))
+        .join(EmailMessage, EmailMessage.thread_id == EmailThread.id)
+        .join(MailboxConnection, MailboxConnection.id == EmailMessage.mailbox_id)
+        .where(
+            EmailThread.business_id == business_id,
+            MailboxConnection.provider == "whatsapp",
+        )
+    )
     return InboxStats(
         unread=int(unread_value or 0),
         needs_approval=await count(EmailThread.status == ThreadStatus.needs_approval),
         urgent=await count(EmailThread.category == ThreadCategory.urgent),
-        routed_whatsapp=await count(EmailThread.status == ThreadStatus.routed_whatsapp),
+        routed_whatsapp=int(whatsapp_value or 0),
         existing_clients=await count(EmailThread.category == ThreadCategory.existing_client),
     )
 

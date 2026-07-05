@@ -23,7 +23,7 @@ const primary = [
   ["Needs approval", "/dashboard/approvals", FilePenLine],
   ["Urgent", "/dashboard/urgent", ShieldAlert],
   ["Existing clients", "/dashboard/clients", UsersRound],
-  ["WhatsApp handoffs", "/dashboard/whatsapp", MessageCircleMore],
+  ["WhatsApp inbox", "/dashboard/whatsapp", MessageCircleMore],
 ] as const;
 
 const manage = [
