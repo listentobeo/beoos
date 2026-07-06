@@ -147,7 +147,7 @@ export default async function SettingsPage() {
           )}
         </Card>
 
-        <Card className="p-5 md:col-span-2">
+        <Card id="notifications" className="scroll-mt-6 p-5 md:col-span-2">
           <h2 className="font-bold">Realtime dashboard and alerts</h2>
           <p className="mt-1 text-sm leading-6 text-[#777c76]">
             BeoOS now refreshes dashboard data automatically while open. Enable push notifications to get device alerts when new inbox messages arrive.

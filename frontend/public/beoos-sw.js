@@ -1,3 +1,11 @@
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -8,9 +16,11 @@ self.addEventListener("push", (event) => {
   const title = data.title || "New BeoOS message";
   const options = {
     body: data.body || "Open BeoOS to review the new conversation.",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
+    icon: "/favicon.svg",
+    badge: "/favicon.svg",
     tag: data.tag || "beoos-inbox",
+    renotify: true,
+    timestamp: Date.now(),
     data: {
       url: data.url || "/dashboard/inbox",
     },
@@ -30,6 +40,20 @@ self.addEventListener("notificationclick", (event) => {
         }
       }
       return self.clients.openWindow(url);
+    }),
+  );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "BEOOS_SHOW_TEST_NOTIFICATION") return;
+  event.waitUntil(
+    self.registration.showNotification("BeoOS browser test", {
+      body: "If you can see this, browser notifications are allowed on this device.",
+      icon: "/favicon.svg",
+      badge: "/favicon.svg",
+      tag: "beoos-local-test",
+      renotify: true,
+      data: { url: "/dashboard/settings#notifications" },
     }),
   );
 });

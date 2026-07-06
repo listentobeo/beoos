@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
@@ -32,3 +32,15 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<rect width="256" height="256" rx="56" fill="#171b23"/>
+<rect x="18" y="18" width="220" height="220" rx="44" fill="#ed633f"/>
+<text x="128" y="146" text-anchor="middle" dominant-baseline="middle"
+font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800"
+fill="#ffffff" letter-spacing="-3">BeoOS</text>
+</svg>"""
+    return Response(content=svg, media_type="image/svg+xml")

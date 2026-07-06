@@ -5,6 +5,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "BeoOS", template: "%s · BeoOS" },
   description: "The operating system for Beo businesses.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -16,4 +21,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </ClerkProvider>
   );
 }
-

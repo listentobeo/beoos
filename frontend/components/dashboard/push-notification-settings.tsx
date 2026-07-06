@@ -110,6 +110,33 @@ export function PushNotificationSettings({
     }
   }
 
+  async function localBrowserTest() {
+    setLoading(true);
+    setMessage(null);
+    try {
+      if (!("Notification" in window)) {
+        throw new Error("This browser does not support notifications.");
+      }
+      if (Notification.permission !== "granted") {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") throw new Error("Notification permission was not granted.");
+      }
+      const registration = await ensureServiceWorker();
+      await registration.showNotification("BeoOS browser test", {
+        body: "If you can see this, browser notifications are allowed on this device.",
+        icon: "/favicon.svg",
+        badge: "/favicon.svg",
+        tag: "beoos-local-test",
+        data: { url: "/dashboard/settings#notifications" },
+      });
+      setMessage("Local browser test triggered. If nothing appeared, Windows or the browser is blocking notifications.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not show a local browser notification.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function disable() {
     setLoading(true);
     setMessage(null);
@@ -168,6 +195,9 @@ export function PushNotificationSettings({
                 Send test notification
               </Button>
             )}
+            <Button type="button" variant="ghost" size="sm" onClick={localBrowserTest} disabled={loading}>
+              Show browser test
+            </Button>
           </div>
           {message && <p className="mt-3 text-xs text-[#747973]">{message}</p>}
         </div>

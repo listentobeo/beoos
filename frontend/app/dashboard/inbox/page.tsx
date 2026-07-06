@@ -1,4 +1,5 @@
 import { Bell, FilePenLine, Inbox, MessageCircleMore, ShieldAlert, UsersRound } from "lucide-react";
+import Link from "next/link";
 import { ConversationSearch } from "@/components/dashboard/conversation-search";
 import { InboxTable } from "@/components/dashboard/inbox-table";
 import { SyncMailboxButton } from "@/components/dashboard/sync-mailbox-button";
@@ -61,7 +62,9 @@ export default async function InboxPage({
           <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] text-[#171b23] sm:text-3xl">Good morning, Benjamin.</h1>
           <p className="mt-1 text-sm text-[#747973]">Here&apos;s what needs your attention today.</p>
         </div>
-        <Button variant="outline" size="icon" aria-label="Notifications"><Bell className="size-4" /></Button>
+        <Button asChild variant="outline" size="icon" aria-label="Notifications">
+          <Link href="/dashboard/settings#notifications"><Bell className="size-4" /></Link>
+        </Button>
       </header>
 
       {!connected && (
