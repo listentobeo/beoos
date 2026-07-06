@@ -3,6 +3,7 @@ import json
 from uuid import UUID
 
 import structlog
+from py_vapid import Vapid02
 from pywebpush import WebPushException, webpush  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ logger = structlog.get_logger()
 class PushNotificationService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._vapid_key: Vapid02 | str | None = None
 
     @property
     def configured(self) -> bool:
@@ -106,7 +108,7 @@ class PushNotificationService:
             webpush(
                 subscription_info=info,
                 data=payload,
-                vapid_private_key=self._settings.vapid_private_key,
+                vapid_private_key=self._private_key(),
                 vapid_claims={"sub": self._settings.vapid_subject},
             )
 
@@ -130,3 +132,14 @@ class PushNotificationService:
                 subscription_id=str(subscription.id),
             )
             return False
+
+    def _private_key(self) -> Vapid02 | str:
+        if self._vapid_key is not None:
+            return self._vapid_key
+        value = self._settings.vapid_private_key.strip()
+        normalized = value.replace("\\n", "\n")
+        if "-----BEGIN" in normalized:
+            self._vapid_key = Vapid02.from_pem(normalized.encode())
+            return self._vapid_key
+        self._vapid_key = value
+        return self._vapid_key
