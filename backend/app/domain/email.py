@@ -102,6 +102,7 @@ class InboxStats(BaseModel):
 
 class MailboxStatus(BaseModel):
     connected: bool
+    provider: str | None = None
     email_address: EmailStr | None = None
     active: bool = False
     history_start_at: datetime | None = None

@@ -95,23 +95,53 @@ If the form is submitted directly from a browser on the business website, add th
 CORS_ORIGINS=https://beoos.vercel.app,https://www.beoarts.com,https://beoarts.com
 ```
 
-## Planned next: Gmail
+## Active in Module 1.8: Gmail / Google Workspace
 
-Needed later:
+Used for Google mailbox OAuth, manual sync, and Gmail replies from BeoOS.
 
 ```env
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_PUBSUB_TOPIC=
+GOOGLE_ACCOUNTS_BASE_URL=https://accounts.google.com
+GOOGLE_TOKEN_URL=https://oauth2.googleapis.com/token
+GOOGLE_USERINFO_URL=https://openidconnect.googleapis.com/v1/userinfo
+GOOGLE_GMAIL_BASE_URL=https://gmail.googleapis.com
 ```
 
-Google setup required:
+Google callback:
+
+```text
+BACKEND_URL/api/v1/integrations/google/callback
+```
+
+Production example:
+
+```text
+https://beoos-production.up.railway.app/api/v1/integrations/google/callback
+```
+
+Google Cloud setup required:
 
 - Google Cloud project;
 - OAuth consent screen;
 - Gmail API enabled;
-- Gmail scopes approved;
-- Pub/Sub topic for push/watch if using near-real-time sync.
+- authorized redirect URI above;
+- Gmail scopes for read and send.
+
+Scopes used:
+
+```text
+openid
+email
+https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.send
+```
+
+Near-real-time Gmail push/watch will be a later worker upgrade and may use:
+
+```env
+GOOGLE_PUBSUB_TOPIC=
+```
 
 ## Active in Module 1.6: WhatsApp Cloud API
 

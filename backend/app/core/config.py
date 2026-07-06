@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     zoho_accounts_base_url: str = "https://accounts.zoho.com"
     zoho_mail_base_url: str = "https://mail.zoho.com"
 
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_accounts_base_url: str = "https://accounts.google.com"
+    google_token_url: str = "https://oauth2.googleapis.com/token"
+    google_userinfo_url: str = "https://openidconnect.googleapis.com/v1/userinfo"
+    google_gmail_base_url: str = "https://gmail.googleapis.com"
+
     meta_app_secret: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_access_token: str = ""

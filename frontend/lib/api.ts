@@ -44,6 +44,7 @@ export type InboxStats = {
 };
 export type MailboxStatus = {
   connected: boolean;
+  provider: string | null;
   email_address: string | null;
   active: boolean;
   history_start_at: string | null;
@@ -142,8 +143,10 @@ const getBusinesses = cache(() => apiFetch<Business[]>("/businesses"));
 export const beoApi = {
   businesses: getBusinesses,
   stats: (businessId: string) => apiFetch<InboxStats>(`/businesses/${businessId}/email/stats`),
-  mailbox: (businessId: string) =>
-    apiFetch<MailboxStatus>(`/businesses/${businessId}/email/mailbox`),
+  mailbox: (businessId: string, provider?: string) =>
+    apiFetch<MailboxStatus>(
+      `/businesses/${businessId}/email/mailbox${provider ? `?provider=${provider}` : ""}`,
+    ),
   threads: (
     businessId: string,
     filters?: { category?: string; status?: string; provider?: string; search?: string },

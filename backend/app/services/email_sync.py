@@ -30,6 +30,7 @@ from app.infrastructure.models import (
 )
 from app.services.alerts import AlertService
 from app.services.crypto import SecretCipher
+from app.services.gmail import GmailClient, normalize_gmail_message
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -54,6 +55,7 @@ class EmailSyncService:
         self._settings = settings
         self._cipher = SecretCipher(settings.secret_encryption_key)
         self._zoho = ZohoMailClient(settings)
+        self._gmail = GmailClient(settings)
         self._ai = OpenAIEmailService(settings)
         self._alerts = AlertService(settings)
 
@@ -87,6 +89,9 @@ class EmailSyncService:
             email_address=mailbox.email_address,
             provider_account_id=mailbox.provider_account_id,
         )
+
+        if mailbox.provider == "gmail":
+            return await self._sync_gmail_mailbox(session, business, mailbox, report)
 
         access_token = await self._valid_access_token(mailbox)
         folders = await self._zoho.get_folders(access_token, mailbox.provider_account_id)
@@ -203,6 +208,105 @@ class EmailSyncService:
         )
         return report
 
+    async def _sync_gmail_mailbox(
+        self,
+        session: AsyncSession,
+        business: Business,
+        mailbox: MailboxConnection,
+        report: MailboxSyncReport,
+    ) -> MailboxSyncReport:
+        access_token = await self._valid_access_token(mailbox)
+        first_sync = mailbox.last_synced_at is None
+        targets = (
+            [("SENT", Direction.outbound), ("INBOX", Direction.inbound)]
+            if first_sync
+            else [("INBOX", Direction.inbound)]
+        )
+        for label_id, direction in targets:
+            page_token: str | None = None
+            while True:
+                page = await self._gmail.list_messages(
+                    access_token=access_token,
+                    label_id=label_id,
+                    page_token=page_token,
+                    max_results=100,
+                    after=mailbox.history_start_at,
+                )
+                entries = [
+                    item for item in page.get("messages", []) if isinstance(item, dict)
+                ]
+                report.messages_fetched += len(entries)
+                logger.info(
+                    "mailbox_sync_messages_fetched",
+                    mailbox_id=str(mailbox.id),
+                    business_id=str(business.id),
+                    provider=mailbox.provider,
+                    folder_name=label_id.lower(),
+                    direction=direction.value,
+                    fetched=len(entries),
+                    first_sync=first_sync,
+                )
+                for entry in entries:
+                    provider_message_id = str(entry.get("id") or "")
+                    if not provider_message_id:
+                        continue
+                    exists = await session.scalar(
+                        select(EmailMessage.id).where(
+                            EmailMessage.mailbox_id == mailbox.id,
+                            EmailMessage.provider_message_id == provider_message_id,
+                        )
+                    )
+                    if exists:
+                        report.duplicates_skipped += 1
+                        continue
+                    message = await self._gmail.get_message(
+                        access_token=access_token,
+                        message_id=provider_message_id,
+                    )
+                    summary, content = normalize_gmail_message(message)
+                    sent_at = self._parse_zoho_time(
+                        summary.get("receivedTime") or summary.get("sentDateInGMT")
+                    )
+                    if sent_at < mailbox.history_start_at:
+                        continue
+                    created_thread_id = await self._import_message(
+                        session,
+                        business,
+                        mailbox,
+                        summary,
+                        content,
+                        direction=direction,
+                    )
+                    if created_thread_id:
+                        report.messages_created += 1
+                        if direction == Direction.inbound:
+                            sender = summary.get("fromAddress") or summary.get("sender")
+                            subject = summary.get("subject") or "(no subject)"
+                            await PushNotificationService(self._settings).send_new_inbox_message(
+                                session,
+                                business_id=business.id,
+                                thread_id=created_thread_id,
+                                title=f"New Gmail message for {business.name}",
+                                body=f"{sender}: {subject}",
+                                channel="gmail",
+                            )
+                await session.commit()
+                page_token = str(page.get("nextPageToken") or "")
+                if not page_token:
+                    break
+        mailbox.last_synced_at = datetime.now(UTC)
+        await session.commit()
+        logger.info(
+            "mailbox_sync_finished",
+            mailbox_id=str(mailbox.id),
+            business_id=str(business.id),
+            provider=mailbox.provider,
+            messages_fetched=report.messages_fetched,
+            messages_created=report.messages_created,
+            duplicates_skipped=report.duplicates_skipped,
+        )
+        return report
+
     async def send_approved_draft(
         self,
         session: AsyncSession,
@@ -218,15 +322,14 @@ class EmailSyncService:
         if mailbox is None or thread is None or not mailbox.provider_account_id:
             raise RuntimeError("Draft mailbox or thread was not found")
 
-        access_token = await self._valid_access_token(mailbox)
         draft.status = DraftStatus.approved
         draft.approved_by = actor_id
         await session.commit()
         try:
-            provider_id = await self._zoho.reply(
-                access_token=access_token,
-                account_id=mailbox.provider_account_id,
-                message_id=source_message.provider_message_id,
+            provider_id = await self._reply(
+                mailbox=mailbox,
+                source_message=source_message,
+                subject=draft.subject,
                 body=draft.body_text,
             )
         except Exception:
@@ -451,10 +554,10 @@ class EmailSyncService:
             draft.status = DraftStatus.approved
             await session.commit()
             try:
-                provider_id = await self._zoho.reply(
-                    access_token=await self._valid_access_token(mailbox),
-                    account_id=mailbox.provider_account_id or "",
-                    message_id=message.provider_message_id,
+                provider_id = await self._reply(
+                    mailbox=mailbox,
+                    source_message=message,
+                    subject=draft.subject,
                     body=draft.body_text,
                 )
             except Exception:
@@ -520,16 +623,43 @@ class EmailSyncService:
         ):
             return self._cipher.decrypt(mailbox.access_token_encrypted)
         if not mailbox.refresh_token_encrypted:
-            raise RuntimeError("Zoho refresh token is missing")
-        token, expires_at = await self._zoho.refresh_access_token(
-            self._cipher.decrypt(mailbox.refresh_token_encrypted)
-        )
+            raise RuntimeError(f"{mailbox.provider} refresh token is missing")
+        refresh_token = self._cipher.decrypt(mailbox.refresh_token_encrypted)
+        if mailbox.provider == "gmail":
+            token, expires_at = await self._gmail.refresh_access_token(refresh_token)
+        else:
+            token, expires_at = await self._zoho.refresh_access_token(refresh_token)
         mailbox.access_token_encrypted = self._cipher.encrypt(token)
         mailbox.token_expires_at = expires_at
         return token
 
+    async def _reply(
+        self,
+        *,
+        mailbox: MailboxConnection,
+        source_message: EmailMessage,
+        subject: str,
+        body: str,
+    ) -> str:
+        access_token = await self._valid_access_token(mailbox)
+        if mailbox.provider == "gmail":
+            return await self._gmail.reply(
+                access_token=access_token,
+                message_id=source_message.provider_message_id,
+                to=source_message.sender_email,
+                subject=subject,
+                body=body,
+            )
+        return await self._zoho.reply(
+            access_token=access_token,
+            account_id=mailbox.provider_account_id or "",
+            message_id=source_message.provider_message_id,
+            body=body,
+        )
+
     async def close(self) -> None:
         await self._zoho.close()
+        await self._gmail.close()
         await self._ai.close()
 
     @staticmethod

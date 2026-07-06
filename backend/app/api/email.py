@@ -44,21 +44,23 @@ logger = structlog.get_logger()
 @router.get("/mailbox", response_model=MailboxStatus)
 async def mailbox_status(
     business_id: UUID,
+    provider: str | None = Query(default=None, max_length=32),
     _access: BusinessAccess = Depends(require_business_access),
     session: AsyncSession = Depends(get_session),
 ) -> MailboxStatus:
-    mailbox = await session.scalar(
-        select(MailboxConnection)
-        .where(MailboxConnection.business_id == business_id, MailboxConnection.provider == "zoho")
-        .order_by(MailboxConnection.updated_at.desc())
-        .limit(1)
-    )
+    query = select(MailboxConnection).where(MailboxConnection.business_id == business_id)
+    if provider:
+        query = query.where(MailboxConnection.provider == provider)
+    else:
+        query = query.where(MailboxConnection.provider.in_(["zoho", "gmail"]))
+    mailbox = await session.scalar(query.order_by(MailboxConnection.updated_at.desc()).limit(1))
     return await _mailbox_status(session, business_id, mailbox)
 
 
 @router.post("/mailbox/sync", response_model=MailboxSyncResult)
 async def sync_mailbox_now(
     business_id: UUID,
+    provider: str | None = Query(default=None, max_length=32),
     access: BusinessAccess = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
@@ -68,30 +70,31 @@ async def sync_mailbox_now(
         business_id=str(business_id),
         user_id=access.user_id,
         role=access.role.value,
-        provider="zoho",
+        provider=provider or "any",
     )
-    mailbox = await session.scalar(
-        select(MailboxConnection)
-        .where(
-            MailboxConnection.business_id == business_id,
-            MailboxConnection.provider == "zoho",
-            MailboxConnection.active.is_(True),
-        )
-        .order_by(MailboxConnection.updated_at.desc())
-        .limit(1)
+    query = select(MailboxConnection).where(
+        MailboxConnection.business_id == business_id,
+        MailboxConnection.active.is_(True),
     )
+    if provider:
+        query = query.where(MailboxConnection.provider == provider)
+    else:
+        query = query.where(MailboxConnection.provider.in_(["zoho", "gmail"]))
+    mailbox = await session.scalar(query.order_by(MailboxConnection.updated_at.desc()).limit(1))
     if mailbox is None:
         logger.warning(
-            "manual_mailbox_sync_missing_zoho_mailbox",
+            "manual_mailbox_sync_missing_mailbox",
             business_id=str(business_id),
             user_id=access.user_id,
+            provider=provider or "any",
         )
-        raise HTTPException(status_code=404, detail="Zoho Mail is not connected")
+        raise HTTPException(status_code=404, detail="No email mailbox is connected")
     logger.info(
-        "manual_mailbox_sync_zoho_mailbox_found",
+        "manual_mailbox_sync_mailbox_found",
         business_id=str(business_id),
         user_id=access.user_id,
         mailbox_id=str(mailbox.id),
+        provider=mailbox.provider,
         email_address=mailbox.email_address,
         provider_account_id=mailbox.provider_account_id,
     )
@@ -104,7 +107,7 @@ async def sync_mailbox_now(
             business_id=str(business_id),
             user_id=access.user_id,
             mailbox_id=str(mailbox.id),
-            provider="zoho",
+            provider=mailbox.provider,
         )
         raise
     finally:
@@ -460,6 +463,7 @@ async def _mailbox_status(
         )
     return MailboxStatus(
         connected=bool(mailbox.provider_account_id and mailbox.refresh_token_encrypted),
+        provider=mailbox.provider,
         email_address=mailbox.email_address,
         active=mailbox.active,
         history_start_at=mailbox.history_start_at,

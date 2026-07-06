@@ -39,7 +39,7 @@ export function SyncMailboxButton({ businessId }: { businessId: string }) {
           const error = (await response.json()) as { detail?: string };
           detail = error.detail ? ` ${error.detail}` : "";
         } catch {}
-        throw new Error(response.status === 404 ? "Connect Zoho Mail first." : `Sync failed.${detail}`);
+        throw new Error(response.status === 404 ? "Connect Zoho Mail or Gmail first." : `Sync failed.${detail}`);
       }
       const result = (await response.json()) as SyncResult;
       const created = result.messages_created ?? result.imported ?? 0;

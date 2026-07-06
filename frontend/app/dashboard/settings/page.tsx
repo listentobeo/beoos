@@ -1,5 +1,6 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
+import { GmailConnectButton } from "@/components/dashboard/gmail-connect-button";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
 import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-form";
@@ -20,7 +21,8 @@ export default async function SettingsPage() {
   let whatsappConnection: BusinessWhatsAppSettings | null = null;
   let replySignature = "Not configured";
   let aiPolicy: BusinessAIPolicy | null = null;
-  let mailbox: MailboxStatus | null = null;
+  let zohoMailbox: MailboxStatus | null = null;
+  let gmailMailbox: MailboxStatus | null = null;
   let pushStatus: PushStatus | null = null;
   let setupMessage = "Initial business setup has not completed.";
 
@@ -36,8 +38,9 @@ export default async function SettingsPage() {
     replySignature = business?.reply_signature ?? replySignature;
     aiPolicy = business?.ai_policy ?? null;
     if (business) {
-      [mailbox, pushStatus] = await Promise.all([
-        beoApi.mailbox(business.id),
+      [zohoMailbox, gmailMailbox, pushStatus] = await Promise.all([
+        beoApi.mailbox(business.id, "zoho"),
+        beoApi.mailbox(business.id, "gmail"),
         beoApi.pushStatus(business.id),
       ]);
     }
@@ -58,7 +61,7 @@ export default async function SettingsPage() {
             <div>
               <h2 className="font-bold">Zoho Mail</h2>
               <p className="mt-1 text-sm text-[#777c76]">{primaryEmail} · one-year history</p>
-              {mailbox?.connected && (
+              {zohoMailbox?.connected && (
                 <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                   <CheckCircle2 className="size-3.5" /> Connected
                 </p>
@@ -67,6 +70,24 @@ export default async function SettingsPage() {
           </div>
           <div className="mt-5">
             {businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-start gap-3">
+            <div className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><Mail className="size-4" /></div>
+            <div>
+              <h2 className="font-bold">Gmail / Google Workspace</h2>
+              <p className="mt-1 text-sm text-[#777c76]">{primaryEmail} · one-year history</p>
+              {gmailMailbox?.connected && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <CheckCircle2 className="size-3.5" /> Connected
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="mt-5">
+            {businessId ? <GmailConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}
           </div>
         </Card>
 

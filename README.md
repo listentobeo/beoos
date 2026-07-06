@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider.
 
 ## Structure
 
@@ -8,7 +8,7 @@ BeoOS is the multi-business operating system for Beo companies. Module 1 impleme
 frontend/                  Next.js 15, TypeScript, Tailwind, shadcn/ui, Clerk
 backend/app/api/           FastAPI routes
 backend/app/domain/        Typed business contracts
-backend/app/services/      Zoho, OpenAI, policy, alert, and sync services
+backend/app/services/      Zoho, Gmail, OpenAI, policy, alert, and sync services
 backend/app/infrastructure SQLAlchemy database layer
 backend/prompts/           Versioned AI prompts
 database/migrations/       PostgreSQL/Alembic migrations
@@ -21,6 +21,7 @@ docs/modules/              Approved module specifications
 - [Module 1.5: Tenant Communication Hub](docs/modules/module-015-tenant-communication-hub.md)
 - [Module 1.6: WhatsApp Communication Layer](docs/modules/module-016-whatsapp-communication-layer.md)
 - [Module 1.7: Realtime Dashboard and Push Notifications](docs/modules/module-017-realtime-notifications.md)
+- [Module 1.8: Gmail / Google Workspace Connector](docs/modules/module-018-gmail-connector.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
@@ -62,6 +63,7 @@ docs/modules/              Approved module specifications
 
 - **Clerk:** add the frontend URLs, then set the publishable key, secret key, issuer, and JWKS URL.
 - **Zoho:** register a server OAuth client. Callback: `BACKEND_URL/api/v1/integrations/zoho/callback`. Use the Zoho accounts/mail base domains matching the mailbox data centre.
+- **Gmail / Google Workspace:** enable Gmail API in Google Cloud, configure OAuth, and add callback `BACKEND_URL/api/v1/integrations/google/callback`.
 - **OpenAI:** set `OPENAI_API_KEY`; `OPENAI_MODEL` can override the documented default.
 - **Resend:** verify the alert-sending domain and set `RESEND_API_KEY`.
 - **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
@@ -71,12 +73,13 @@ docs/modules/              Approved module specifications
 
 ## Deployment
 
-Deploy `frontend/` to Vercel. Deploy `backend/` to Railway twice:
+Deploy `frontend/` to Vercel. Deploy `backend/` to Railway as the API service:
 
 - API service: repository root, config path `/railway.json`
-- Worker service: repository root, config path `/railway.worker.json`
 
-The API configuration runs `alembic -c alembic.ini upgrade head` as its pre-deploy command. Both Railway services use the same environment variables and Supabase `DATABASE_URL`. In Vercel Project Settings, set the Root Directory to `frontend`; do not deploy the FastAPI backend on Vercel.
+The API configuration runs `alembic -c alembic.ini upgrade head` as its pre-deploy command. In Vercel Project Settings, set the Root Directory to `frontend`; do not deploy the FastAPI backend on Vercel.
+
+A separate Railway worker service is optional later for scheduled background jobs such as automatic email sync, retries, and daily reports. Manual sync, OAuth callbacks, WhatsApp webhooks, website forms, and push notifications work from the API service.
 
 ## Verification
 
