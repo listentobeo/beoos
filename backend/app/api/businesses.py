@@ -29,6 +29,14 @@ class BusinessCreate(BaseModel):
     reply_signature: str = Field(min_length=2, max_length=500)
 
 
+class BusinessUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    primary_email: EmailStr
+    whatsapp_number: str = Field(min_length=8, max_length=32)
+    reply_signature: str = Field(min_length=2, max_length=500)
+    timezone: str = Field(default="Africa/Lagos", min_length=2, max_length=64)
+
+
 class BusinessView(BaseModel):
     id: str
     slug: str
@@ -36,6 +44,7 @@ class BusinessView(BaseModel):
     primary_email: EmailStr
     whatsapp_number: str
     reply_signature: str
+    timezone: str
     role: str
     ai_policy: BusinessAIPolicy
     whatsapp_connection: BusinessWhatsAppSettings
@@ -71,6 +80,7 @@ async def list_businesses(
             primary_email=business.primary_email,
             whatsapp_number=business.whatsapp_number,
             reply_signature=business.reply_signature,
+            timezone=business.timezone,
             role=role.value,
             ai_policy=normalized_ai_policy(business.settings),
             whatsapp_connection=normalized_whatsapp_settings(business.settings),
@@ -105,6 +115,37 @@ async def create_business(
     return {"id": str(business.id), "slug": business.slug, "name": business.name}
 
 
+@router.patch("/{business_id}", response_model=BusinessView)
+async def update_business_profile(
+    business_id: UUID,
+    payload: BusinessUpdate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> BusinessView:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+    business.name = payload.name
+    business.primary_email = str(payload.primary_email)
+    business.whatsapp_number = payload.whatsapp_number
+    business.reply_signature = payload.reply_signature
+    business.timezone = payload.timezone
+    await session.commit()
+    return BusinessView(
+        id=str(business.id),
+        slug=business.slug,
+        name=business.name,
+        primary_email=business.primary_email,
+        whatsapp_number=business.whatsapp_number,
+        reply_signature=business.reply_signature,
+        timezone=business.timezone,
+        role=access.role.value,
+        ai_policy=normalized_ai_policy(business.settings),
+        whatsapp_connection=normalized_whatsapp_settings(business.settings),
+        website_form_key=website_form_key(business.settings),
+    )
+
+
 @router.patch("/{business_id}/policy", response_model=BusinessView)
 async def update_business_policy(
     business_id: UUID,
@@ -126,6 +167,7 @@ async def update_business_policy(
         primary_email=business.primary_email,
         whatsapp_number=business.whatsapp_number,
         reply_signature=business.reply_signature,
+        timezone=business.timezone,
         role=access.role.value,
         ai_policy=payload,
         whatsapp_connection=normalized_whatsapp_settings(settings),
@@ -154,6 +196,7 @@ async def update_business_whatsapp(
         primary_email=business.primary_email,
         whatsapp_number=business.whatsapp_number,
         reply_signature=business.reply_signature,
+        timezone=business.timezone,
         role=access.role.value,
         ai_policy=normalized_ai_policy(settings),
         whatsapp_connection=payload,

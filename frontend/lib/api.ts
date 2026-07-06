@@ -30,6 +30,7 @@ export type Business = {
   primary_email: string;
   whatsapp_number: string;
   reply_signature: string;
+  timezone: string;
   role: string;
   ai_policy: BusinessAIPolicy;
   whatsapp_connection: BusinessWhatsAppSettings;

@@ -1,5 +1,6 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
+import { BusinessProfileForm } from "@/components/dashboard/business-profile-form";
 import { GmailConnectButton } from "@/components/dashboard/gmail-connect-button";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
@@ -7,12 +8,13 @@ import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-f
 import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus, type PushStatus } from "@/lib/api";
+import { activeBusiness, beoApi, type Business, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus, type PushStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
 export default async function SettingsPage() {
   let businessId: string | null = null;
+  let activeBusinessRecord: Business | null = null;
   let businessSlug = "";
   let businessName = "Current business";
   let websiteFormKey = "";
@@ -28,6 +30,7 @@ export default async function SettingsPage() {
 
   try {
     const business = await activeBusiness();
+    activeBusinessRecord = business;
     businessId = business?.id ?? null;
     businessSlug = business?.slug ?? "";
     businessName = business?.name ?? businessName;
@@ -55,6 +58,18 @@ export default async function SettingsPage() {
       <p className="mt-2 text-sm text-[#747973]">Connections, reply policies, and channel rules for this business.</p>
 
       <div className="mt-7 grid gap-5 md:grid-cols-2">
+        <Card className="p-5 md:col-span-2">
+          <h2 className="font-bold">Business profile</h2>
+          <p className="mt-1 text-sm leading-6 text-[#777c76]">
+            Edit the core details BeoOS uses for greetings, email matching, WhatsApp routing, timezone, and AI reply signatures.
+          </p>
+          {activeBusinessRecord ? (
+            <BusinessProfileForm business={activeBusinessRecord} />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+          )}
+        </Card>
+
         <Card className="p-5">
           <div className="flex items-start gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-[#fff0ea] text-[#ed633f]"><Mail className="size-4" /></div>
