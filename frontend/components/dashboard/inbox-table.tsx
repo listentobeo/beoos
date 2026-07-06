@@ -30,9 +30,11 @@ function relativeTime(dateString: string) {
 export function InboxTable({
   threads,
   mailboxConnected = false,
+  emptyMessage,
 }: {
   threads: Thread[];
   mailboxConnected?: boolean;
+  emptyMessage?: string;
 }) {
   if (threads.length === 0) {
     return (
@@ -43,9 +45,10 @@ export function InboxTable({
           </div>
           <h3 className="mt-4 text-sm font-bold">Your inbox is ready</h3>
           <p className="mt-1 max-w-sm text-sm leading-relaxed text-[#727771]">
-            {mailboxConnected
+            {emptyMessage ??
+            (mailboxConnected
               ? "Zoho is connected. Run Sync now or confirm the Railway worker is running to import messages."
-              : "Connect Zoho Mail in Business Settings. New messages will be classified and acknowledged here."}
+              : "Connect Zoho Mail in Business Settings. New messages will be classified and acknowledged here.")}
           </p>
         </div>
       </div>

@@ -139,8 +139,14 @@ export const beoApi = {
   stats: (businessId: string) => apiFetch<InboxStats>(`/businesses/${businessId}/email/stats`),
   mailbox: (businessId: string) =>
     apiFetch<MailboxStatus>(`/businesses/${businessId}/email/mailbox`),
-  threads: (businessId: string, filters?: { category?: string; status?: string; provider?: string }) => {
-    const params = new URLSearchParams(filters);
+  threads: (
+    businessId: string,
+    filters?: { category?: string; status?: string; provider?: string; search?: string },
+  ) => {
+    const params = new URLSearchParams();
+    Object.entries(filters ?? {}).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
     const suffix = params.size ? `?${params.toString()}` : "";
     return apiFetch<Thread[]>(`/businesses/${businessId}/email/threads${suffix}`);
   },

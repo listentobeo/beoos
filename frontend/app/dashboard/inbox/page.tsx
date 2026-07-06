@@ -1,4 +1,5 @@
-import { Bell, FilePenLine, Inbox, MessageCircleMore, Search, ShieldAlert, UsersRound } from "lucide-react";
+import { Bell, FilePenLine, Inbox, MessageCircleMore, ShieldAlert, UsersRound } from "lucide-react";
+import { ConversationSearch } from "@/components/dashboard/conversation-search";
 import { InboxTable } from "@/components/dashboard/inbox-table";
 import { SyncMailboxButton } from "@/components/dashboard/sync-mailbox-button";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,12 @@ const emptyStats: InboxStats = {
 
 export const metadata = { title: "Inbox" };
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const query = ((await searchParams).q ?? "").trim();
   let stats = emptyStats;
   let threads: Thread[] = [];
   let mailbox: MailboxStatus | null = null;
@@ -31,7 +37,7 @@ export default async function InboxPage() {
       businessName = business.name;
       [stats, threads, mailbox] = await Promise.all([
         beoApi.stats(business.id),
-        beoApi.threads(business.id),
+        beoApi.threads(business.id, query ? { search: query } : undefined),
         beoApi.mailbox(business.id),
       ]);
     }
@@ -102,13 +108,15 @@ export default async function InboxPage() {
           <div>
             <h2 className="text-base font-bold tracking-tight">Unified inbox</h2>
             <p className="mt-0.5 text-xs text-[#858a84]">Zoho Mail, website forms, and WhatsApp, classified by BeoOS</p>
+            {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for “{query}”</p>}
           </div>
-          <div className="flex items-center gap-2 rounded-xl border bg-[#faf9f6] px-3 py-2 text-sm text-[#777c76] sm:w-64">
-            <Search className="size-4" />
-            <span>Search conversations</span>
-          </div>
+          <ConversationSearch initialQuery={query} />
         </div>
-        <InboxTable threads={threads} mailboxConnected={Boolean(mailbox?.connected)} />
+        <InboxTable
+          threads={threads}
+          mailboxConnected={Boolean(mailbox?.connected)}
+          emptyMessage={query ? `No conversations matched “${query}”. Try a sender, subject, or service keyword.` : undefined}
+        />
       </Card>
     </div>
   );
