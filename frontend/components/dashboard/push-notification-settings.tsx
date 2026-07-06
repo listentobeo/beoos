@@ -43,7 +43,8 @@ export function PushNotificationSettings({
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       throw new Error("This browser does not support push notifications.");
     }
-    return navigator.serviceWorker.register("/beoos-sw.js");
+    await navigator.serviceWorker.register("/beoos-sw.js", { scope: "/" });
+    return navigator.serviceWorker.ready;
   }
 
   async function enable() {
@@ -59,10 +60,12 @@ export function PushNotificationSettings({
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error("Notification permission was not granted.");
       const registration = await ensureServiceWorker();
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(status.vapid_public_key),
-      });
+      const subscription =
+        (await registration.pushManager.getSubscription()) ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(status.vapid_public_key),
+        }));
       const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/notifications/push`, {
         method: "POST",
@@ -77,6 +80,31 @@ export function PushNotificationSettings({
       setMessage("Push notifications are enabled for this business on this device.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Push setup failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function testNotification() {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const token = await getToken();
+      const response = await fetch(`${API_URL}/businesses/${businessId}/notifications/push/test`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error(`Test notification failed (${response.status}).`);
+      const result = (await response.json()) as { sent: number };
+      setMessage(
+        result.sent > 0
+          ? `Test notification sent to ${result.sent} active device${result.sent === 1 ? "" : "s"}.`
+          : "No active device subscription was found for this business.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not send a test notification.");
     } finally {
       setLoading(false);
     }
@@ -135,6 +163,11 @@ export function PushNotificationSettings({
             <span className="text-xs font-semibold text-[#747973]">
               {status.enabled ? "Enabled" : "Not enabled"}
             </span>
+            {status.enabled && (
+              <Button type="button" variant="ghost" size="sm" onClick={testNotification} disabled={loading}>
+                Send test notification
+              </Button>
+            )}
           </div>
           {message && <p className="mt-3 text-xs text-[#747973]">{message}</p>}
         </div>
