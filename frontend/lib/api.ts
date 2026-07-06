@@ -117,6 +117,11 @@ export type PriceItem = {
   approved_by: string;
 };
 
+export type PushStatus = {
+  enabled: boolean;
+  vapid_public_key: string;
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -154,6 +159,8 @@ export const beoApi = {
     apiFetch<ThreadDetail>(`/businesses/${businessId}/email/threads/${threadId}`),
   drafts: (businessId: string) =>
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
+  pushStatus: (businessId: string) =>
+    apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
   prices: (businessId: string) =>
     apiFetch<PriceItem[]>(`/businesses/${businessId}/prices`),
 };

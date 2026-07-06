@@ -20,6 +20,7 @@ docs/modules/              Approved module specifications
 - [Module 1: AI Email Assistant](docs/modules/module-01-email-assistant.md)
 - [Module 1.5: Tenant Communication Hub](docs/modules/module-015-tenant-communication-hub.md)
 - [Module 1.6: WhatsApp Communication Layer](docs/modules/module-016-whatsapp-communication-layer.md)
+- [Module 1.7: Realtime Dashboard and Push Notifications](docs/modules/module-017-realtime-notifications.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
@@ -65,6 +66,7 @@ docs/modules/              Approved module specifications
 - **Resend:** verify the alert-sending domain and set `RESEND_API_KEY`.
 - **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
 - **WhatsApp Cloud API:** configure Meta webhook credentials globally, then save each tenant's phone number ID in Business Settings.
+- **Push notifications:** generate VAPID keys, set them on Railway, then enable browser notifications per business/device in Business Settings.
 - **Supabase:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Deployment

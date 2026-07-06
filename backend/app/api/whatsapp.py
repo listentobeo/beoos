@@ -28,6 +28,7 @@ from app.infrastructure.models import (
 )
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
+from app.services.push_notifications import PushNotificationService
 
 router = APIRouter(prefix="/webhooks/whatsapp", tags=["whatsapp"])
 logger = structlog.get_logger()
@@ -77,6 +78,14 @@ async def receive_whatsapp_webhook(
         created = await _import_whatsapp_message(session, settings, business, item)
         if created:
             imported += 1
+            await PushNotificationService(settings).send_new_inbox_message(
+                session,
+                business_id=business.id,
+                thread_id=created,
+                title=f"New WhatsApp message for {business.name}",
+                body=f"{item.sender_name or item.from_phone}: {item.body_text}",
+                channel="whatsapp",
+            )
         else:
             duplicates += 1
 
@@ -223,7 +232,7 @@ async def _import_whatsapp_message(
     settings: Settings,
     business: Business,
     item: WhatsAppInboundMessage,
-) -> bool:
+) -> UUID | None:
     mailbox = await _get_or_create_whatsapp_mailbox(session, business.id, item)
     exists = await session.scalar(
         select(EmailMessage.id).where(
@@ -232,7 +241,7 @@ async def _import_whatsapp_message(
         )
     )
     if exists:
-        return False
+        return None
 
     contact = await _get_or_create_whatsapp_contact(session, business.id, item)
     provider_thread_id = (
@@ -285,7 +294,7 @@ async def _import_whatsapp_message(
     session.add(message)
     await session.flush()
     await _run_whatsapp_ai_intake(session, settings, business, contact, thread, message)
-    return True
+    return thread.id
 
 
 async def _get_or_create_whatsapp_mailbox(

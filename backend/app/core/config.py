@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     whatsapp_business_account_id: str = ""
     whatsapp_graph_base_url: str = "https://graph.facebook.com/v20.0"
 
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@beoarts.com"
+
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
     cors_origins: str = ""

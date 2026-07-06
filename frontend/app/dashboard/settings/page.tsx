@@ -1,11 +1,12 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
+import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
 import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-form";
 import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus } from "@/lib/api";
+import { activeBusiness, beoApi, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus, type PushStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
@@ -20,6 +21,7 @@ export default async function SettingsPage() {
   let replySignature = "Not configured";
   let aiPolicy: BusinessAIPolicy | null = null;
   let mailbox: MailboxStatus | null = null;
+  let pushStatus: PushStatus | null = null;
   let setupMessage = "Initial business setup has not completed.";
 
   try {
@@ -33,7 +35,12 @@ export default async function SettingsPage() {
     whatsappConnection = business?.whatsapp_connection ?? null;
     replySignature = business?.reply_signature ?? replySignature;
     aiPolicy = business?.ai_policy ?? null;
-    if (business) mailbox = await beoApi.mailbox(business.id);
+    if (business) {
+      [mailbox, pushStatus] = await Promise.all([
+        beoApi.mailbox(business.id),
+        beoApi.pushStatus(business.id),
+      ]);
+    }
   } catch {
     setupMessage = "Unable to load business data from the BeoOS API.";
   }
@@ -114,6 +121,18 @@ export default async function SettingsPage() {
           </div>
           {businessId && aiPolicy ? (
             <PolicySettingsForm businessId={businessId} policy={aiPolicy} />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+          )}
+        </Card>
+
+        <Card className="p-5 md:col-span-2">
+          <h2 className="font-bold">Realtime dashboard and alerts</h2>
+          <p className="mt-1 text-sm leading-6 text-[#777c76]">
+            BeoOS now refreshes dashboard data automatically while open. Enable push notifications to get device alerts when new inbox messages arrive.
+          </p>
+          {businessId && pushStatus ? (
+            <PushNotificationSettings businessId={businessId} initialStatus={pushStatus} />
           ) : (
             <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
           )}

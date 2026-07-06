@@ -143,9 +143,9 @@ Meta setup required:
 
 Module 1.6 receives WhatsApp text messages and queues AI/manual replies for approval. Media, templates, delivery receipts, and automatic sends remain planned improvements.
 
-## Planned next: PWA/mobile push
+## Active in Module 1.7: PWA/mobile push
 
-Needed later:
+Used for browser/device alerts when new inbox messages arrive.
 
 ```env
 VAPID_PUBLIC_KEY=
@@ -160,6 +160,15 @@ Push setup required:
 - subscription storage per user/device;
 - backend Web Push sender;
 - notification preferences per business/user.
+
+Generate VAPID keys with:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m py_vapid --gen --json
+```
+
+Then add the public/private keys to both Railway backend services. The browser only receives the public key from the authenticated API.
 
 ## Planned next: Search Console / brand intelligence
 

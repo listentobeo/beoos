@@ -245,6 +245,23 @@ class PriceCatalogItem(Base, TimestampMixin):
     approved_by: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
+class PushSubscription(Base, TimestampMixin):
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("business_id", "clerk_user_id", "endpoint"),
+        Index("ix_push_subscriptions_business_active", "business_id", "active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    clerk_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(Text, nullable=False)
+    auth: Mapped[str] = mapped_column(Text, nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     __table_args__ = (Index("ix_audit_business_created", "business_id", "created_at"),)

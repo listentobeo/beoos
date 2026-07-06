@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from email.utils import parseaddr
 from typing import Any
+from uuid import UUID
 
 import structlog
 from sqlalchemy import select
@@ -31,6 +32,7 @@ from app.services.alerts import AlertService
 from app.services.crypto import SecretCipher
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
+from app.services.push_notifications import PushNotificationService
 from app.services.zoho_mail import ZohoMailClient
 
 logger = structlog.get_logger()
@@ -160,7 +162,7 @@ class EmailSyncService:
                         folder_id=folder_id,
                         message_id=provider_message_id,
                     )
-                    created = await self._import_message(
+                    created_thread_id = await self._import_message(
                         session,
                         business,
                         mailbox,
@@ -168,8 +170,19 @@ class EmailSyncService:
                         content,
                         direction=direction,
                     )
-                    if created:
+                    if created_thread_id:
                         report.messages_created += 1
+                        if direction == Direction.inbound:
+                            sender = summary.get("fromAddress") or summary.get("sender")
+                            subject = summary.get("subject") or "(no subject)"
+                            await PushNotificationService(self._settings).send_new_inbox_message(
+                                session,
+                                business_id=business.id,
+                                thread_id=created_thread_id,
+                                title=f"New email for {business.name}",
+                                body=f"{sender}: {subject}",
+                                channel="email",
+                            )
                 await session.commit()
                 mailbox.sync_lease_until = datetime.now(UTC) + timedelta(minutes=5)
                 await session.commit()
@@ -265,7 +278,7 @@ class EmailSyncService:
         content: dict[str, Any],
         *,
         direction: Direction,
-    ) -> bool:
+    ) -> UUID | None:
         contact_source = (
             summary.get("fromAddress") or summary.get("sender")
             if direction == Direction.inbound
@@ -274,12 +287,12 @@ class EmailSyncService:
         contact_name, contact_email = parseaddr(str(contact_source or ""))
         contact_email = contact_email.lower()
         if not contact_email:
-            return False
+            return None
         if (
             direction == Direction.inbound
             and contact_email == self._settings.alert_from_email.lower()
         ):
-            return False
+            return None
 
         contact = await session.scalar(
             select(Contact).where(
@@ -359,7 +372,7 @@ class EmailSyncService:
             thread.category = (
                 ThreadCategory.existing_client if contact.is_existing_client else thread.category
             )
-            return True
+            return thread.id
 
         policy = normalized_ai_policy(business.settings)
         context_rows = (
@@ -496,7 +509,7 @@ class EmailSyncService:
             except Exception:
                 logger.exception("urgent_alert_failed", thread_id=str(thread.id))
 
-        return True
+        return thread.id
 
     async def _valid_access_token(self, mailbox: MailboxConnection) -> str:
         now = datetime.now(UTC)

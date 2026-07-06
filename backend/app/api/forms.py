@@ -27,6 +27,7 @@ from app.infrastructure.models import (
 from app.services.alerts import AlertService
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
+from app.services.push_notifications import PushNotificationService
 
 router = APIRouter(prefix="/forms", tags=["forms"])
 logger = structlog.get_logger()
@@ -88,6 +89,16 @@ async def submit_website_lead(
     await session.flush()
 
     await _run_ai_intake(session, settings, business, contact, thread, message)
+    await session.commit()
+
+    await PushNotificationService(settings).send_new_inbox_message(
+        session,
+        business_id=business.id,
+        thread_id=thread.id,
+        title=f"New website enquiry for {business.name}",
+        body=f"{payload.name or payload.email}: {payload.message}",
+        channel="website_form",
+    )
     await session.commit()
 
     try:
