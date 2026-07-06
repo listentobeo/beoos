@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -68,7 +69,7 @@ class PushNotificationService:
                 "title": title[:120],
                 "body": body[:220],
                 "url": url_path or f"/dashboard/inbox/{thread_id}",
-                "tag": f"beoos-{thread_id}",
+                "tag": f"beoos-{thread_id}-{int(datetime.now(UTC).timestamp())}",
                 "business": business.name,
                 "channel": channel,
             },

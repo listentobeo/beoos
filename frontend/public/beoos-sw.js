@@ -20,6 +20,8 @@ self.addEventListener("push", (event) => {
     badge: "/favicon.svg",
     tag: data.tag || "beoos-inbox",
     renotify: true,
+    silent: false,
+    requireInteraction: false,
     timestamp: Date.now(),
     data: {
       url: data.url || "/dashboard/inbox",
@@ -53,6 +55,8 @@ self.addEventListener("message", (event) => {
       badge: "/favicon.svg",
       tag: "beoos-local-test",
       renotify: true,
+      silent: false,
+      requireInteraction: false,
       data: { url: "/dashboard/settings#notifications" },
     }),
   );

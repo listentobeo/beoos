@@ -31,12 +31,19 @@ export function BusinessProfileForm({ business }: { business: Business }) {
     setMessage(null);
     try {
       const token = await getToken();
-      const response = await fetch(`${API_URL}/businesses/${business.id}`, {
+      const response = await fetch(`${API_URL}/businesses/${business.id}/profile`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Business profile could not be saved");
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const error = (await response.json()) as { detail?: string };
+          detail = error.detail ? ` ${error.detail}` : "";
+        } catch {}
+        throw new Error(`Business profile could not be saved.${detail}`);
+      }
       setMessage("Business profile saved.");
       router.refresh();
     } catch (cause) {

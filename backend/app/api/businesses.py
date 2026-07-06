@@ -122,6 +122,36 @@ async def update_business_profile(
     access: BusinessAccess = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> BusinessView:
+    return await _update_business_profile(
+        business_id=business_id,
+        payload=payload,
+        role=access.role.value,
+        session=session,
+    )
+
+
+@router.patch("/{business_id}/profile", response_model=BusinessView)
+async def update_business_profile_explicit(
+    business_id: UUID,
+    payload: BusinessUpdate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> BusinessView:
+    return await _update_business_profile(
+        business_id=business_id,
+        payload=payload,
+        role=access.role.value,
+        session=session,
+    )
+
+
+async def _update_business_profile(
+    *,
+    business_id: UUID,
+    payload: BusinessUpdate,
+    role: str,
+    session: AsyncSession,
+) -> BusinessView:
     business = await session.get(Business, business_id)
     if business is None:
         raise HTTPException(status_code=404, detail="Business not found")
@@ -139,7 +169,7 @@ async def update_business_profile(
         whatsapp_number=business.whatsapp_number,
         reply_signature=business.reply_signature,
         timezone=business.timezone,
-        role=access.role.value,
+        role=role,
         ai_policy=normalized_ai_policy(business.settings),
         whatsapp_connection=normalized_whatsapp_settings(business.settings),
         website_form_key=website_form_key(business.settings),
