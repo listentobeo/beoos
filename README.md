@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service.
 
 ## Structure
 
@@ -22,6 +22,7 @@ docs/modules/              Approved module specifications
 - [Module 1.6: WhatsApp Communication Layer](docs/modules/module-016-whatsapp-communication-layer.md)
 - [Module 1.7: Realtime Dashboard and Push Notifications](docs/modules/module-017-realtime-notifications.md)
 - [Module 1.8: Gmail / Google Workspace Connector](docs/modules/module-018-gmail-connector.md)
+- [Module 1.9: Auto Sync and Operations Layer](docs/modules/module-019-auto-sync-operations.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
@@ -69,6 +70,7 @@ docs/modules/              Approved module specifications
 - **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
 - **WhatsApp Cloud API:** configure Meta webhook credentials globally, then save each tenant's phone number ID in Business Settings.
 - **Push notifications:** generate VAPID keys, set them on Railway, then enable browser notifications per business/device in Business Settings.
+- **Mailbox auto-sync:** enabled by default in the API service. Tune with `MAILBOX_AUTO_SYNC_*` variables.
 - **Supabase:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Deployment
@@ -79,7 +81,7 @@ Deploy `frontend/` to Vercel. Deploy `backend/` to Railway as the API service:
 
 The API configuration runs `alembic -c alembic.ini upgrade head` as its pre-deploy command. In Vercel Project Settings, set the Root Directory to `frontend`; do not deploy the FastAPI backend on Vercel.
 
-A separate Railway worker service is optional later for scheduled background jobs such as automatic email sync, retries, and daily reports. Manual sync, OAuth callbacks, WhatsApp webhooks, website forms, and push notifications work from the API service.
+A separate Railway worker service is optional later for heavier background jobs such as high-volume sync, retries, and daily reports. Manual sync, automatic mailbox sync, OAuth callbacks, WhatsApp webhooks, website forms, and push notifications work from the API service.
 
 ## Verification
 

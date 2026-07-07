@@ -53,6 +53,8 @@ export type MailboxStatus = {
   sync_lease_until: string | null;
   thread_count: number;
   message_count: number;
+  auto_sync_enabled: boolean;
+  auto_sync_interval_seconds: number;
 };
 export type Thread = {
   id: string;

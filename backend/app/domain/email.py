@@ -110,6 +110,8 @@ class MailboxStatus(BaseModel):
     sync_lease_until: datetime | None = None
     thread_count: int = 0
     message_count: int = 0
+    auto_sync_enabled: bool = False
+    auto_sync_interval_seconds: int = 0
 
 
 class MailboxSyncResult(MailboxStatus):

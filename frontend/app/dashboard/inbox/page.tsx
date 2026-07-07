@@ -53,6 +53,18 @@ export default async function InboxPage({
     ["WhatsApp", stats.routed_whatsapp, MessageCircleMore, "text-emerald-700 bg-emerald-50"],
     ["Existing clients", stats.existing_clients, UsersRound, "text-blue-700 bg-blue-50"],
   ] as const;
+  const providerLabel =
+    mailbox?.provider === "gmail"
+      ? "Gmail status"
+      : mailbox?.provider === "zoho"
+        ? "Zoho Mail status"
+        : "Email status";
+  const connectedCopy = mailbox?.connected
+    ? `Connected to ${mailbox.email_address}`
+    : "Not connected yet";
+  const autoSyncCopy = mailbox?.auto_sync_enabled
+    ? `Auto-sync is active every ${mailbox.auto_sync_interval_seconds || 60} seconds.`
+    : "Auto-sync is disabled; use Sync now or enable mailbox auto-sync on the backend.";
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-5 md:px-8 md:py-8">
@@ -77,17 +89,18 @@ export default async function InboxPage({
         <Card className="mt-6 p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">Zoho Mail status</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{providerLabel}</p>
               <h2 className="mt-1 text-base font-bold">
-                {mailbox?.connected ? `Connected to ${mailbox.email_address}` : "Not connected yet"}
+                {connectedCopy}
               </h2>
               <p className="mt-1 text-sm text-[#747973]">
                 {mailbox?.last_synced_at
                   ? `Last synced ${new Date(mailbox.last_synced_at).toLocaleString()} · ${mailbox.message_count} messages imported`
                   : mailbox?.connected
-                    ? "Connected, but no sync has completed yet. Use Sync now or check the Railway worker."
-                    : "Connect Zoho Mail in Business Settings before BeoOS can pull messages."}
+                    ? `Connected, but no sync has completed yet. ${autoSyncCopy}`
+                    : "Connect Zoho Mail or Gmail in Business Settings before BeoOS can pull messages."}
               </p>
+              {mailbox?.connected && <p className="mt-1 text-xs text-emerald-700">{autoSyncCopy}</p>}
             </div>
             {businessId && mailbox?.connected && <SyncMailboxButton businessId={businessId} />}
           </div>

@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:admin@beoarts.com"
 
+    mailbox_auto_sync_enabled: bool = True
+    mailbox_auto_sync_interval_seconds: int = 60
+    mailbox_auto_sync_batch_size: int = 10
+    mailbox_auto_sync_lease_minutes: int = 5
+
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
     cors_origins: str = ""

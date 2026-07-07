@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.services.mailbox_scheduler import MailboxAutoSyncScheduler
 
 settings = get_settings()
 
@@ -14,7 +15,15 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
-    yield
+    scheduler: MailboxAutoSyncScheduler | None = None
+    if settings.app_env != "test":
+        scheduler = MailboxAutoSyncScheduler(settings)
+        scheduler.start()
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            await scheduler.stop()
 
 
 app = FastAPI(

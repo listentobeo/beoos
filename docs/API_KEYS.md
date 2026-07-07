@@ -70,6 +70,19 @@ Production example:
 https://beoos-production.up.railway.app/api/v1/integrations/zoho/callback
 ```
 
+## Active in Module 1.9: Mailbox auto-sync
+
+Used to pull new Zoho/Gmail messages automatically from the existing API service.
+
+```env
+MAILBOX_AUTO_SYNC_ENABLED=true
+MAILBOX_AUTO_SYNC_INTERVAL_SECONDS=60
+MAILBOX_AUTO_SYNC_BATCH_SIZE=10
+MAILBOX_AUTO_SYNC_LEASE_MINUTES=5
+```
+
+Keep this enabled on the Railway API service while BeoOS runs as a single backend service. If you later create a separate worker service, disable it on the API service and enable it on the worker.
+
 ## Active alerts: Resend
 
 Used for urgent and website-lead email alerts.

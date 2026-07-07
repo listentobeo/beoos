@@ -47,6 +47,7 @@ async def mailbox_status(
     provider: str | None = Query(default=None, max_length=32),
     _access: BusinessAccess = Depends(require_business_access),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> MailboxStatus:
     query = select(MailboxConnection).where(MailboxConnection.business_id == business_id)
     if provider:
@@ -54,7 +55,7 @@ async def mailbox_status(
     else:
         query = query.where(MailboxConnection.provider.in_(["zoho", "gmail"]))
     mailbox = await session.scalar(query.order_by(MailboxConnection.updated_at.desc()).limit(1))
-    return await _mailbox_status(session, business_id, mailbox)
+    return await _mailbox_status(session, business_id, mailbox, settings=settings)
 
 
 @router.post("/mailbox/sync", response_model=MailboxSyncResult)
@@ -112,7 +113,7 @@ async def sync_mailbox_now(
         raise
     finally:
         await service.close()
-    status = await _mailbox_status(session, business_id, mailbox)
+    status = await _mailbox_status(session, business_id, mailbox, settings=settings)
     logger.info(
         "manual_mailbox_sync_finished",
         business_id=str(business_id),
@@ -440,6 +441,8 @@ async def _mailbox_status(
     session: AsyncSession,
     business_id: UUID,
     mailbox: MailboxConnection | None,
+    *,
+    settings: Settings | None = None,
 ) -> MailboxStatus:
     thread_count = int(
         await session.scalar(
@@ -460,6 +463,10 @@ async def _mailbox_status(
             connected=False,
             thread_count=thread_count,
             message_count=message_count,
+            auto_sync_enabled=bool(settings and settings.mailbox_auto_sync_enabled),
+            auto_sync_interval_seconds=(
+                settings.mailbox_auto_sync_interval_seconds if settings else 0
+            ),
         )
     return MailboxStatus(
         connected=bool(mailbox.provider_account_id and mailbox.refresh_token_encrypted),
@@ -471,4 +478,6 @@ async def _mailbox_status(
         sync_lease_until=mailbox.sync_lease_until,
         thread_count=thread_count,
         message_count=message_count,
+        auto_sync_enabled=bool(settings and settings.mailbox_auto_sync_enabled),
+        auto_sync_interval_seconds=settings.mailbox_auto_sync_interval_seconds if settings else 0,
     )
