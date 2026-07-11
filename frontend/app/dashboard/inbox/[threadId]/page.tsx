@@ -1,5 +1,6 @@
 import { ArrowLeft, Bot, CheckCircle2, Clock, Mail, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { CreateLeadButton } from "@/components/dashboard/create-lead-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type ThreadDetail } from "@/lib/api";
@@ -24,11 +25,15 @@ export default async function EmailThreadPage({
   params: Promise<{ threadId: string }>;
 }) {
   let detail: ThreadDetail | null = null;
+  let businessId: string | null = null;
   const { threadId } = await params;
 
   try {
     const business = await activeBusiness();
-    if (business) detail = await beoApi.thread(business.id, threadId);
+    if (business) {
+      businessId = business.id;
+      detail = await beoApi.thread(business.id, threadId);
+    }
   } catch {
     detail = null;
   }
@@ -92,6 +97,18 @@ export default async function EmailThreadPage({
         </section>
 
         <aside className="space-y-4">
+          {businessId && (
+            <Card className="p-5">
+              <h2 className="font-bold">CRM</h2>
+              <p className="mt-2 text-sm leading-6 text-[#747973]">
+                Convert this conversation into a sales lead so it appears in the CRM pipeline.
+              </p>
+              <div className="mt-4">
+                <CreateLeadButton businessId={businessId} threadId={detail.thread.id} isDeal={detail.thread.is_deal} />
+              </div>
+            </Card>
+          )}
+
           <Card className="p-5">
             <div className="flex items-center gap-2">
               <Bot className="size-4 text-[#ed633f]" />

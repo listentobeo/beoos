@@ -126,6 +126,41 @@ export type PushStatus = {
   vapid_public_key: string;
 };
 
+export type CRMLead = {
+  id: string;
+  business_id: string;
+  contact_id: string | null;
+  thread_id: string | null;
+  title: string;
+  stage: string;
+  source: string;
+  service: string | null;
+  budget: string | null;
+  deadline: string | null;
+  estimated_value: string | null;
+  currency: string;
+  probability: number;
+  next_follow_up_at: string | null;
+  notes: string;
+  owner_id: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  thread_subject: string | null;
+};
+
+export type CRMStats = {
+  total: number;
+  open: number;
+  won: number;
+  lost: number;
+  estimated_open_value: string;
+  needs_follow_up: number;
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -167,6 +202,8 @@ export const beoApi = {
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
   pushStatus: (businessId: string) =>
     apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
+  crmLeads: (businessId: string) => apiFetch<CRMLead[]>(`/businesses/${businessId}/crm/leads`),
+  crmStats: (businessId: string) => apiFetch<CRMStats>(`/businesses/${businessId}/crm/stats`),
   prices: (businessId: string) =>
     apiFetch<PriceItem[]>(`/businesses/${businessId}/prices`),
 };

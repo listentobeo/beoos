@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline.
 
 ## Structure
 
@@ -23,6 +23,7 @@ docs/modules/              Approved module specifications
 - [Module 1.7: Realtime Dashboard and Push Notifications](docs/modules/module-017-realtime-notifications.md)
 - [Module 1.8: Gmail / Google Workspace Connector](docs/modules/module-018-gmail-connector.md)
 - [Module 1.9: Auto Sync and Operations Layer](docs/modules/module-019-auto-sync-operations.md)
+- [Module 2: CRM Lead Pipeline](docs/modules/module-02-crm-lead-pipeline.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup

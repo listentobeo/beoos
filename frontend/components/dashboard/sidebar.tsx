@@ -4,6 +4,7 @@ import { UserButton } from "@clerk/nextjs";
 import {
   BarChart3,
   Building2,
+  ClipboardList,
   FilePenLine,
   Inbox,
   MessageCircleMore,
@@ -27,6 +28,7 @@ const primary = [
 ] as const;
 
 const manage = [
+  ["CRM pipeline", "/dashboard/crm", ClipboardList],
   ["Price catalogue", "/dashboard/prices", Tags],
   ["Analytics", "/dashboard/analytics", BarChart3],
   ["Business settings", "/dashboard/settings", Settings],

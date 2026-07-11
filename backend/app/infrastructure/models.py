@@ -76,6 +76,26 @@ class DraftStatus(enum.StrEnum):
     failed = "failed"
 
 
+class LeadStage(enum.StrEnum):
+    new = "new"
+    contacted = "contacted"
+    qualified = "qualified"
+    quote_needed = "quote_needed"
+    quoted = "quoted"
+    deposit_pending = "deposit_pending"
+    won = "won"
+    lost = "lost"
+
+
+class LeadSource(enum.StrEnum):
+    email = "email"
+    gmail = "gmail"
+    zoho = "zoho"
+    whatsapp = "whatsapp"
+    website_form = "website_form"
+    manual = "manual"
+
+
 class Business(Base, TimestampMixin):
     __tablename__ = "businesses"
 
@@ -260,6 +280,38 @@ class PushSubscription(Base, TimestampMixin):
     auth: Mapped[str] = mapped_column(Text, nullable=False)
     user_agent: Mapped[str | None] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class CRMLead(Base, TimestampMixin):
+    __tablename__ = "crm_leads"
+    __table_args__ = (
+        UniqueConstraint("business_id", "thread_id"),
+        Index("ix_crm_leads_business_stage", "business_id", "stage"),
+        Index("ix_crm_leads_business_updated", "business_id", "updated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    thread_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("email_threads.id"))
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    stage: Mapped[LeadStage] = mapped_column(Enum(LeadStage), default=LeadStage.new, nullable=False)
+    source: Mapped[LeadSource] = mapped_column(
+        Enum(LeadSource), default=LeadSource.manual, nullable=False
+    )
+    service: Mapped[str | None] = mapped_column(String(120))
+    budget: Mapped[str | None] = mapped_column(String(120))
+    deadline: Mapped[str | None] = mapped_column(String(160))
+    estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    probability: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    owner_id: Mapped[str | None] = mapped_column(String(255))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    contact: Mapped[Contact | None] = relationship()
+    thread: Mapped[EmailThread | None] = relationship()
 
 
 class AuditLog(Base):

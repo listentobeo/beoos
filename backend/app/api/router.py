@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api import (
     businesses,
+    crm,
     email,
     forms,
     google_integrations,
@@ -15,6 +16,7 @@ from app.api import (
 
 api_router = APIRouter()
 api_router.include_router(businesses.router)
+api_router.include_router(crm.router)
 api_router.include_router(email.router)
 api_router.include_router(forms.router)
 api_router.include_router(google_integrations.router)
