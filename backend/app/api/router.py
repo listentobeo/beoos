@@ -11,6 +11,7 @@ from app.api import (
     integrations,
     notifications,
     prices,
+    quotes,
     whatsapp,
 )
 
@@ -23,6 +24,7 @@ api_router.include_router(google_integrations.router)
 api_router.include_router(integrations.router)
 api_router.include_router(notifications.router)
 api_router.include_router(prices.router)
+api_router.include_router(quotes.router)
 api_router.include_router(whatsapp.router)
 
 

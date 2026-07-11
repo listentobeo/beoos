@@ -5,6 +5,7 @@ import {
   BarChart3,
   Building2,
   ClipboardList,
+  FileText,
   FilePenLine,
   Inbox,
   MessageCircleMore,
@@ -29,6 +30,7 @@ const primary = [
 
 const manage = [
   ["CRM pipeline", "/dashboard/crm", ClipboardList],
+  ["Quotations", "/dashboard/quotes", FileText],
   ["Price catalogue", "/dashboard/prices", Tags],
   ["Analytics", "/dashboard/analytics", BarChart3],
   ["Business settings", "/dashboard/settings", Settings],

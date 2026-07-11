@@ -1,5 +1,6 @@
 import { ArrowUpRight, CalendarClock, CircleDollarSign, Inbox, Trophy, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { CreateQuoteButton } from "@/components/dashboard/create-quote-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type CRMLead, type CRMStats } from "@/lib/api";
@@ -50,10 +51,12 @@ export default async function CRMPage() {
   let leads: CRMLead[] = [];
   let stats: CRMStats | null = null;
   let businessName = "Current business";
+  let businessId: string | null = null;
 
   try {
     const business = await activeBusiness();
     if (business) {
+      businessId = business.id;
       businessName = business.name;
       [leads, stats] = await Promise.all([
         beoApi.crmLeads(business.id),
@@ -124,15 +127,16 @@ export default async function CRMPage() {
                   <p className="rounded-xl bg-[#f7f6f2] p-4 text-xs text-[#747973]">No leads in this stage.</p>
                 ) : (
                   stageLeads.map((lead) => (
-                    <Link
-                      key={lead.id}
-                      href={lead.thread_id ? `/dashboard/inbox/${lead.thread_id}` : "/dashboard/crm"}
-                      className="group block rounded-xl border bg-white p-4 transition hover:border-[#ed633f]/40 hover:bg-[#fffaf7]"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="line-clamp-2 text-sm font-bold text-[#20242b]">{lead.title}</h3>
-                        <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-[#9a9f98] opacity-0 transition group-hover:opacity-100" />
-                      </div>
+                    <div key={lead.id} className="rounded-xl border bg-white p-4">
+                      <Link
+                        href={lead.thread_id ? `/dashboard/inbox/${lead.thread_id}` : "/dashboard/crm"}
+                        className="group block transition hover:text-[#ed633f]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="line-clamp-2 text-sm font-bold text-[#20242b]">{lead.title}</h3>
+                          <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-[#9a9f98] opacity-0 transition group-hover:opacity-100" />
+                        </div>
+                      </Link>
                       <p className="mt-2 truncate text-xs text-[#747973]">
                         {lead.contact_name || lead.contact_email || lead.contact_phone || "Unknown contact"}
                       </p>
@@ -145,7 +149,12 @@ export default async function CRMPage() {
                         <div className="flex justify-between gap-3"><dt>Deadline</dt><dd className="truncate font-semibold text-[#30343a]">{lead.deadline || "Not set"}</dd></div>
                         <div className="flex justify-between gap-3"><dt>Probability</dt><dd className="font-semibold text-[#30343a]">{lead.probability}%</dd></div>
                       </dl>
-                    </Link>
+                      {businessId && lead.stage !== "won" && lead.stage !== "lost" && (
+                        <div className="mt-4">
+                          <CreateQuoteButton businessId={businessId} leadId={lead.id} />
+                        </div>
+                      )}
+                    </div>
                   ))
                 )}
               </div>

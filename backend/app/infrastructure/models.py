@@ -96,6 +96,21 @@ class LeadSource(enum.StrEnum):
     manual = "manual"
 
 
+class QuoteStatus(enum.StrEnum):
+    draft = "draft"
+    needs_approval = "needs_approval"
+    approved = "approved"
+    sent = "sent"
+    accepted = "accepted"
+    rejected = "rejected"
+    expired = "expired"
+
+
+class QuoteTemplateType(enum.StrEnum):
+    mural = "mural"
+    custom = "custom"
+
+
 class Business(Base, TimestampMixin):
     __tablename__ = "businesses"
 
@@ -312,6 +327,41 @@ class CRMLead(Base, TimestampMixin):
 
     contact: Mapped[Contact | None] = relationship()
     thread: Mapped[EmailThread | None] = relationship()
+
+
+class Quote(Base, TimestampMixin):
+    __tablename__ = "quotes"
+    __table_args__ = (
+        Index("ix_quotes_business_status", "business_id", "status"),
+        Index("ix_quotes_business_updated", "business_id", "updated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_leads.id"))
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    template_type: Mapped[QuoteTemplateType] = mapped_column(
+        Enum(QuoteTemplateType), default=QuoteTemplateType.custom, nullable=False
+    )
+    status: Mapped[QuoteStatus] = mapped_column(
+        Enum(QuoteStatus), default=QuoteStatus.draft, nullable=False
+    )
+    currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+    total: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+    deposit_required: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    input_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    calculation: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    proposal: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    internal_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    lead: Mapped[CRMLead | None] = relationship()
+    contact: Mapped[Contact | None] = relationship()
 
 
 class AuditLog(Base):

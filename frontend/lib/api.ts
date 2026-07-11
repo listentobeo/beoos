@@ -161,6 +161,44 @@ export type CRMStats = {
   needs_follow_up: number;
 };
 
+export type QuoteStatus =
+  | "draft"
+  | "needs_approval"
+  | "approved"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "expired";
+
+export type QuoteTemplateType = "mural" | "custom";
+
+export type Quote = {
+  id: string;
+  business_id: string;
+  lead_id: string | null;
+  contact_id: string | null;
+  title: string;
+  template_type: QuoteTemplateType;
+  status: QuoteStatus;
+  currency: string;
+  subtotal: string;
+  total: string;
+  deposit_required: string | null;
+  valid_until: string | null;
+  input_data: Record<string, unknown>;
+  calculation: Record<string, unknown>;
+  proposal: Record<string, unknown>;
+  internal_notes: string;
+  approved_by: string | null;
+  sent_at: string | null;
+  accepted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  lead_title: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -204,6 +242,9 @@ export const beoApi = {
     apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
   crmLeads: (businessId: string) => apiFetch<CRMLead[]>(`/businesses/${businessId}/crm/leads`),
   crmStats: (businessId: string) => apiFetch<CRMStats>(`/businesses/${businessId}/crm/stats`),
+  quotes: (businessId: string) => apiFetch<Quote[]>(`/businesses/${businessId}/quotes`),
+  quote: (businessId: string, quoteId: string) =>
+    apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}`),
   prices: (businessId: string) =>
     apiFetch<PriceItem[]>(`/businesses/${businessId}/prices`),
 };
