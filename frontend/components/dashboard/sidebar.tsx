@@ -87,7 +87,7 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
         </nav>
       </div>
 
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[264px] flex-col bg-[#101827] px-4 py-5 text-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[264px] flex-col overflow-y-auto bg-[#101827] px-4 py-5 text-white lg:flex">
         <div className="flex items-center gap-3 px-2">
           <div className="grid size-10 place-items-center rounded-xl bg-[#ed633f] font-black tracking-tight">B</div>
           <div>
