@@ -140,6 +140,11 @@ export type CRMLead = {
   estimated_value: string | null;
   currency: string;
   probability: number;
+  lead_score: number;
+  temperature: "hot" | "warm" | "cold";
+  qualification_summary: string;
+  qualification_reasons: string[];
+  last_qualified_at: string | null;
   next_follow_up_at: string | null;
   notes: string;
   owner_id: string | null;

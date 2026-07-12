@@ -95,8 +95,13 @@ async def create_quote(
         internal_notes="",
     )
     session.add(quote)
-    if lead and lead.stage in {LeadStage.new, LeadStage.contacted, LeadStage.qualified}:
-        lead.stage = LeadStage.quote_needed
+    if lead and lead.stage in {
+        LeadStage.new,
+        LeadStage.contacted,
+        LeadStage.qualified,
+        LeadStage.quote_needed,
+    }:
+        lead.stage = LeadStage.quoted
     await session.flush()
     session.add(
         AuditLog(
@@ -263,6 +268,10 @@ async def accept_public_quote(
     if quote.accepted_at is None:
         quote.accepted_at = now
         quote.status = QuoteStatus.accepted
+        if quote.lead_id:
+            lead = await session.get(CRMLead, quote.lead_id)
+            if lead and lead.stage not in {LeadStage.won, LeadStage.lost}:
+                lead.stage = LeadStage.deposit_pending
         await session.commit()
     return PublicQuoteAcceptResult(
         status=quote.status,

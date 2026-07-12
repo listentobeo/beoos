@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.infrastructure.models import LeadSource, LeadStage
+from app.infrastructure.models import LeadSource, LeadStage, LeadTemperature
 
 
 class CRMLeadCreate(BaseModel):
@@ -19,6 +19,10 @@ class CRMLeadCreate(BaseModel):
     estimated_value: Decimal | None = Field(default=None, ge=0)
     currency: str = Field(default="NGN", min_length=3, max_length=3)
     probability: int = Field(default=20, ge=0, le=100)
+    lead_score: int = Field(default=20, ge=0, le=100)
+    temperature: LeadTemperature = LeadTemperature.cold
+    qualification_summary: str = Field(default="", max_length=1000)
+    qualification_reasons: list[str] = Field(default_factory=list)
     next_follow_up_at: datetime | None = None
     notes: str = Field(default="", max_length=5000)
 
@@ -32,6 +36,10 @@ class CRMLeadUpdate(BaseModel):
     estimated_value: Decimal | None = Field(default=None, ge=0)
     currency: str = Field(default="NGN", min_length=3, max_length=3)
     probability: int = Field(default=20, ge=0, le=100)
+    lead_score: int = Field(default=20, ge=0, le=100)
+    temperature: LeadTemperature = LeadTemperature.cold
+    qualification_summary: str = Field(default="", max_length=1000)
+    qualification_reasons: list[str] = Field(default_factory=list)
     next_follow_up_at: datetime | None = None
     notes: str = Field(default="", max_length=5000)
 
@@ -55,6 +63,11 @@ class CRMLeadView(BaseModel):
     estimated_value: Decimal | None
     currency: str
     probability: int
+    lead_score: int
+    temperature: LeadTemperature
+    qualification_summary: str
+    qualification_reasons: list[str]
+    last_qualified_at: datetime | None
     next_follow_up_at: datetime | None
     notes: str
     owner_id: str | None

@@ -26,6 +26,7 @@ from app.infrastructure.models import (
     LeadStage,
     MailboxConnection,
 )
+from app.services.lead_qualification import qualify_lead
 
 router = APIRouter(prefix="/businesses/{business_id}/crm", tags=["crm"])
 
@@ -146,6 +147,10 @@ async def create_lead(
         estimated_value=payload.estimated_value,
         currency=payload.currency.upper(),
         probability=payload.probability,
+        lead_score=payload.lead_score,
+        temperature=payload.temperature,
+        qualification_summary=payload.qualification_summary,
+        qualification_reasons=payload.qualification_reasons,
         next_follow_up_at=payload.next_follow_up_at,
         notes=payload.notes,
         owner_id=access.user_id,
@@ -184,22 +189,32 @@ async def create_lead_from_thread(
     analysis = await _latest_analysis(session, thread_id)
     extracted = analysis.extracted_fields if analysis else {}
     source = await _thread_source(session, thread_id)
+    qualification = qualify_lead(
+        thread=thread,
+        analysis=analysis,
+        requested_stage=payload.stage,
+    )
     lead = CRMLead(
         business_id=business_id,
         contact_id=thread.contact_id,
         thread_id=thread.id,
         title=thread.subject[:240] or "New lead",
-        stage=payload.stage,
+        stage=qualification.stage,
         source=source,
         service=_field(extracted, "service"),
         budget=_field(extracted, "budget"),
         deadline=_field(extracted, "deadline"),
         estimated_value=None,
         currency="NGN",
-        probability=60 if thread.is_deal else 25,
-        notes=payload.notes,
+        probability=qualification.score,
+        lead_score=qualification.score,
+        temperature=qualification.temperature,
+        qualification_summary=qualification.summary,
+        qualification_reasons=qualification.reasons,
+        last_qualified_at=qualification.qualified_at,
+        notes=payload.notes or qualification.summary,
         owner_id=access.user_id,
-        closed_at=_closed_at(payload.stage),
+        closed_at=_closed_at(qualification.stage),
     )
     session.add(lead)
     await session.flush()
@@ -239,6 +254,11 @@ async def update_lead(
     lead.estimated_value = payload.estimated_value
     lead.currency = payload.currency.upper()
     lead.probability = payload.probability
+    lead.lead_score = payload.lead_score
+    lead.temperature = payload.temperature
+    lead.qualification_summary = payload.qualification_summary
+    lead.qualification_reasons = payload.qualification_reasons
+    lead.last_qualified_at = datetime.now(UTC)
     lead.next_follow_up_at = payload.next_follow_up_at
     lead.notes = payload.notes
     lead.closed_at = _closed_at(payload.stage)
@@ -340,6 +360,11 @@ def _lead_view(
         estimated_value=lead.estimated_value,
         currency=lead.currency,
         probability=lead.probability,
+        lead_score=lead.lead_score,
+        temperature=lead.temperature,
+        qualification_summary=lead.qualification_summary,
+        qualification_reasons=lead.qualification_reasons,
+        last_qualified_at=lead.last_qualified_at,
         next_follow_up_at=lead.next_follow_up_at,
         notes=lead.notes,
         owner_id=lead.owner_id,

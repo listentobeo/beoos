@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links. Module 3.6 adds AI lead scoring and editable quote basics.
 
 ## Structure
 
@@ -26,6 +26,7 @@ docs/modules/              Approved module specifications
 - [Module 2: CRM Lead Pipeline](docs/modules/module-02-crm-lead-pipeline.md)
 - [Module 3: Generic Quotation Engine](docs/modules/module-03-generic-quotation-engine.md)
 - [Module 3.5: Client Proposal Acceptance and Payment Links](docs/modules/module-035-client-proposal-acceptance.md)
+- [Module 3.6: AI Lead Scoring and Editable Quotes](docs/modules/module-036-lead-scoring-and-editable-quotes.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup

@@ -29,6 +29,12 @@ const stageStyles: Record<string, string> = {
   lost: "bg-zinc-100 text-zinc-600",
 };
 
+const temperatureStyles: Record<string, string> = {
+  hot: "bg-red-50 text-red-700",
+  warm: "bg-amber-50 text-amber-700",
+  cold: "bg-slate-100 text-slate-700",
+};
+
 function money(value: string | null | undefined, currency = "NGN") {
   const amount = Number(value ?? 0);
   if (!amount) return "No value set";
@@ -142,12 +148,20 @@ export default async function CRMPage() {
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Badge className="bg-slate-100 text-slate-700">{lead.source.replaceAll("_", " ")}</Badge>
+                        <Badge className={temperatureStyles[lead.temperature]}>
+                          {lead.temperature} · {lead.lead_score}
+                        </Badge>
                         {lead.service && <Badge className="bg-violet-50 text-violet-700">{lead.service}</Badge>}
                       </div>
+                      {lead.qualification_summary && (
+                        <p className="mt-3 rounded-xl bg-[#f7f6f2] p-3 text-xs leading-5 text-[#5f655f]">
+                          {lead.qualification_summary}
+                        </p>
+                      )}
                       <dl className="mt-3 space-y-1 text-xs text-[#747973]">
                         <div className="flex justify-between gap-3"><dt>Budget</dt><dd className="font-semibold text-[#30343a]">{lead.budget || money(lead.estimated_value, lead.currency)}</dd></div>
                         <div className="flex justify-between gap-3"><dt>Deadline</dt><dd className="truncate font-semibold text-[#30343a]">{lead.deadline || "Not set"}</dd></div>
-                        <div className="flex justify-between gap-3"><dt>Probability</dt><dd className="font-semibold text-[#30343a]">{lead.probability}%</dd></div>
+                        <div className="flex justify-between gap-3"><dt>AI score</dt><dd className="font-semibold text-[#30343a]">{lead.lead_score}/100</dd></div>
                       </dl>
                       {businessId && lead.stage !== "won" && lead.stage !== "lost" && (
                         <div className="mt-4">

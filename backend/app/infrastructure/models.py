@@ -97,6 +97,12 @@ class LeadSource(enum.StrEnum):
     manual = "manual"
 
 
+class LeadTemperature(enum.StrEnum):
+    hot = "hot"
+    warm = "warm"
+    cold = "cold"
+
+
 class QuoteStatus(enum.StrEnum):
     draft = "draft"
     needs_approval = "needs_approval"
@@ -321,6 +327,13 @@ class CRMLead(Base, TimestampMixin):
     estimated_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
     probability: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    lead_score: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    temperature: Mapped[LeadTemperature] = mapped_column(
+        Enum(LeadTemperature), default=LeadTemperature.cold, nullable=False
+    )
+    qualification_summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    qualification_reasons: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    last_qualified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     owner_id: Mapped[str | None] = mapped_column(String(255))

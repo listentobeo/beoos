@@ -1,6 +1,7 @@
 import { ArrowLeft, Banknote, ClipboardList, FileText } from "lucide-react";
 import Link from "next/link";
 import { QuotePaymentButton } from "@/components/dashboard/quote-actions";
+import { QuoteEditForm } from "@/components/dashboard/quote-edit-form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type Quote } from "@/lib/api";
@@ -198,6 +199,18 @@ export default async function QuoteDetailPage({
               <div><dt className="text-[#747973]">Environment</dt><dd className="font-semibold">{text(input.environment)}</dd></div>
             </dl>
           </Card>
+
+          {businessId && (
+            <Card className="p-5">
+              <h2 className="font-bold">Edit quote basics</h2>
+              <p className="mt-2 text-sm leading-6 text-[#747973]">
+                Update the key mural inputs before sharing the proposal link.
+              </p>
+              <div className="mt-4">
+                <QuoteEditForm businessId={businessId} quote={quote} />
+              </div>
+            </Card>
+          )}
 
           <Card className="p-5">
             <h2 className="font-bold">Approval path</h2>
