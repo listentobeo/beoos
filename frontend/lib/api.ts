@@ -184,6 +184,7 @@ export type Quote = {
   subtotal: string;
   total: string;
   deposit_required: string | null;
+  public_url: string | null;
   valid_until: string | null;
   input_data: Record<string, unknown>;
   calculation: Record<string, unknown>;
@@ -191,7 +192,10 @@ export type Quote = {
   internal_notes: string;
   approved_by: string | null;
   sent_at: string | null;
+  client_viewed_at: string | null;
   accepted_at: string | null;
+  payment_url: string | null;
+  payment_reference: string | null;
   created_at: string;
   updated_at: string;
   lead_title: string | null;
@@ -245,6 +249,10 @@ export const beoApi = {
   quotes: (businessId: string) => apiFetch<Quote[]>(`/businesses/${businessId}/quotes`),
   quote: (businessId: string, quoteId: string) =>
     apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}`),
+  quotePaymentLink: (businessId: string, quoteId: string) =>
+    apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}/payment-link`, {
+      method: "POST",
+    }),
   prices: (businessId: string) =>
     apiFetch<PriceItem[]>(`/businesses/${businessId}/prices`),
 };

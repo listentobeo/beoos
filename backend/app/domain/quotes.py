@@ -84,6 +84,7 @@ class QuoteView(BaseModel):
     subtotal: Decimal
     total: Decimal
     deposit_required: Decimal | None
+    public_url: str | None = None
     valid_until: datetime | None
     input_data: dict[str, Any]
     calculation: dict[str, Any]
@@ -91,9 +92,34 @@ class QuoteView(BaseModel):
     internal_notes: str
     approved_by: str | None
     sent_at: datetime | None
+    client_viewed_at: datetime | None = None
     accepted_at: datetime | None
+    payment_url: str | None = None
+    payment_reference: str | None = None
     created_at: datetime
     updated_at: datetime
     lead_title: str | None = None
     contact_name: str | None = None
     contact_email: str | None = None
+
+
+class PublicQuoteView(BaseModel):
+    title: str
+    business_name: str
+    contact_name: str | None = None
+    contact_email: str | None = None
+    status: QuoteStatus
+    currency: str
+    total: Decimal
+    deposit_required: Decimal | None
+    proposal: dict[str, Any]
+    calculation: dict[str, Any]
+    payment_url: str | None = None
+    accepted_at: datetime | None = None
+
+
+class PublicQuoteAcceptResult(BaseModel):
+    success: bool = True
+    status: QuoteStatus
+    accepted_at: datetime
+    payment_url: str | None = None

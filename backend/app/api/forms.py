@@ -183,22 +183,26 @@ async def _run_ai_intake(
     thread: EmailThread,
     message: EmailMessage,
 ) -> None:
-    if not settings.openai_api_key:
+    if (
+        (settings.ai_provider == "openai" and not settings.openai_api_key)
+        or (settings.ai_provider == "replicate" and not settings.replicate_api_token)
+    ):
         thread.status = ThreadStatus.needs_approval
         message.processed_at = datetime.now(UTC)
+        provider_name = "Replicate" if settings.ai_provider == "replicate" else "OpenAI"
         session.add(
             EmailDraft(
                 thread_id=thread.id,
                 source_message_id=message.id,
                 subject=f"Re: {thread.subject}",
                 body_text=(
-                    "Website form submission received. Add an OpenAI API key to let BeoOS "
+                    f"Website form submission received. Add a {provider_name} key to let BeoOS "
                     "classify and draft contextual replies automatically."
                 ),
                 draft_type="manual_follow_up",
                 status=DraftStatus.pending,
                 auto_send_eligible=False,
-                policy_reasons=["OpenAI API key is not configured"],
+                policy_reasons=[f"{provider_name} key is not configured"],
             )
         )
         return
@@ -249,7 +253,11 @@ async def _run_ai_intake(
             risk_flags=list(triage.risk_flags),
             extracted_fields=triage.extracted_fields.model_dump(),
             recommended_action=triage.recommended_action.value,
-            model=settings.openai_model,
+            model=(
+                f"replicate:{settings.replicate_model}"
+                if settings.ai_provider == "replicate"
+                else settings.openai_model
+            ),
             response_id=response_id,
         )
     )

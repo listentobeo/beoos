@@ -1,4 +1,5 @@
 import enum
+import secrets
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -340,6 +341,9 @@ class Quote(Base, TimestampMixin):
     business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
     lead_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_leads.id"))
     contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    public_token: Mapped[str] = mapped_column(
+        String(96), unique=True, default=lambda: secrets.token_urlsafe(32), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     template_type: Mapped[QuoteTemplateType] = mapped_column(
         Enum(QuoteTemplateType), default=QuoteTemplateType.custom, nullable=False
@@ -358,7 +362,10 @@ class Quote(Base, TimestampMixin):
     internal_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(255))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    payment_url: Mapped[str | None] = mapped_column(Text)
+    payment_reference: Mapped[str | None] = mapped_column(String(160))
 
     lead: Mapped[CRMLead | None] = relationship()
     contact: Mapped[Contact | None] = relationship()

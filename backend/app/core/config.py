@@ -27,6 +27,10 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     openai_model: str = "gpt-5.5"
+    ai_provider: Literal["openai", "replicate"] = "openai"
+    replicate_api_token: str = ""
+    replicate_model: str = "openai/gpt-5.4"
+    replicate_timeout_seconds: int = 90
 
     zoho_client_id: str = ""
     zoho_client_secret: str = ""
@@ -59,6 +63,9 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
     cors_origins: str = ""
+
+    paystack_secret_key: str = ""
+    paystack_public_key: str = ""
 
     @property
     def allowed_origins(self) -> list[str]:

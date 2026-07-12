@@ -1,5 +1,6 @@
 import { ArrowLeft, Banknote, ClipboardList, FileText } from "lucide-react";
 import Link from "next/link";
+import { QuotePaymentButton } from "@/components/dashboard/quote-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type Quote } from "@/lib/api";
@@ -52,11 +53,13 @@ export default async function QuoteDetailPage({
   params: Promise<{ quoteId: string }>;
 }) {
   let quote: Quote | null = null;
+  let businessId: string | null = null;
   const { quoteId } = await params;
 
   try {
     const business = await activeBusiness();
     if (business) {
+      businessId = business.id;
       quote = await beoApi.quote(business.id, quoteId);
     }
   } catch {
@@ -158,6 +161,32 @@ export default async function QuoteDetailPage({
         </section>
 
         <aside className="space-y-5">
+          <Card className="p-5">
+            <h2 className="font-bold">Client link</h2>
+            <p className="mt-2 break-all rounded-xl bg-[#f7f6f2] p-3 text-xs leading-5 text-[#545a54]">
+              {quote.public_url || "Public link will appear after backend migration."}
+            </p>
+            {quote.payment_url && (
+              <a
+                href={quote.payment_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 block break-all text-xs font-semibold text-[#ed633f]"
+              >
+                Open Paystack deposit link
+              </a>
+            )}
+            {businessId && (
+              <div className="mt-4">
+                <QuotePaymentButton
+                  businessId={businessId}
+                  quoteId={quote.id}
+                  hasPaymentUrl={Boolean(quote.payment_url)}
+                />
+              </div>
+            )}
+          </Card>
+
           <Card className="p-5">
             <h2 className="font-bold">Project input</h2>
             <dl className="mt-4 space-y-3 text-sm">

@@ -5,8 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import BusinessAccess, require_admin, require_business_access
-from app.domain.quotes import QuoteCreate, QuoteUpdate, QuoteView
+from app.domain.quotes import (
+    PublicQuoteAcceptResult,
+    PublicQuoteView,
+    QuoteCreate,
+    QuoteUpdate,
+    QuoteView,
+)
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
     AuditLog,
@@ -18,9 +25,11 @@ from app.infrastructure.models import (
     QuoteStatus,
     QuoteTemplateType,
 )
+from app.services.paystack import PaystackService
 from app.services.quote_engine import calculate_quote, default_mural_input
 
 router = APIRouter(prefix="/businesses/{business_id}/quotes", tags=["quotes"])
+public_router = APIRouter(prefix="/quotes", tags=["public-quotes"])
 
 
 @router.get("", response_model=list[QuoteView])
@@ -130,6 +139,58 @@ async def create_quote_from_lead(
     )
 
 
+@router.post("/{quote_id}/payment-link", response_model=QuoteView)
+async def create_quote_payment_link(
+    business_id: UUID,
+    quote_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> QuoteView:
+    settings = get_settings()
+    row = (
+        await session.execute(
+            select(Quote, CRMLead, Contact)
+            .outerjoin(CRMLead, CRMLead.id == Quote.lead_id)
+            .outerjoin(Contact, Contact.id == Quote.contact_id)
+            .where(Quote.id == quote_id, Quote.business_id == business_id)
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    quote, lead, contact = row
+    if not contact or not contact.email:
+        raise HTTPException(status_code=400, detail="Quote needs a client email for Paystack")
+    if quote.deposit_required is None:
+        raise HTTPException(status_code=400, detail="Quote has no deposit amount")
+    if not quote.payment_url:
+        reference = f"beoos-{quote.id.hex[:24]}"
+        quote.payment_reference = reference
+        quote.payment_url = await PaystackService(settings).initialize_transaction(
+            email=contact.email,
+            amount=quote.deposit_required,
+            currency=quote.currency,
+            reference=reference,
+            callback_url=f"{settings.frontend_url.rstrip('/')}/quotes/{quote.public_token}",
+            metadata={
+                "quote_id": str(quote.id),
+                "business_id": str(business_id),
+                "actor_id": access.user_id,
+            },
+        )
+        session.add(
+            AuditLog(
+                business_id=business_id,
+                actor_id=access.user_id,
+                action="quote.payment_link_created",
+                resource_type="quote",
+                resource_id=str(quote.id),
+                details={"reference": reference},
+            )
+        )
+        await session.commit()
+    return await _get_quote_view(session, business_id, quote.id)
+
+
 @router.patch("/{quote_id}", response_model=QuoteView)
 async def update_quote(
     business_id: UUID,
@@ -180,6 +241,36 @@ async def update_quote(
     return await _get_quote_view(session, business_id, quote.id)
 
 
+@public_router.get("/{public_token}", response_model=PublicQuoteView)
+async def get_public_quote(
+    public_token: str,
+    session: AsyncSession = Depends(get_session),
+) -> PublicQuoteView:
+    quote, business, contact = await _public_quote_row(session, public_token)
+    if quote.client_viewed_at is None:
+        quote.client_viewed_at = datetime.now(UTC)
+        await session.commit()
+    return _public_quote_view(quote, business, contact)
+
+
+@public_router.post("/{public_token}/accept", response_model=PublicQuoteAcceptResult)
+async def accept_public_quote(
+    public_token: str,
+    session: AsyncSession = Depends(get_session),
+) -> PublicQuoteAcceptResult:
+    quote, _business, _contact = await _public_quote_row(session, public_token)
+    now = datetime.now(UTC)
+    if quote.accepted_at is None:
+        quote.accepted_at = now
+        quote.status = QuoteStatus.accepted
+        await session.commit()
+    return PublicQuoteAcceptResult(
+        status=quote.status,
+        accepted_at=quote.accepted_at or now,
+        payment_url=quote.payment_url,
+    )
+
+
 async def _business(session: AsyncSession, business_id: UUID) -> Business:
     business = await session.get(Business, business_id)
     if business is None:
@@ -220,6 +311,23 @@ async def _get_quote_view(session: AsyncSession, business_id: UUID, quote_id: UU
     return _quote_view(quote, lead, contact)
 
 
+async def _public_quote_row(
+    session: AsyncSession,
+    public_token: str,
+) -> tuple[Quote, Business, Contact | None]:
+    row = (
+        await session.execute(
+            select(Quote, Business, Contact)
+            .join(Business, Business.id == Quote.business_id)
+            .outerjoin(Contact, Contact.id == Quote.contact_id)
+            .where(Quote.public_token == public_token)
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    return row
+
+
 def _seed_input(
     payload: QuoteCreate,
     lead: CRMLead | None,
@@ -240,6 +348,7 @@ def _seed_input(
 
 
 def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> QuoteView:
+    settings = get_settings()
     return QuoteView(
         id=quote.id,
         business_id=quote.business_id,
@@ -252,6 +361,7 @@ def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> 
         subtotal=quote.subtotal,
         total=quote.total,
         deposit_required=quote.deposit_required,
+        public_url=f"{settings.frontend_url.rstrip('/')}/quotes/{quote.public_token}",
         valid_until=quote.valid_until,
         input_data=quote.input_data,
         calculation=quote.calculation,
@@ -259,10 +369,34 @@ def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> 
         internal_notes=quote.internal_notes,
         approved_by=quote.approved_by,
         sent_at=quote.sent_at,
+        client_viewed_at=quote.client_viewed_at,
         accepted_at=quote.accepted_at,
+        payment_url=quote.payment_url,
+        payment_reference=quote.payment_reference,
         created_at=quote.created_at,
         updated_at=quote.updated_at,
         lead_title=lead.title if lead else None,
         contact_name=contact.name if contact else None,
         contact_email=contact.email if contact else None,
+    )
+
+
+def _public_quote_view(
+    quote: Quote,
+    business: Business,
+    contact: Contact | None,
+) -> PublicQuoteView:
+    return PublicQuoteView(
+        title=quote.title,
+        business_name=business.name,
+        contact_name=contact.name if contact else None,
+        contact_email=contact.email if contact else None,
+        status=quote.status,
+        currency=quote.currency,
+        total=quote.total,
+        deposit_required=quote.deposit_required,
+        proposal=quote.proposal,
+        calculation=quote.calculation,
+        payment_url=quote.payment_url,
+        accepted_at=quote.accepted_at,
     )

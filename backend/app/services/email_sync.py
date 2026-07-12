@@ -513,7 +513,11 @@ class EmailSyncService:
                 risk_flags=list(triage.risk_flags),
                 extracted_fields=triage.extracted_fields.model_dump(),
                 recommended_action=triage.recommended_action.value,
-                model=self._settings.openai_model,
+                model=(
+                    f"replicate:{self._settings.replicate_model}"
+                    if self._settings.ai_provider == "replicate"
+                    else self._settings.openai_model
+                ),
                 response_id=response_id,
             )
         )

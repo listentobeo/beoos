@@ -32,6 +32,20 @@ OPENAI_API_KEY=
 OPENAI_MODEL=
 ```
 
+### Replicate
+
+Alternative AI provider for testing and lower-cost internal automation. Set this when you want
+BeoOS to use Replicate instead of direct OpenAI calls.
+
+```env
+AI_PROVIDER=replicate
+REPLICATE_API_TOKEN=
+REPLICATE_MODEL=openai/gpt-5.4
+REPLICATE_TIMEOUT_SECONDS=90
+```
+
+Keep `AI_PROVIDER=openai` if you want to use direct OpenAI API keys instead.
+
 ### Secret encryption key
 
 Used to encrypt OAuth tokens.
@@ -45,6 +59,15 @@ Generate with:
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### Paystack
+
+Used for proposal deposit payment links.
+
+```env
+PAYSTACK_SECRET_KEY=
+PAYSTACK_PUBLIC_KEY=
 ```
 
 ## Active provider: Zoho Mail
