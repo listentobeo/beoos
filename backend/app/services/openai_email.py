@@ -116,26 +116,33 @@ class OpenAIEmailService:
         sender_email: str,
     ) -> dict[str, Any]:
         owner, model = self._settings.replicate_model.split("/", maxsplit=1)
+        url = f"https://api.replicate.com/v1/models/{owner}/{model}/predictions"
+        headers = {
+            "Authorization": f"Bearer {self._settings.replicate_api_token}",
+            "Content-Type": "application/json",
+            "Prefer": "wait=10",
+        }
+        input_payload = {
+            "prompt": prompt,
+            "system_prompt": "You are BeoOS, a structured sales operations AI.",
+            "reasoning_effort": "low",
+            "verbosity": "low",
+            "max_completion_tokens": 1800,
+        }
         response = await self._http.post(
-            f"https://api.replicate.com/v1/models/{owner}/{model}/predictions",
-            headers={
-                "Authorization": f"Bearer {self._settings.replicate_api_token}",
-                "Content-Type": "application/json",
-                "Prefer": "wait=10",
-            },
+            url,
+            headers=headers,
             json={
-                "input": {
-                    "prompt": prompt,
-                    "system_prompt": "You are BeoOS, a structured sales operations AI.",
-                    "temperature": 0.1,
-                },
-                "metadata": {
+                "input": input_payload,
+                "context": {
                     "safety_identifier": hashlib.sha256(
                         sender_email.lower().encode()
                     ).hexdigest()[:64],
                 },
             },
         )
+        if response.status_code == 422:
+            response = await self._http.post(url, headers=headers, json={"input": input_payload})
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError:
