@@ -112,8 +112,9 @@ export function WhatsAppSettingsForm({
       if (!config.enabled) throw new Error("Add META_APP_ID, META_APP_SECRET, and META_WHATSAPP_CONFIG_ID on Railway.");
 
       await loadFacebookSdk();
-      window.FB?.login(async (response) => {
-        try {
+      window.FB?.login((response) => {
+        void (async () => {
+          try {
           const code = response.authResponse?.code;
           if (!code) {
             setMessage("Meta signup was cancelled or did not return a code.");
@@ -142,10 +143,11 @@ export function WhatsAppSettingsForm({
           setMessage("WhatsApp connected through Meta Embedded Signup.");
           setConnecting(false);
           router.refresh();
-        } catch (error) {
-          setMessage(error instanceof Error ? error.message : "Meta connection failed.");
-          setConnecting(false);
-        }
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : "Meta connection failed.");
+            setConnecting(false);
+          }
+        })();
       }, {
         config_id: META_WHATSAPP_CONFIG_ID,
         response_type: "code",
