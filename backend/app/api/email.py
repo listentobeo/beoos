@@ -317,6 +317,25 @@ async def mark_thread_read(
     await session.commit()
 
 
+@router.post("/threads/{thread_id}/mark-unread", status_code=204)
+async def mark_thread_unread(
+    business_id: UUID,
+    thread_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    thread = await session.scalar(
+        select(EmailThread).where(
+            EmailThread.id == thread_id,
+            EmailThread.business_id == business_id,
+        )
+    )
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    thread.unread_count = max(thread.unread_count, 1)
+    await session.commit()
+
+
 @router.post("/drafts/{draft_id}/approve")
 async def approve_draft(
     business_id: UUID,

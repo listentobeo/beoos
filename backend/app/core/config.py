@@ -68,6 +68,26 @@ class Settings(BaseSettings):
     paystack_public_key: str = ""
 
     @property
+    def effective_ai_provider(self) -> Literal["openai", "replicate"]:
+        if self.ai_provider == "replicate":
+            return "replicate"
+        if self.replicate_api_token and not self.openai_api_key:
+            return "replicate"
+        return "openai"
+
+    @property
+    def ai_configured(self) -> bool:
+        if self.effective_ai_provider == "replicate":
+            return bool(self.replicate_api_token)
+        return bool(self.openai_api_key)
+
+    @property
+    def effective_ai_model(self) -> str:
+        if self.effective_ai_provider == "replicate":
+            return f"replicate:{self.replicate_model}"
+        return self.openai_model
+
+    @property
     def allowed_origins(self) -> list[str]:
         value = self.cors_origins.strip()
         if not value:

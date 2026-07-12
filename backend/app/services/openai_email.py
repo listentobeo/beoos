@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import structlog
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
@@ -13,6 +14,7 @@ from app.domain.email import EmailTriageResult
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[2] / "prompts" / "email_triage.md").read_text(
     encoding="utf-8"
 )
+logger = structlog.get_logger()
 
 
 class OpenAIEmailService:
@@ -53,7 +55,7 @@ class OpenAIEmailService:
             business_policy_instructions=business_policy_instructions.strip()
             or "Follow the default BeoOS business policy.",
         )
-        if self._settings.ai_provider == "replicate":
+        if self._settings.effective_ai_provider == "replicate":
             return await self._triage_with_replicate(
                 instructions=instructions,
                 input_payload=input_payload,
@@ -134,7 +136,16 @@ class OpenAIEmailService:
                 },
             },
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            logger.exception(
+                "replicate_prediction_create_failed",
+                status_code=response.status_code,
+                response_text=response.text[:1000],
+                model=self._settings.replicate_model,
+            )
+            raise
         return response.json()
 
     async def _wait_for_replicate_prediction(self, prediction_id: str) -> Any:
@@ -144,7 +155,16 @@ class OpenAIEmailService:
                 f"https://api.replicate.com/v1/predictions/{prediction_id}",
                 headers={"Authorization": f"Bearer {self._settings.replicate_api_token}"},
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError:
+                logger.exception(
+                    "replicate_prediction_poll_failed",
+                    status_code=response.status_code,
+                    response_text=response.text[:1000],
+                    prediction_id=prediction_id,
+                )
+                raise
             prediction = response.json()
             if prediction.get("status") == "succeeded":
                 return prediction.get("output")

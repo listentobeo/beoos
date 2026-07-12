@@ -220,6 +220,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`BeoOS API request failed (${response.status})`);
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -245,6 +246,14 @@ export const beoApi = {
   },
   thread: (businessId: string, threadId: string) =>
     apiFetch<ThreadDetail>(`/businesses/${businessId}/email/threads/${threadId}`),
+  markThreadRead: (businessId: string, threadId: string) =>
+    apiFetch<void>(`/businesses/${businessId}/email/threads/${threadId}/mark-read`, {
+      method: "POST",
+    }),
+  markThreadUnread: (businessId: string, threadId: string) =>
+    apiFetch<void>(`/businesses/${businessId}/email/threads/${threadId}/mark-unread`, {
+      method: "POST",
+    }),
   drafts: (businessId: string) =>
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
   pushStatus: (businessId: string) =>

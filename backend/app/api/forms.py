@@ -183,13 +183,10 @@ async def _run_ai_intake(
     thread: EmailThread,
     message: EmailMessage,
 ) -> None:
-    if (
-        (settings.ai_provider == "openai" and not settings.openai_api_key)
-        or (settings.ai_provider == "replicate" and not settings.replicate_api_token)
-    ):
+    if not settings.ai_configured:
         thread.status = ThreadStatus.needs_approval
         message.processed_at = datetime.now(UTC)
-        provider_name = "Replicate" if settings.ai_provider == "replicate" else "OpenAI"
+        provider_name = "Replicate" if settings.effective_ai_provider == "replicate" else "OpenAI"
         session.add(
             EmailDraft(
                 thread_id=thread.id,
@@ -223,6 +220,14 @@ async def _run_ai_intake(
             business_policy_instructions=policy.custom_instructions,
         )
     except Exception as exc:
+        logger.exception(
+            "website_form_ai_intake_failed",
+            business_id=str(business.id),
+            thread_id=str(thread.id),
+            message_id=str(message.id),
+            provider=settings.effective_ai_provider,
+            model=settings.effective_ai_model,
+        )
         thread.status = ThreadStatus.needs_approval
         message.processed_at = datetime.now(UTC)
         session.add(
@@ -234,7 +239,7 @@ async def _run_ai_intake(
                 draft_type="manual_follow_up",
                 status=DraftStatus.pending,
                 auto_send_eligible=False,
-                policy_reasons=[f"AI intake failed: {exc.__class__.__name__}"],
+                policy_reasons=[f"AI intake failed: {exc.__class__.__name__}: {str(exc)[:180]}"],
             )
         )
         return
@@ -253,11 +258,7 @@ async def _run_ai_intake(
             risk_flags=list(triage.risk_flags),
             extracted_fields=triage.extracted_fields.model_dump(),
             recommended_action=triage.recommended_action.value,
-            model=(
-                f"replicate:{settings.replicate_model}"
-                if settings.ai_provider == "replicate"
-                else settings.openai_model
-            ),
+            model=settings.effective_ai_model,
             response_id=response_id,
         )
     )

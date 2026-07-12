@@ -1,6 +1,8 @@
 import { ArrowLeft, Bot, CheckCircle2, Clock, Mail, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { ApproveDraftButton } from "@/components/dashboard/approve-draft-button";
 import { CreateLeadButton } from "@/components/dashboard/create-lead-button";
+import { ThreadReadActions } from "@/components/dashboard/thread-read-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type ThreadDetail } from "@/lib/api";
@@ -128,6 +130,15 @@ export default async function EmailThreadPage({
                 <dd className="font-semibold">{detail.thread.unread_count}</dd>
               </div>
             </dl>
+            {businessId && (
+              <div className="mt-4">
+                <ThreadReadActions
+                  businessId={businessId}
+                  threadId={detail.thread.id}
+                  unreadCount={detail.thread.unread_count}
+                />
+              </div>
+            )}
           </Card>
 
           {latestDraft ? (
@@ -144,6 +155,11 @@ export default async function EmailThreadPage({
                   <ul className="mt-2 space-y-1 text-xs text-amber-900/75">
                     {latestDraft.policy_reasons.map((reason) => <li key={reason}>• {reason}</li>)}
                   </ul>
+                </div>
+              )}
+              {businessId && latestDraft.status === "pending" && (
+                <div className="mt-4">
+                  <ApproveDraftButton businessId={businessId} draftId={latestDraft.id} />
                 </div>
               )}
             </Card>
