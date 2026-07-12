@@ -5,6 +5,7 @@ import httpx
 from app.core.config import Settings
 from app.domain.business import normalized_whatsapp_settings
 from app.infrastructure.models import Business
+from app.services.crypto import SecretCipher
 
 
 class WhatsAppCloudError(RuntimeError):
@@ -20,8 +21,17 @@ class WhatsAppCloudService:
         configured = normalized_whatsapp_settings(business.settings)
         return configured.phone_number_id or self._settings.whatsapp_phone_number_id
 
+    def access_token_for(self, business: Business) -> str:
+        raw_settings = business.settings or {}
+        raw_whatsapp = raw_settings.get("whatsapp") if isinstance(raw_settings, dict) else None
+        if isinstance(raw_whatsapp, dict) and raw_whatsapp.get("access_token_encrypted"):
+            return SecretCipher(self._settings.secret_encryption_key).decrypt(
+                str(raw_whatsapp["access_token_encrypted"])
+            )
+        return self._settings.whatsapp_access_token
+
     def is_configured_for(self, business: Business) -> bool:
-        return bool(self._settings.whatsapp_access_token and self.phone_number_id_for(business))
+        return bool(self.access_token_for(business) and self.phone_number_id_for(business))
 
     async def send_text(
         self,
@@ -31,7 +41,8 @@ class WhatsAppCloudService:
         body: str,
     ) -> str:
         phone_number_id = self.phone_number_id_for(business)
-        if not self._settings.whatsapp_access_token or not phone_number_id:
+        access_token = self.access_token_for(business)
+        if not access_token or not phone_number_id:
             raise WhatsAppCloudError("WhatsApp Cloud API is not configured")
 
         digits = "".join(character for character in recipient_phone if character.isdigit())
@@ -41,7 +52,7 @@ class WhatsAppCloudService:
         response = await self._http.post(
             f"{self._settings.whatsapp_graph_base_url}/{phone_number_id}/messages",
             headers={
-                "Authorization": f"Bearer {self._settings.whatsapp_access_token}",
+                "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
             },
             json={

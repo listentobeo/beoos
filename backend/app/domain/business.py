@@ -29,6 +29,9 @@ class BusinessWhatsAppSettings(BaseModel):
     phone_number_id: str = Field(default="", max_length=120)
     business_account_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
+    connected_via: str = Field(default="manual", max_length=40)
+    connected_at: str = Field(default="", max_length=80)
+    token_configured: bool = False
 
 
 def default_ai_policy() -> dict[str, Any]:
@@ -46,7 +49,9 @@ def normalized_whatsapp_settings(settings: dict[str, Any] | None) -> BusinessWha
     raw_settings = (settings or {}).get("whatsapp", {})
     if not isinstance(raw_settings, dict):
         raw_settings = {}
-    return BusinessWhatsAppSettings.model_validate(raw_settings)
+    normalized = BusinessWhatsAppSettings.model_validate(raw_settings)
+    normalized.token_configured = bool(raw_settings.get("access_token_encrypted"))
+    return normalized
 
 
 def default_business_settings() -> dict[str, Any]:

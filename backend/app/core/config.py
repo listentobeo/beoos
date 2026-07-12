@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     google_gmail_base_url: str = "https://gmail.googleapis.com"
 
     meta_app_secret: str = ""
+    meta_app_id: str = ""
+    meta_whatsapp_config_id: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""

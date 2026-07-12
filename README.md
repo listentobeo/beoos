@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links. Module 3.6 adds AI lead scoring and editable quote basics.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.6.5 adds WhatsApp Embedded Signup so SaaS tenants can connect their own Meta WhatsApp Business Account and phone number. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links. Module 3.6 adds AI lead scoring and editable quote basics.
 
 ## Structure
 
@@ -72,7 +72,7 @@ docs/modules/              Approved module specifications
 - **AI provider:** set `AI_PROVIDER=openai` with `OPENAI_API_KEY`, or `AI_PROVIDER=replicate` with `REPLICATE_API_TOKEN`.
 - **Resend:** verify the alert-sending domain and set `RESEND_API_KEY`.
 - **Website forms:** Business Settings shows each tenant's endpoint and form key. No external API key is required.
-- **WhatsApp Cloud API:** configure Meta webhook credentials globally, then save each tenant's phone number ID in Business Settings.
+- **WhatsApp Cloud API:** configure Meta webhook credentials globally, then either save a tenant's phone number ID manually or let the tenant connect their own WhatsApp Business Account through Embedded Signup in Business Settings.
 - **Push notifications:** generate VAPID keys, set them on Railway, then enable browser notifications per business/device in Business Settings.
 - **Mailbox auto-sync:** enabled by default in the API service. Tune with `MAILBOX_AUTO_SYNC_*` variables.
 - **Paystack:** set `PAYSTACK_SECRET_KEY` when you want BeoOS to generate deposit payment links from proposals.

@@ -185,11 +185,21 @@ Used for inbound WhatsApp messages and approval-based replies.
 
 ```env
 META_APP_SECRET=
+META_APP_ID=
+META_WHATSAPP_CONFIG_ID=
 WHATSAPP_VERIFY_TOKEN=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_BUSINESS_ACCOUNT_ID=
 WHATSAPP_GRAPH_BASE_URL=https://graph.facebook.com/v20.0
+```
+
+Frontend Embedded Signup variables:
+
+```env
+NEXT_PUBLIC_META_APP_ID=
+NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID=
+NEXT_PUBLIC_META_GRAPH_VERSION=v20.0
 ```
 
 Meta setup required:
@@ -208,6 +218,35 @@ Meta setup required:
 - message templates for later business-initiated conversations.
 
 Module 1.6 receives WhatsApp text messages and queues AI/manual replies for approval. Media, templates, delivery receipts, and automatic sends remain planned improvements.
+
+## Active in Module 1.6.5: WhatsApp Embedded Signup
+
+Used for the SaaS model where each customer connects their own WhatsApp Business Account
+and phone number to a specific BeoOS business/tenant.
+
+Flow:
+
+```text
+Business Settings
+-> Connect with Meta
+-> customer logs into Meta
+-> Meta returns WABA / phone number / code
+-> backend exchanges code for token
+-> encrypted token + phone_number_id are stored under that BeoOS business only
+-> WhatsApp webhooks route by phone_number_id
+```
+
+Meta setup required:
+
+- app has WhatsApp product added;
+- WhatsApp Embedded Signup configuration created in Meta;
+- `META_APP_ID`, `META_APP_SECRET`, and `META_WHATSAPP_CONFIG_ID` set on Railway;
+- `NEXT_PUBLIC_META_APP_ID` and `NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID` set on Vercel;
+- app domains include the BeoOS frontend domain;
+- privacy policy, terms, and data deletion URLs are filled in before production review.
+
+Manual WhatsApp setup still works for internal tenants. Embedded Signup is the recommended
+path for external SaaS tenants because each tenant owns and authorizes their own WABA/number.
 
 ## Active in Module 1.7: PWA/mobile push
 

@@ -21,6 +21,9 @@ export type BusinessWhatsAppSettings = {
   phone_number_id: string;
   business_account_id: string;
   display_phone_number: string;
+  connected_via: string;
+  connected_at: string;
+  token_configured: boolean;
 };
 
 export type Business = {
