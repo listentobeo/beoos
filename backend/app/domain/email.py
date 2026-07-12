@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -64,6 +64,7 @@ class ThreadMessageView(BaseModel):
     sender_name: str | None
     subject: str
     body_text: str
+    attachment_metadata: list[dict[str, Any]]
     sent_at: datetime
 
 

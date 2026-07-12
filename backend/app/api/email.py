@@ -204,6 +204,7 @@ async def get_thread(
                 sender_name=message.sender_name,
                 subject=message.subject,
                 body_text=message.body_text,
+                attachment_metadata=message.attachment_metadata,
                 sent_at=message.sent_at,
             )
             for message in thread.messages
@@ -372,6 +373,51 @@ async def approve_draft(
     finally:
         await service.close()
     return {"status": "sent", "draft_id": str(draft.id)}
+
+
+@router.post("/drafts/{draft_id}/discard")
+async def discard_draft(
+    business_id: UUID,
+    draft_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    draft = await session.scalar(
+        select(EmailDraft)
+        .join(EmailThread, EmailThread.id == EmailDraft.thread_id)
+        .where(EmailDraft.id == draft_id, EmailThread.business_id == business_id)
+        .with_for_update()
+    )
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    if draft.status != DraftStatus.pending:
+        raise HTTPException(status_code=409, detail="Only pending drafts can be discarded")
+
+    draft.status = DraftStatus.rejected
+    draft.approved_by = access.user_id
+    thread = await session.get(EmailThread, draft.thread_id)
+    if thread is not None:
+        pending_count = await session.scalar(
+            select(func.count(EmailDraft.id)).where(
+                EmailDraft.thread_id == thread.id,
+                EmailDraft.id != draft.id,
+                EmailDraft.status == DraftStatus.pending,
+            )
+        )
+        if int(pending_count or 0) == 0 and thread.status == ThreadStatus.needs_approval:
+            thread.status = ThreadStatus.acknowledged
+        session.add(
+            AuditLog(
+                business_id=thread.business_id,
+                actor_id=access.user_id,
+                action="email_draft.discarded",
+                resource_type="email_draft",
+                resource_id=str(draft.id),
+                details={"thread_id": str(thread.id), "draft_type": draft.draft_type},
+            )
+        )
+    await session.commit()
+    return {"status": "discarded", "draft_id": str(draft.id)}
 
 
 async def _send_approved_whatsapp_draft(

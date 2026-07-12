@@ -109,6 +109,7 @@ class WhatsAppInboundMessage:
         from_phone: str,
         sender_name: str | None,
         body_text: str,
+        media_metadata: list[dict[str, Any]],
         sent_at: datetime,
         raw: dict[str, Any],
     ) -> None:
@@ -118,6 +119,7 @@ class WhatsAppInboundMessage:
         self.from_phone = from_phone
         self.sender_name = sender_name
         self.body_text = body_text
+        self.media_metadata = media_metadata
         self.sent_at = sent_at
         self.raw = raw
 
@@ -153,9 +155,7 @@ def _iter_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                 from_phone = str(message.get("from") or "")
                 if not message_id or not from_phone:
                     continue
-                text_value = message.get("text")
-                text = text_value if isinstance(text_value, dict) else {}
-                body_text = str(text.get("body") or _non_text_placeholder(message))
+                body_text, media_metadata = _message_body_and_media(message)
                 messages.append(
                     WhatsAppInboundMessage(
                         phone_number_id=phone_number_id,
@@ -164,6 +164,7 @@ def _iter_inbound_messages(payload: dict[str, Any]) -> list[WhatsAppInboundMessa
                         from_phone=from_phone,
                         sender_name=contact_names.get(from_phone),
                         body_text=body_text,
+                        media_metadata=media_metadata,
                         sent_at=_timestamp(message.get("timestamp")),
                         raw=message,
                     )
@@ -187,6 +188,37 @@ def _contact_names(value: dict[str, Any]) -> dict[str, str]:
         if wa_id and name:
             names[wa_id] = name
     return names
+
+
+def _message_body_and_media(message: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    text_value = message.get("text")
+    text = text_value if isinstance(text_value, dict) else {}
+    if text.get("body"):
+        return str(text["body"]), []
+
+    message_type = str(message.get("type") or "message")
+    media_value = message.get(message_type)
+    media = media_value if isinstance(media_value, dict) else {}
+    media_id = str(media.get("id") or "")
+    caption = str(media.get("caption") or "").strip()
+    filename = str(media.get("filename") or "").strip()
+    mime_type = str(media.get("mime_type") or "").strip()
+    sha256 = str(media.get("sha256") or "").strip()
+    if media_id:
+        label = filename or caption or media_id
+        body = caption or f"[WhatsApp {message_type} received: {label}]"
+        return body, [
+            {
+                "source": "whatsapp",
+                "media_type": message_type,
+                "media_id": media_id,
+                "caption": caption,
+                "filename": filename,
+                "mime_type": mime_type,
+                "sha256": sha256,
+            }
+        ]
+    return _non_text_placeholder(message), []
 
 
 def _non_text_placeholder(message: dict[str, Any]) -> str:
@@ -281,6 +313,7 @@ async def _import_whatsapp_message(
         body_text=item.body_text,
         body_html=None,
         attachment_metadata=[
+            *item.media_metadata,
             {
                 "source": "whatsapp",
                 "phone_number_id": item.phone_number_id,

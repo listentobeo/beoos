@@ -1,5 +1,6 @@
 import { FilePenLine, ShieldAlert } from "lucide-react";
 import { ApproveDraftButton } from "@/components/dashboard/approve-draft-button";
+import { DiscardDraftButton } from "@/components/dashboard/discard-draft-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type DraftQueueItem } from "@/lib/api";
@@ -47,7 +48,12 @@ export default async function ApprovalsPage() {
                   </ul>
                 </div>
               )}
-              <div className="mt-5 flex justify-end">{businessId && <ApproveDraftButton businessId={businessId} draftId={draft.id} />}</div>
+              {businessId && (
+                <div className="mt-5 flex flex-wrap justify-end gap-3">
+                  <DiscardDraftButton businessId={businessId} draftId={draft.id} />
+                  <ApproveDraftButton businessId={businessId} draftId={draft.id} />
+                </div>
+              )}
             </div>
           </Card>
         ))}

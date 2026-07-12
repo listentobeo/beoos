@@ -1,7 +1,8 @@
-import { ArrowLeft, Bot, CheckCircle2, Clock, Mail, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Bot, CheckCircle2, Clock, FileImage, FileText, Mail, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { ApproveDraftButton } from "@/components/dashboard/approve-draft-button";
 import { CreateLeadButton } from "@/components/dashboard/create-lead-button";
+import { DiscardDraftButton } from "@/components/dashboard/discard-draft-button";
 import { ThreadReadActions } from "@/components/dashboard/thread-read-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -20,6 +21,13 @@ const categoryStyles: Record<string, string> = {
   spam: "bg-zinc-100 text-zinc-500",
   general: "bg-orange-50 text-orange-700",
 };
+
+function attachmentLabel(attachment: Record<string, unknown>) {
+  const mediaType = String(attachment.media_type ?? attachment.type ?? "attachment");
+  const filename = String(attachment.filename ?? "");
+  const mime = String(attachment.mime_type ?? "");
+  return [filename || `WhatsApp ${mediaType}`, mime].filter(Boolean).join(" · ");
+}
 
 export default async function EmailThreadPage({
   params,
@@ -93,6 +101,33 @@ export default async function EmailThreadPage({
               </div>
               <div className="p-5">
                 <p className="whitespace-pre-wrap text-sm leading-7 text-[#31363d]">{message.body_text || "(No readable message body)"}</p>
+                {message.attachment_metadata.filter((attachment) => attachment.media_id || attachment.filename || attachment.mime_type).length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {message.attachment_metadata.filter((attachment) => attachment.media_id || attachment.filename || attachment.mime_type).map((attachment, index) => {
+                      const mediaType = String(attachment.media_type ?? attachment.type ?? "");
+                      const mediaId = String(attachment.media_id ?? "");
+                      const isImage = mediaType === "image";
+                      return (
+                        <div key={`${message.id}-${index}`} className="rounded-xl border bg-[#fbfaf7] p-3 text-xs text-[#626861]">
+                          <div className="flex items-start gap-2">
+                            {isImage ? <FileImage className="mt-0.5 size-4 text-[#ed633f]" /> : <FileText className="mt-0.5 size-4 text-[#ed633f]" />}
+                            <div>
+                              <p className="font-semibold text-[#252a33]">{attachmentLabel(attachment)}</p>
+                              {mediaId ? (
+                                <p className="mt-1 break-all">Meta media ID: {mediaId}</p>
+                              ) : (
+                                <p className="mt-1">Attachment metadata captured.</p>
+                              )}
+                              <p className="mt-1 text-[#858a84]">
+                                File download/storage is the next media step; BeoOS has captured the path needed to fetch it from Meta.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </Card>
           ))}
@@ -158,7 +193,8 @@ export default async function EmailThreadPage({
                 </div>
               )}
               {businessId && latestDraft.status === "pending" && (
-                <div className="mt-4">
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
+                  <DiscardDraftButton businessId={businessId} draftId={latestDraft.id} />
                   <ApproveDraftButton businessId={businessId} draftId={latestDraft.id} />
                 </div>
               )}

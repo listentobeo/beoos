@@ -94,6 +94,7 @@ export type ThreadMessage = {
   sender_name: string | null;
   subject: string;
   body_text: string;
+  attachment_metadata: Array<Record<string, unknown>>;
   sent_at: string;
 };
 export type DraftView = {
