@@ -21,6 +21,7 @@ from app.infrastructure.models import (
     Contact,
     CRMLead,
     LeadStage,
+    PriceCatalogItem,
     Quote,
     QuoteStatus,
     QuoteTemplateType,
@@ -71,7 +72,11 @@ async def create_quote(
     lead = await _lead(session, business_id, payload.lead_id) if payload.lead_id else None
     contact_id = payload.contact_id or (lead.contact_id if lead else None)
     contact = await _contact(session, business_id, contact_id) if contact_id else None
-    input_data = _seed_input(payload, lead, contact)
+    input_data = await _attach_catalogue_items(
+        session,
+        business_id,
+        _seed_input(payload, lead, contact),
+    )
     calculation, proposal, subtotal, total, deposit = calculate_quote(
         business=business,
         template_type=payload.template_type.value,
@@ -210,15 +215,16 @@ async def update_quote(
     )
     if quote is None:
         raise HTTPException(status_code=404, detail="Quote not found")
+    input_data = await _attach_catalogue_items(session, business_id, payload.input_data)
     calculation, proposal, subtotal, total, deposit = calculate_quote(
         business=business,
         template_type=quote.template_type.value,
-        input_data=payload.input_data,
+        input_data=input_data,
     )
     old_status = quote.status
     quote.title = payload.title
     quote.status = payload.status
-    quote.input_data = payload.input_data
+    quote.input_data = input_data
     quote.calculation = calculation
     quote.proposal = proposal
     quote.subtotal = subtotal
@@ -354,6 +360,47 @@ def _seed_input(
         seed.setdefault("email", contact.email)
         seed.setdefault("phone", contact.phone or "")
     return seed
+
+
+async def _attach_catalogue_items(
+    session: AsyncSession,
+    business_id: UUID,
+    input_data: dict[str, object],
+) -> dict[str, object]:
+    enriched = dict(input_data)
+    raw_ids = enriched.get("price_item_ids")
+    if not isinstance(raw_ids, list):
+        return enriched
+    item_ids: list[UUID] = []
+    for raw_id in raw_ids:
+        try:
+            item_ids.append(UUID(str(raw_id)))
+        except ValueError:
+            continue
+    if not item_ids:
+        return enriched
+    items = (
+        await session.scalars(
+            select(PriceCatalogItem).where(
+                PriceCatalogItem.business_id == business_id,
+                PriceCatalogItem.id.in_(item_ids),
+                PriceCatalogItem.active.is_(True),
+            )
+        )
+    ).all()
+    enriched["catalogue_items"] = [
+        {
+            "id": str(item.id),
+            "service": item.service,
+            "label": item.label,
+            "quantity": 1,
+            "unit_price": str(item.amount_min or item.amount_max or 0),
+            "stock_quantity": item.stock_quantity,
+            "custom_fields": item.custom_fields,
+        }
+        for item in items
+    ]
+    return enriched
 
 
 def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> QuoteView:

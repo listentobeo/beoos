@@ -118,6 +118,8 @@ export type PriceItem = {
   amount_min: string | null;
   amount_max: string | null;
   currency: string;
+  stock_quantity: number | null;
+  custom_fields: Record<string, string | number | boolean | null>;
   source_url: string;
   effective_from: string;
   effective_until: string | null;

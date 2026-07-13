@@ -15,9 +15,33 @@ def calculate_quote(
 ) -> tuple[dict[str, Any], dict[str, Any], Decimal, Decimal, Decimal | None]:
     if template_type == "mural":
         return calculate_mural_quote(business=business, input_data=input_data)
-    subtotal = money(input_data.get("subtotal"))
+    catalogue_items = input_data.get("catalogue_items")
+    line_items: list[dict[str, str]] = []
+    catalogue_total = ZERO
+    if isinstance(catalogue_items, list):
+        for item in catalogue_items:
+            if not isinstance(item, dict):
+                continue
+            quantity = money(item.get("quantity") or 1)
+            unit_price = money(item.get("unit_price"))
+            total = quantity * unit_price
+            catalogue_total += total
+            line_items.append(
+                {
+                    "label": str(item.get("label") or "Catalogue item"),
+                    "service": str(item.get("service") or ""),
+                    "quantity": str(quantity),
+                    "unit_price": str(round_money(unit_price)),
+                    "total": str(round_money(total)),
+                }
+            )
+    subtotal = money(input_data.get("subtotal")) or catalogue_total
     total = money(input_data.get("total") or subtotal)
-    calculation = {"subtotal": str(subtotal), "total": str(total), "line_items": []}
+    calculation = {
+        "subtotal": str(round_money(subtotal)),
+        "total": str(round_money(total)),
+        "line_items": line_items,
+    }
     proposal = {
         "summary": input_data.get("summary") or "Custom service quote.",
         "client_terms": input_data.get("client_terms") or "",

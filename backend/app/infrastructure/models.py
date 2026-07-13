@@ -280,6 +280,8 @@ class PriceCatalogItem(Base, TimestampMixin):
     amount_min: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     amount_max: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    stock_quantity: Mapped[int | None] = mapped_column(Integer)
+    custom_fields: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     effective_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

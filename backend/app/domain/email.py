@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
@@ -130,8 +130,10 @@ class PriceItemCreate(BaseModel):
     amount_min: Decimal | None = Field(default=None, ge=0)
     amount_max: Decimal | None = Field(default=None, ge=0)
     currency: str = Field(default="NGN", min_length=3, max_length=3)
-    source_url: str = Field(min_length=1, max_length=2000)
-    effective_from: datetime
+    stock_quantity: int | None = Field(default=None, ge=0)
+    custom_fields: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    source_url: str = Field(default="", max_length=2000)
+    effective_from: datetime = Field(default_factory=lambda: datetime.now(UTC))
     effective_until: datetime | None = None
 
 
