@@ -70,6 +70,7 @@ class WhatsAppEmbeddedSignupPayload(BaseModel):
     waba_id: str = Field(default="", max_length=120)
     phone_number_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
+    redirect_uri: str = Field(default="", max_length=2000)
     meta_payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -308,7 +309,11 @@ async def complete_whatsapp_embedded_signup(
     if not settings.meta_app_id or not settings.meta_app_secret:
         raise HTTPException(status_code=409, detail="Meta app credentials are not configured")
 
-    token_response = await _exchange_meta_code(settings, payload.code)
+    token_response = await _exchange_meta_code(
+        settings,
+        payload.code,
+        redirect_uri=payload.redirect_uri,
+    )
     access_token = str(token_response.get("access_token") or "")
     if not access_token:
         logger.warning("whatsapp_embedded_signup_missing_token", business_id=str(business.id))
@@ -379,15 +384,23 @@ async def complete_whatsapp_embedded_signup(
     )
 
 
-async def _exchange_meta_code(settings: Settings, code: str) -> dict[str, Any]:
+async def _exchange_meta_code(
+    settings: Settings,
+    code: str,
+    *,
+    redirect_uri: str = "",
+) -> dict[str, Any]:
+    params = {
+        "client_id": settings.meta_app_id,
+        "client_secret": settings.meta_app_secret,
+        "code": code,
+    }
+    if redirect_uri:
+        params["redirect_uri"] = redirect_uri
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
         response = await client.get(
             f"{settings.whatsapp_graph_base_url.rstrip('/')}/oauth/access_token",
-            params={
-                "client_id": settings.meta_app_id,
-                "client_secret": settings.meta_app_secret,
-                "code": code,
-            },
+            params=params,
         )
     if response.is_error:
         logger.warning(
