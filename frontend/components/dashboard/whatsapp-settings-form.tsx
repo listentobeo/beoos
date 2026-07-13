@@ -104,7 +104,7 @@ export function WhatsAppSettingsForm({
     signupDataRef.current = {};
     try {
       const token = await getToken();
-      const redirectUri = window.location.href.split("#")[0];
+      const redirectUri = `${window.location.origin}/`;
       const configResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-config`, {
         headers: { Authorization: `Bearer ${token}` },
       });
