@@ -38,6 +38,9 @@ from app.services.zoho_mail import ZohoMailClient
 
 logger = structlog.get_logger()
 
+FORM_RELAY_ADDRESSES = {"submissions@formsubmit.co", "noreply@formsubmit.co"}
+EMAIL_PATTERN = re.compile(r"[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+\.[A-Za-z]{2,}")
+
 
 @dataclass
 class MailboxSyncReport:
@@ -382,6 +385,11 @@ class EmailSyncService:
         *,
         direction: Direction,
     ) -> UUID | None:
+        content_data = content.get("data", content)
+        body_html = str(content_data.get("content") or content_data.get("htmlContent") or "")
+        body_text = str(content_data.get("plainText") or self._html_to_text(body_html))
+        attachments = content_data.get("attachments") or summary.get("attachments") or []
+        attachment_metadata = attachments if isinstance(attachments, list) else []
         contact_source = (
             summary.get("fromAddress") or summary.get("sender")
             if direction == Direction.inbound
@@ -391,6 +399,25 @@ class EmailSyncService:
         contact_email = contact_email.lower()
         if not contact_email:
             return None
+        submitted_contact = _extract_formsubmit_contact(
+            body_text=body_text,
+            body_html=body_html,
+            sender_email=contact_email,
+            summary=summary,
+        )
+        if direction == Direction.inbound and submitted_contact:
+            contact_email = submitted_contact["email"]
+            contact_name = submitted_contact.get("name") or contact_name
+            attachment_metadata = [
+                *attachment_metadata,
+                {
+                    "source": "formsubmit_email",
+                    "relay_sender": parseaddr(str(contact_source or ""))[1].lower(),
+                    "reply_to_email": contact_email,
+                    "reply_to_name": contact_name,
+                    "reply_to_phone": submitted_contact.get("phone", ""),
+                },
+            ]
         if (
             direction == Direction.inbound
             and contact_email == self._settings.alert_from_email.lower()
@@ -413,6 +440,8 @@ class EmailSyncService:
             await session.flush()
         elif contact_name and not contact.name:
             contact.name = contact_name
+        if submitted_contact and submitted_contact.get("phone") and not contact.phone:
+            contact.phone = submitted_contact["phone"]
         if direction == Direction.outbound:
             contact.is_existing_client = True
 
@@ -443,11 +472,6 @@ class EmailSyncService:
             if direction == Direction.inbound:
                 thread.unread_count += 1
 
-        content_data = content.get("data", content)
-        body_html = str(content_data.get("content") or content_data.get("htmlContent") or "")
-        body_text = str(content_data.get("plainText") or self._html_to_text(body_html))
-        attachments = content_data.get("attachments") or summary.get("attachments") or []
-        attachment_metadata = attachments if isinstance(attachments, list) else []
         message = EmailMessage(
             thread_id=thread.id,
             mailbox_id=mailbox.id,
@@ -642,11 +666,21 @@ class EmailSyncService:
         body: str,
     ) -> str:
         access_token = await self._valid_access_token(mailbox)
+        direct_reply_email = _direct_reply_email(source_message)
+        if direct_reply_email and mailbox.provider == "zoho":
+            return await self._zoho.send_email(
+                access_token=access_token,
+                account_id=mailbox.provider_account_id or "",
+                from_address=mailbox.email_address,
+                to_address=direct_reply_email,
+                subject=subject,
+                body=body,
+            )
         if mailbox.provider == "gmail":
             return await self._gmail.reply(
                 access_token=access_token,
                 message_id=source_message.provider_message_id,
-                to=source_message.sender_email,
+                to=direct_reply_email or source_message.sender_email,
                 subject=subject,
                 body=body,
             )
@@ -687,6 +721,67 @@ class EmailSyncService:
     def _whatsapp_link(number: str) -> str:
         digits = "".join(character for character in number if character.isdigit())
         return f"https://wa.me/{digits}"
+
+
+def _extract_formsubmit_contact(
+    *,
+    body_text: str,
+    body_html: str,
+    sender_email: str,
+    summary: dict[str, Any],
+) -> dict[str, str] | None:
+    if sender_email not in FORM_RELAY_ADDRESSES and "formsubmit" not in sender_email:
+        return None
+    combined = "\n".join(
+        value
+        for value in [
+            str(summary.get("subject") or ""),
+            body_text,
+            EmailSyncService._html_to_text(body_html),
+        ]
+        if value
+    )
+    candidates = [
+        email.lower()
+        for email in EMAIL_PATTERN.findall(combined)
+        if email.lower() not in FORM_RELAY_ADDRESSES
+        and "formsubmit" not in email.lower()
+        and "beoos.local" not in email.lower()
+    ]
+    if not candidates:
+        return None
+    email = candidates[0]
+    return {
+        "email": email,
+        "name": _extract_labeled_value(combined, ["name", "full name", "client name"]),
+        "phone": _extract_labeled_value(
+            combined,
+            ["phone", "phone number", "whatsapp", "whatsapp number", "mobile"],
+        ),
+    }
+
+
+def _extract_labeled_value(text: str, labels: list[str]) -> str:
+    for label in labels:
+        pattern = re.compile(rf"(?im)^\s*{re.escape(label)}\s*[:=-]\s*(.+?)\s*$")
+        match = pattern.search(text)
+        if match:
+            value = match.group(1).strip()
+            if value and not EMAIL_PATTERN.fullmatch(value):
+                return value[:160]
+    return ""
+
+
+def _direct_reply_email(source_message: EmailMessage) -> str:
+    for attachment in source_message.attachment_metadata or []:
+        if not isinstance(attachment, dict):
+            continue
+        if attachment.get("source") != "formsubmit_email":
+            continue
+        reply_to = str(attachment.get("reply_to_email") or "").strip().lower()
+        if reply_to and reply_to != source_message.sender_email.lower():
+            return reply_to
+    return ""
 
 
 

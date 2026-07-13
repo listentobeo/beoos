@@ -127,6 +127,30 @@ class ZohoMailClient:
         )
         return str(data.get("data", {}).get("messageId", ""))
 
+    async def send_email(
+        self,
+        *,
+        access_token: str,
+        account_id: str,
+        from_address: str,
+        to_address: str,
+        subject: str,
+        body: str,
+    ) -> str:
+        data = await self._request(
+            "POST",
+            f"/api/accounts/{account_id}/messages",
+            access_token,
+            json={
+                "fromAddress": from_address,
+                "toAddress": to_address,
+                "subject": subject,
+                "content": body,
+                "mailFormat": "plaintext",
+            },
+        )
+        return str(data.get("data", {}).get("messageId", ""))
+
     async def mark_read(
         self,
         *,
