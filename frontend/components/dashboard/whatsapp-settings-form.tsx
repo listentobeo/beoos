@@ -29,7 +29,7 @@ declare global {
     FB?: {
       init: (options: Record<string, unknown>) => void;
       login: (
-        callback: (response: { authResponse?: { code?: string }; status?: string }) => void,
+        callback: (response: { authResponse?: { accessToken?: string; code?: string }; status?: string }) => void,
         options: Record<string, unknown>,
       ) => void;
     };
@@ -127,6 +127,7 @@ export function WhatsAppSettingsForm({
         void (async () => {
           try {
           const code = response.authResponse?.code;
+          const accessToken = response.authResponse?.accessToken;
           if (!code) {
             setMessage("Meta signup was cancelled or did not return a code.");
             setConnecting(false);
@@ -142,6 +143,7 @@ export function WhatsAppSettingsForm({
             },
             body: JSON.stringify({
               code,
+              access_token: accessToken ?? "",
               waba_id: wabaId,
               phone_number_id: signupData.phone_number_id ?? "",
               display_phone_number: signupData.display_phone_number ?? "",

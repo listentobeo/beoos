@@ -82,6 +82,7 @@ class WhatsAppEmbeddedConfig(BaseModel):
 
 class WhatsAppEmbeddedSignupPayload(BaseModel):
     code: str = Field(min_length=8, max_length=2048)
+    access_token: str = Field(default="", max_length=4096)
     waba_id: str = Field(default="", max_length=120)
     phone_number_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
@@ -380,11 +381,23 @@ async def complete_whatsapp_embedded_signup(
     if not settings.meta_app_id or not settings.meta_app_secret:
         raise HTTPException(status_code=409, detail="Meta app credentials are not configured")
 
-    token_response = await _exchange_meta_code(
-        settings,
-        payload.code,
-        redirect_uri=payload.redirect_uri,
-    )
+    try:
+        token_response = await _exchange_meta_code(
+            settings,
+            payload.code,
+            redirect_uri=payload.redirect_uri,
+        )
+    except HTTPException as code_error:
+        if not payload.access_token:
+            raise
+        logger.info(
+            "meta_code_exchange_failed_trying_sdk_token",
+            business_id=str(business.id),
+        )
+        try:
+            token_response = await _exchange_meta_access_token(settings, payload.access_token)
+        except HTTPException as token_error:
+            raise code_error from token_error
     access_token = str(token_response.get("access_token") or "")
     if not access_token:
         logger.warning("whatsapp_embedded_signup_missing_token", business_id=str(business.id))
@@ -500,6 +513,32 @@ async def _exchange_meta_code_once(
             used_redirect_uri=bool(redirect_uri),
         )
         raise HTTPException(status_code=400, detail="Could not exchange Meta authorization code")
+    data = response.json()
+    return data if isinstance(data, dict) else {}
+
+
+async def _exchange_meta_access_token(
+    settings: Settings,
+    access_token: str,
+) -> dict[str, Any]:
+    params = {
+        "grant_type": "fb_exchange_token",
+        "client_id": settings.meta_app_id,
+        "client_secret": settings.meta_app_secret,
+        "fb_exchange_token": access_token,
+    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        response = await client.post(
+            f"{settings.whatsapp_graph_base_url.rstrip('/')}/oauth/access_token",
+            data=params,
+        )
+    if response.is_error:
+        logger.warning(
+            "meta_sdk_token_exchange_failed",
+            status_code=response.status_code,
+            body=response.text[:500],
+        )
+        raise HTTPException(status_code=400, detail="Could not exchange Meta SDK access token")
     data = response.json()
     return data if isinstance(data, dict) else {}
 
