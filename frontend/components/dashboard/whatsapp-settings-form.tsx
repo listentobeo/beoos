@@ -128,8 +128,8 @@ export function WhatsAppSettingsForm({
           try {
           const code = response.authResponse?.code;
           const accessToken = response.authResponse?.accessToken;
-          if (!code) {
-            setMessage("Meta signup was cancelled or did not return a code.");
+          if (!code && !accessToken) {
+            setMessage("Meta signup was cancelled or did not return an access token.");
             setConnecting(false);
             return;
           }
@@ -165,8 +165,6 @@ export function WhatsAppSettingsForm({
         })();
       }, {
         config_id: config.config_id,
-        response_type: "code",
-        override_default_response_type: true,
         redirect_uri: redirectUri,
         extras: {
           setup: {},

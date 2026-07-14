@@ -81,7 +81,7 @@ class WhatsAppEmbeddedConfig(BaseModel):
 
 
 class WhatsAppEmbeddedSignupPayload(BaseModel):
-    code: str = Field(min_length=8, max_length=2048)
+    code: str = Field(default="", max_length=2048)
     access_token: str = Field(default="", max_length=4096)
     waba_id: str = Field(default="", max_length=120)
     phone_number_id: str = Field(default="", max_length=120)
@@ -381,23 +381,29 @@ async def complete_whatsapp_embedded_signup(
     if not settings.meta_app_id or not settings.meta_app_secret:
         raise HTTPException(status_code=409, detail="Meta app credentials are not configured")
 
-    try:
-        token_response = await _exchange_meta_code(
-            settings,
-            payload.code,
-            redirect_uri=payload.redirect_uri,
-        )
-    except HTTPException as code_error:
-        if not payload.access_token:
-            raise
-        logger.info(
-            "meta_code_exchange_failed_trying_sdk_token",
-            business_id=str(business.id),
-        )
+    if payload.code:
         try:
-            token_response = await _exchange_meta_access_token(settings, payload.access_token)
-        except HTTPException as token_error:
-            raise code_error from token_error
+            token_response = await _exchange_meta_code(
+                settings,
+                payload.code,
+                redirect_uri=payload.redirect_uri,
+            )
+        except HTTPException as code_error:
+            if not payload.access_token:
+                raise
+            logger.info(
+                "meta_code_exchange_failed_trying_sdk_token",
+                business_id=str(business.id),
+            )
+            try:
+                token_response = await _exchange_meta_access_token(settings, payload.access_token)
+            except HTTPException as token_error:
+                raise code_error from token_error
+    elif payload.access_token:
+        logger.info("meta_embedded_signup_using_sdk_token", business_id=str(business.id))
+        token_response = await _exchange_meta_access_token(settings, payload.access_token)
+    else:
+        raise HTTPException(status_code=422, detail="Meta did not return a code or access token")
     access_token = str(token_response.get("access_token") or "")
     if not access_token:
         logger.warning("whatsapp_embedded_signup_missing_token", business_id=str(business.id))
