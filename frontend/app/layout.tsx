@@ -4,7 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "BeoOS", template: "%s · BeoOS" },
-  description: "The operating system for Beo businesses.",
+  description:
+    "BeoOS is an AI-powered business communication OS for inbox, WhatsApp, CRM, quotations, pricing, and customer follow-up automation.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
