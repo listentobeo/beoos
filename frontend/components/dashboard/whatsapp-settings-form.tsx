@@ -24,6 +24,45 @@ type EmbeddedConfig = {
   enabled: boolean;
 };
 
+function formatApiError(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === "string") return error;
+  if (typeof error !== "object") return fallback;
+
+  const detail = (error as { detail?: unknown }).detail;
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return String(item);
+        const field = item as { loc?: unknown; msg?: unknown; message?: unknown };
+        const location = Array.isArray(field.loc) ? field.loc.join(".") : "";
+        const message =
+          typeof field.msg === "string"
+            ? field.msg
+            : typeof field.message === "string"
+              ? field.message
+              : JSON.stringify(item);
+        return location ? `${location}: ${message}` : message;
+      })
+      .join("; ");
+  }
+
+  if (detail && typeof detail === "object") {
+    const field = detail as { message?: unknown; error?: unknown };
+    if (typeof field.message === "string") return field.message;
+    if (typeof field.error === "string") return field.error;
+    return JSON.stringify(detail);
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return fallback;
+  }
+}
+
 declare global {
   interface Window {
     FB?: {
@@ -126,38 +165,38 @@ export function WhatsAppSettingsForm({
       window.FB?.login((response) => {
         void (async () => {
           try {
-          const code = response.authResponse?.code;
-          const accessToken = response.authResponse?.accessToken;
-          if (!code && !accessToken) {
-            setMessage("Meta signup was cancelled or did not return an access token.");
+            const code = response.authResponse?.code;
+            const accessToken = response.authResponse?.accessToken;
+            if (!code && !accessToken) {
+              setMessage("Meta signup was cancelled or did not return an access token.");
+              setConnecting(false);
+              return;
+            }
+            const signupData = signupDataRef.current;
+            const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
+            const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                code,
+                access_token: accessToken ?? "",
+                waba_id: wabaId,
+                phone_number_id: signupData.phone_number_id ?? "",
+                display_phone_number: signupData.display_phone_number ?? "",
+                redirect_uri: redirectUri,
+                meta_payload: signupData,
+              }),
+            });
+            if (!finalizeResponse.ok) {
+              const error = await finalizeResponse.json().catch(() => null);
+              throw new Error(formatApiError(error, `Meta connection failed (${finalizeResponse.status}).`));
+            }
+            setMessage("WhatsApp connected through Meta Embedded Signup.");
             setConnecting(false);
-            return;
-          }
-          const signupData = signupDataRef.current;
-          const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
-          const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              code,
-              access_token: accessToken ?? "",
-              waba_id: wabaId,
-              phone_number_id: signupData.phone_number_id ?? "",
-              display_phone_number: signupData.display_phone_number ?? "",
-              redirect_uri: redirectUri,
-              meta_payload: signupData,
-            }),
-          });
-          if (!finalizeResponse.ok) {
-            const error = await finalizeResponse.json().catch(() => ({}));
-            throw new Error(error.detail ?? `Meta connection failed (${finalizeResponse.status}).`);
-          }
-          setMessage("WhatsApp connected through Meta Embedded Signup.");
-          setConnecting(false);
-          router.refresh();
+            router.refresh();
           } catch (error) {
             setMessage(error instanceof Error ? error.message : "Meta connection failed.");
             setConnecting(false);

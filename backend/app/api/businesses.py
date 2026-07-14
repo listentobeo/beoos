@@ -82,7 +82,7 @@ class WhatsAppEmbeddedConfig(BaseModel):
 
 class WhatsAppEmbeddedSignupPayload(BaseModel):
     code: str = Field(default="", max_length=2048)
-    access_token: str = Field(default="", max_length=4096)
+    access_token: str = Field(default="", max_length=20000)
     waba_id: str = Field(default="", max_length=120)
     phone_number_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
