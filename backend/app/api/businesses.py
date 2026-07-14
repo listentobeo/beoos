@@ -415,12 +415,13 @@ async def complete_whatsapp_embedded_signup(
         waba_id=payload.waba_id,
         phone_number_id=payload.phone_number_id,
         display_phone_number=payload.display_phone_number,
+        preferred_phone_number=business.whatsapp_number,
     )
     if not resolved["phone_number_id"] or not resolved["business_account_id"]:
         logger.warning(
             "whatsapp_embedded_signup_incomplete_assets",
             business_id=str(business.id),
-            payload=payload.model_dump(exclude={"code"}),
+            payload=payload.model_dump(exclude={"code", "access_token"}),
             resolved=resolved,
         )
         raise HTTPException(
@@ -556,6 +557,7 @@ async def _resolve_whatsapp_assets(
     waba_id: str,
     phone_number_id: str,
     display_phone_number: str,
+    preferred_phone_number: str = "",
 ) -> dict[str, str]:
     resolved = {
         "business_account_id": waba_id,
@@ -596,7 +598,216 @@ async def _resolve_whatsapp_assets(
                 if isinstance(data, dict):
                     resolved["display_phone_number"] = str(data.get("display_phone_number") or "")
 
+        if not resolved["business_account_id"] or not resolved["phone_number_id"]:
+            discovered = await _discover_whatsapp_assets(
+                client=client,
+                settings=settings,
+                access_token=access_token,
+                preferred_phone_number=preferred_phone_number,
+            )
+            for key, value in discovered.items():
+                resolved[key] = resolved[key] or value
+
     return resolved
+
+
+async def _discover_whatsapp_assets(
+    *,
+    client: httpx.AsyncClient,
+    settings: Settings,
+    access_token: str,
+    preferred_phone_number: str = "",
+) -> dict[str, str]:
+    headers = {"Authorization": f"Bearer {access_token}"}
+    base_url = settings.whatsapp_graph_base_url.rstrip("/")
+    businesses = await _fetch_meta_businesses(
+        client=client,
+        base_url=base_url,
+        headers=headers,
+    )
+    candidates: list[dict[str, str]] = []
+    for business in businesses:
+        if not isinstance(business, dict):
+            continue
+        nested_wabas = _nested_data(business.get("owned_whatsapp_business_accounts"))
+        if nested_wabas:
+            candidates.extend(_asset_candidates_from_wabas(nested_wabas))
+            continue
+
+        business_id = str(business.get("id") or "")
+        if not business_id:
+            continue
+        wabas = await _fetch_owned_whatsapp_business_accounts(
+            client=client,
+            base_url=base_url,
+            headers=headers,
+            business_id=business_id,
+        )
+        for waba in wabas:
+            if not isinstance(waba, dict):
+                continue
+            waba_id = str(waba.get("id") or "")
+            phones = _nested_data(waba.get("phone_numbers"))
+            if not phones and waba_id:
+                phones = await _fetch_waba_phone_numbers(
+                    client=client,
+                    base_url=base_url,
+                    headers=headers,
+                    waba_id=waba_id,
+                )
+            candidates.extend(
+                _asset_candidates_from_wabas([{**waba, "phone_numbers": {"data": phones}}])
+            )
+
+    selected = _select_whatsapp_asset_candidate(candidates, preferred_phone_number)
+    if selected:
+        logger.info(
+            "whatsapp_embedded_signup_assets_discovered",
+            business_account_id=selected["business_account_id"],
+            phone_number_id=selected["phone_number_id"],
+        )
+        return selected
+    logger.warning(
+        "whatsapp_embedded_signup_asset_discovery_empty",
+        businesses_checked=len(businesses),
+    )
+    return {"business_account_id": "", "phone_number_id": "", "display_phone_number": ""}
+
+
+async def _fetch_meta_businesses(
+    *,
+    client: httpx.AsyncClient,
+    base_url: str,
+    headers: dict[str, str],
+) -> list[dict[str, Any]]:
+    response = await client.get(
+        f"{base_url}/me/businesses",
+        headers=headers,
+        params={
+            "fields": (
+                "id,name,"
+                "owned_whatsapp_business_accounts.limit(25)"
+                "{id,name,phone_numbers.limit(25){id,display_phone_number,verified_name}}"
+            ),
+            "limit": 25,
+        },
+    )
+    if response.is_error:
+        logger.warning(
+            "meta_business_asset_lookup_failed",
+            status_code=response.status_code,
+            body=response.text[:500],
+        )
+        return []
+    data = response.json()
+    businesses = data.get("data") if isinstance(data, dict) else None
+    return businesses if isinstance(businesses, list) else []
+
+
+async def _fetch_owned_whatsapp_business_accounts(
+    *,
+    client: httpx.AsyncClient,
+    base_url: str,
+    headers: dict[str, str],
+    business_id: str,
+) -> list[dict[str, Any]]:
+    response = await client.get(
+        f"{base_url}/{business_id}/owned_whatsapp_business_accounts",
+        headers=headers,
+        params={
+            "fields": "id,name,phone_numbers.limit(25){id,display_phone_number,verified_name}",
+            "limit": 25,
+        },
+    )
+    if response.is_error:
+        logger.warning(
+            "meta_owned_waba_lookup_failed",
+            status_code=response.status_code,
+            business_id=business_id,
+            body=response.text[:500],
+        )
+        return []
+    data = response.json()
+    wabas = data.get("data") if isinstance(data, dict) else None
+    return wabas if isinstance(wabas, list) else []
+
+
+async def _fetch_waba_phone_numbers(
+    *,
+    client: httpx.AsyncClient,
+    base_url: str,
+    headers: dict[str, str],
+    waba_id: str,
+) -> list[dict[str, Any]]:
+    response = await client.get(
+        f"{base_url}/{waba_id}/phone_numbers",
+        headers=headers,
+        params={"fields": "id,display_phone_number,verified_name", "limit": 25},
+    )
+    if response.is_error:
+        logger.warning(
+            "meta_waba_phone_number_lookup_failed",
+            status_code=response.status_code,
+            waba_id=waba_id,
+            body=response.text[:500],
+        )
+        return []
+    data = response.json()
+    phones = data.get("data") if isinstance(data, dict) else None
+    return phones if isinstance(phones, list) else []
+
+
+def _asset_candidates_from_wabas(wabas: list[Any]) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+    for waba in wabas:
+        if not isinstance(waba, dict):
+            continue
+        waba_id = str(waba.get("id") or "")
+        for phone in _nested_data(waba.get("phone_numbers")):
+            if not isinstance(phone, dict):
+                continue
+            phone_id = str(phone.get("id") or "")
+            if not waba_id or not phone_id:
+                continue
+            candidates.append(
+                {
+                    "business_account_id": waba_id,
+                    "phone_number_id": phone_id,
+                    "display_phone_number": str(phone.get("display_phone_number") or ""),
+                }
+            )
+    return candidates
+
+
+def _nested_data(value: Any) -> list[Any]:
+    if isinstance(value, dict):
+        data = value.get("data")
+        return data if isinstance(data, list) else []
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _select_whatsapp_asset_candidate(
+    candidates: list[dict[str, str]],
+    preferred_phone_number: str,
+) -> dict[str, str]:
+    if not candidates:
+        return {"business_account_id": "", "phone_number_id": "", "display_phone_number": ""}
+    preferred = _phone_digits(preferred_phone_number)
+    if preferred:
+        for candidate in candidates:
+            candidate_digits = _phone_digits(candidate.get("display_phone_number", ""))
+            if candidate_digits and (
+                candidate_digits.endswith(preferred[-10:])
+                or preferred.endswith(candidate_digits[-10:])
+            ):
+                return candidate
+    return candidates[0]
+
+
+def _phone_digits(value: str) -> str:
+    return "".join(character for character in value if character.isdigit())
 
 
 def _business_view(business: Business, role: str) -> BusinessView:
