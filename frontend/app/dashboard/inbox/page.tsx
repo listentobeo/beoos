@@ -34,13 +34,12 @@ export default async function InboxPage({
     const business = await activeBusiness();
     if (!business) connected = false;
     else {
-      businessId = business.id;
-      businessName = business.name;
-      [stats, threads, mailbox] = await Promise.all([
-        beoApi.stats(business.id),
-        beoApi.threads(business.id, query ? { search: query } : undefined),
-        beoApi.mailbox(business.id),
-      ]);
+      const summary = await beoApi.dashboard(business.id, query || undefined);
+      businessId = summary.business.id;
+      businessName = summary.business.name;
+      stats = summary.inbox_stats;
+      threads = summary.threads;
+      mailbox = summary.mailbox;
     }
   } catch {
     connected = false;

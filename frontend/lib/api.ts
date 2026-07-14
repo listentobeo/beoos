@@ -132,6 +132,16 @@ export type PushStatus = {
   vapid_public_key: string;
 };
 
+export type DashboardSummary = {
+  business: Business;
+  inbox_stats: InboxStats;
+  threads: Thread[];
+  mailbox: MailboxStatus;
+  zoho_mailbox: MailboxStatus;
+  gmail_mailbox: MailboxStatus;
+  push_status: PushStatus;
+};
+
 export type CRMLead = {
   id: string;
   business_id: string;
@@ -262,6 +272,12 @@ export const beoApi = {
     }),
   drafts: (businessId: string) =>
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
+  dashboard: (businessId: string, search?: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return apiFetch<DashboardSummary>(`/businesses/${businessId}/dashboard${suffix}`);
+  },
   pushStatus: (businessId: string) =>
     apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
   crmLeads: (businessId: string) => apiFetch<CRMLead[]>(`/businesses/${businessId}/crm/leads`),

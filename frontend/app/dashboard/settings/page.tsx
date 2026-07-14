@@ -41,11 +41,10 @@ export default async function SettingsPage() {
     replySignature = business?.reply_signature ?? replySignature;
     aiPolicy = business?.ai_policy ?? null;
     if (business) {
-      [zohoMailbox, gmailMailbox, pushStatus] = await Promise.all([
-        beoApi.mailbox(business.id, "zoho"),
-        beoApi.mailbox(business.id, "gmail"),
-        beoApi.pushStatus(business.id),
-      ]);
+      const summary = await beoApi.dashboard(business.id);
+      zohoMailbox = summary.zoho_mailbox;
+      gmailMailbox = summary.gmail_mailbox;
+      pushStatus = summary.push_status;
     }
   } catch {
     setupMessage = "Unable to load business data from the BeoOS API.";

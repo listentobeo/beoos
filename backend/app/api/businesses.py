@@ -6,8 +6,10 @@ import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import Settings, get_settings
 from app.core.security import AuthenticatedUser, BusinessAccess, require_admin, require_user
@@ -20,8 +22,21 @@ from app.domain.business import (
     normalized_whatsapp_settings,
     website_form_key,
 )
+from app.domain.email import InboxStats, MailboxStatus, ThreadListItem
+from app.domain.notifications import PushSubscriptionStatus
 from app.infrastructure.database import get_session
-from app.infrastructure.models import Business, BusinessMember, Role
+from app.infrastructure.models import (
+    Business,
+    BusinessMember,
+    Contact,
+    EmailMessage,
+    EmailThread,
+    MailboxConnection,
+    PushSubscription,
+    Role,
+    ThreadCategory,
+    ThreadStatus,
+)
 from app.services.crypto import SecretCipher
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
@@ -83,6 +98,16 @@ class WhatsAppEmbeddedSignupResult(BaseModel):
     connected_via: str
 
 
+class DashboardSummary(BaseModel):
+    business: BusinessView
+    inbox_stats: InboxStats
+    threads: list[ThreadListItem]
+    mailbox: MailboxStatus
+    zoho_mailbox: MailboxStatus
+    gmail_mailbox: MailboxStatus
+    push_status: PushSubscriptionStatus
+
+
 @router.get("", response_model=list[BusinessView])
 async def list_businesses(
     user: AuthenticatedUser = Depends(require_user),
@@ -120,6 +145,52 @@ async def list_businesses(
         )
         for business, role in rows
     ]
+
+
+@router.get("/{business_id}/dashboard", response_model=DashboardSummary)
+async def dashboard_summary(
+    business_id: UUID,
+    search: str | None = None,
+    user: AuthenticatedUser = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> DashboardSummary:
+    member = await session.scalar(
+        select(BusinessMember).where(
+            BusinessMember.business_id == business_id,
+            BusinessMember.clerk_user_id == user.user_id,
+        )
+    )
+    if member is None:
+        raise HTTPException(status_code=403, detail="You do not have access to this business")
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    mailbox_query = select(MailboxConnection).where(
+        MailboxConnection.business_id == business_id,
+        MailboxConnection.provider.in_(["zoho", "gmail"]),
+    )
+    mailbox = await session.scalar(
+        mailbox_query.order_by(MailboxConnection.updated_at.desc()).limit(1)
+    )
+    zoho_mailbox = await _mailbox_for_provider(session, business_id, "zoho")
+    gmail_mailbox = await _mailbox_for_provider(session, business_id, "gmail")
+
+    return DashboardSummary(
+        business=_business_view(business, member.role.value),
+        inbox_stats=await _inbox_stats(session, business_id),
+        threads=await _recent_threads(session, business_id, search=search),
+        mailbox=await _mailbox_status(session, business_id, mailbox, settings=settings),
+        zoho_mailbox=await _mailbox_status(session, business_id, zoho_mailbox, settings=settings),
+        gmail_mailbox=await _mailbox_status(session, business_id, gmail_mailbox, settings=settings),
+        push_status=await _push_status(
+            session,
+            business_id=business_id,
+            user_id=user.user_id,
+            settings=settings,
+        ),
+    )
 
 
 @router.post("", status_code=201)
@@ -461,3 +532,169 @@ async def _resolve_whatsapp_assets(
                     resolved["display_phone_number"] = str(data.get("display_phone_number") or "")
 
     return resolved
+
+
+def _business_view(business: Business, role: str) -> BusinessView:
+    return BusinessView(
+        id=str(business.id),
+        slug=business.slug,
+        name=business.name,
+        primary_email=business.primary_email,
+        whatsapp_number=business.whatsapp_number,
+        reply_signature=business.reply_signature,
+        timezone=business.timezone,
+        role=role,
+        ai_policy=normalized_ai_policy(business.settings),
+        whatsapp_connection=normalized_whatsapp_settings(business.settings),
+        website_form_key=website_form_key(business.settings),
+    )
+
+
+async def _inbox_stats(session: AsyncSession, business_id: UUID) -> InboxStats:
+    async def count(*conditions: ColumnElement[bool]) -> int:
+        value = await session.scalar(
+            select(func.count(EmailThread.id)).where(
+                EmailThread.business_id == business_id,
+                *conditions,
+            )
+        )
+        return int(value or 0)
+
+    unread_value = await session.scalar(
+        select(func.coalesce(func.sum(EmailThread.unread_count), 0)).where(
+            EmailThread.business_id == business_id
+        )
+    )
+    whatsapp_value = await session.scalar(
+        select(func.count(func.distinct(EmailThread.id)))
+        .join(EmailMessage, EmailMessage.thread_id == EmailThread.id)
+        .join(MailboxConnection, MailboxConnection.id == EmailMessage.mailbox_id)
+        .where(
+            EmailThread.business_id == business_id,
+            MailboxConnection.provider == "whatsapp",
+        )
+    )
+    return InboxStats(
+        unread=int(unread_value or 0),
+        needs_approval=await count(EmailThread.status == ThreadStatus.needs_approval),
+        urgent=await count(EmailThread.category == ThreadCategory.urgent),
+        routed_whatsapp=int(whatsapp_value or 0),
+        existing_clients=await count(EmailThread.category == ThreadCategory.existing_client),
+    )
+
+
+async def _recent_threads(
+    session: AsyncSession,
+    business_id: UUID,
+    *,
+    search: str | None = None,
+) -> list[ThreadListItem]:
+    query = (
+        select(EmailThread)
+        .options(selectinload(EmailThread.contact))
+        .where(EmailThread.business_id == business_id)
+        .order_by(EmailThread.priority.desc(), EmailThread.latest_message_at.desc())
+        .limit(50)
+    )
+    if search:
+        query = query.outerjoin(Contact).where(
+            EmailThread.subject.ilike(f"%{search}%") | Contact.email.ilike(f"%{search}%")
+        )
+    threads = (await session.scalars(query)).all()
+    return [_thread_view(thread) for thread in threads]
+
+
+def _thread_view(thread: EmailThread) -> ThreadListItem:
+    return ThreadListItem(
+        id=thread.id,
+        subject=thread.subject,
+        contact_name=thread.contact.name if thread.contact else None,
+        contact_email=thread.contact.email if thread.contact else None,
+        category=thread.category,
+        status=thread.status,
+        priority=thread.priority,
+        is_deal=thread.is_deal,
+        is_professional=thread.is_professional,
+        unread_count=thread.unread_count,
+        latest_message_at=thread.latest_message_at,
+    )
+
+
+async def _mailbox_for_provider(
+    session: AsyncSession,
+    business_id: UUID,
+    provider: str,
+) -> MailboxConnection | None:
+    return await session.scalar(
+        select(MailboxConnection)
+        .where(
+            MailboxConnection.business_id == business_id,
+            MailboxConnection.provider == provider,
+        )
+        .order_by(MailboxConnection.updated_at.desc())
+        .limit(1)
+    )
+
+
+async def _mailbox_status(
+    session: AsyncSession,
+    business_id: UUID,
+    mailbox: MailboxConnection | None,
+    *,
+    settings: Settings,
+) -> MailboxStatus:
+    thread_count = int(
+        await session.scalar(
+            select(func.count(EmailThread.id)).where(EmailThread.business_id == business_id)
+        )
+        or 0
+    )
+    message_count = int(
+        await session.scalar(
+            select(func.count(EmailMessage.id))
+            .join(EmailThread, EmailThread.id == EmailMessage.thread_id)
+            .where(EmailThread.business_id == business_id)
+        )
+        or 0
+    )
+    if mailbox is None:
+        return MailboxStatus(
+            connected=False,
+            thread_count=thread_count,
+            message_count=message_count,
+            auto_sync_enabled=settings.mailbox_auto_sync_enabled,
+            auto_sync_interval_seconds=settings.mailbox_auto_sync_interval_seconds,
+        )
+    return MailboxStatus(
+        connected=bool(mailbox.provider_account_id and mailbox.refresh_token_encrypted),
+        provider=mailbox.provider,
+        email_address=mailbox.email_address,
+        active=mailbox.active,
+        history_start_at=mailbox.history_start_at,
+        last_synced_at=mailbox.last_synced_at,
+        sync_lease_until=mailbox.sync_lease_until,
+        thread_count=thread_count,
+        message_count=message_count,
+        auto_sync_enabled=settings.mailbox_auto_sync_enabled,
+        auto_sync_interval_seconds=settings.mailbox_auto_sync_interval_seconds,
+    )
+
+
+async def _push_status(
+    session: AsyncSession,
+    *,
+    business_id: UUID,
+    user_id: str,
+    settings: Settings,
+) -> PushSubscriptionStatus:
+    exists = await session.scalar(
+        select(PushSubscription.id).where(
+            PushSubscription.business_id == business_id,
+            PushSubscription.clerk_user_id == user_id,
+            PushSubscription.active.is_(True),
+        )
+    )
+    return PushSubscriptionStatus(
+        enabled=exists is not None,
+        vapid_public_key=settings.vapid_public_key,
+    )
