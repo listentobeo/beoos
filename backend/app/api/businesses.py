@@ -487,9 +487,9 @@ async def _exchange_meta_code_once(
     if redirect_uri:
         params["redirect_uri"] = redirect_uri
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
-        response = await client.get(
+        response = await client.post(
             f"{settings.whatsapp_graph_base_url.rstrip('/')}/oauth/access_token",
-            params=params,
+            data=params,
         )
     if response.is_error:
         body = response.text[:500]

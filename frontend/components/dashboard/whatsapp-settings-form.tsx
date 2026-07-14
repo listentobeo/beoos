@@ -113,6 +113,7 @@ export function WhatsAppSettingsForm({
     signupDataRef.current = {};
     try {
       const token = await getToken();
+      const redirectUri = window.location.href.split("#")[0];
       const configResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-config`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -144,6 +145,7 @@ export function WhatsAppSettingsForm({
               waba_id: wabaId,
               phone_number_id: signupData.phone_number_id ?? "",
               display_phone_number: signupData.display_phone_number ?? "",
+              redirect_uri: redirectUri,
               meta_payload: signupData,
             }),
           });
@@ -163,6 +165,7 @@ export function WhatsAppSettingsForm({
         config_id: config.config_id,
         response_type: "code",
         override_default_response_type: true,
+        redirect_uri: redirectUri,
         extras: {
           setup: {},
           featureType: "whatsapp_business_app_onboarding",

@@ -236,8 +236,14 @@ Meta setup required:
 - the frontend reads the public Meta app/config values from the authenticated Railway API, so
   do not maintain a separate Vercel Meta app/config unless the code is intentionally changed;
 - app domains include the BeoOS frontend domain;
-- Facebook Login for Business client OAuth settings include the BeoOS frontend domain and valid
-  OAuth redirect URI;
+- Facebook Login for Business client OAuth settings include the BeoOS frontend domain and the exact
+  valid OAuth redirect URI used by the dashboard:
+
+  ```text
+  https://beoos.vercel.app/dashboard/settings
+  ```
+
+  If you use a different production frontend domain, add that same `/dashboard/settings` URL too.
 - privacy policy, terms, and data deletion URLs are filled in before production review.
 
 Manual WhatsApp setup still works for internal tenants. Embedded Signup is the recommended
