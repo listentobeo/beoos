@@ -426,7 +426,11 @@ async def complete_whatsapp_embedded_signup(
         )
         raise HTTPException(
             status_code=400,
-            detail="Meta did not return a WhatsApp Business Account and phone number",
+            detail=(
+                "Meta login worked, but BeoOS could not read the WhatsApp Business "
+                "Account and phone number. Confirm the Meta Login for Business "
+                "configuration grants business_management and whatsapp_business_management."
+            ),
         )
 
     settings_blob = dict(business.settings or {})
@@ -660,7 +664,7 @@ async def _discover_whatsapp_assets(
             )
 
     selected = _select_whatsapp_asset_candidate(candidates, preferred_phone_number)
-    if selected:
+    if selected["business_account_id"] and selected["phone_number_id"]:
         logger.info(
             "whatsapp_embedded_signup_assets_discovered",
             business_account_id=selected["business_account_id"],
