@@ -461,6 +461,24 @@ async def _exchange_meta_code(
     *,
     redirect_uri: str = "",
 ) -> dict[str, Any]:
+    try:
+        return await _exchange_meta_code_once(settings, code)
+    except HTTPException as first_error:
+        if not redirect_uri:
+            raise
+        logger.info("meta_code_exchange_retrying_with_redirect_uri")
+        try:
+            return await _exchange_meta_code_once(settings, code, redirect_uri=redirect_uri)
+        except HTTPException as retry_error:
+            raise first_error from retry_error
+
+
+async def _exchange_meta_code_once(
+    settings: Settings,
+    code: str,
+    *,
+    redirect_uri: str = "",
+) -> dict[str, Any]:
     params = {
         "client_id": settings.meta_app_id,
         "client_secret": settings.meta_app_secret,
@@ -474,10 +492,12 @@ async def _exchange_meta_code(
             params=params,
         )
     if response.is_error:
+        body = response.text[:500]
         logger.warning(
             "meta_code_exchange_failed",
             status_code=response.status_code,
-            body=response.text[:500],
+            body=body,
+            used_redirect_uri=bool(redirect_uri),
         )
         raise HTTPException(status_code=400, detail="Could not exchange Meta authorization code")
     data = response.json()

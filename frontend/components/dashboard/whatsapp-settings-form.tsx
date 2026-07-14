@@ -8,15 +8,20 @@ import type { BusinessWhatsAppSettings } from "@/lib/api";
 
 const inputClass = "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID ?? "";
-const META_WHATSAPP_CONFIG_ID = process.env.NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID ?? "";
-const META_GRAPH_VERSION = process.env.NEXT_PUBLIC_META_GRAPH_VERSION ?? "v20.0";
 
 type WhatsAppSignupData = {
   waba_id?: string;
   phone_number_id?: string;
   display_phone_number?: string;
   business_id?: string;
+  businessId?: string;
+};
+
+type EmbeddedConfig = {
+  app_id: string;
+  config_id: string;
+  graph_version: string;
+  enabled: boolean;
 };
 
 declare global {
@@ -67,18 +72,26 @@ export function WhatsAppSettingsForm({
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  const loadFacebookSdk = useCallback(() => {
+  const loadFacebookSdk = useCallback((appId: string, graphVersion: string) => {
     return new Promise<void>((resolve, reject) => {
       if (window.FB) {
+        window.FB.init({
+          appId,
+          autoLogAppEvents: true,
+          cookie: true,
+          xfbml: false,
+          version: graphVersion,
+        });
         resolve();
         return;
       }
       window.fbAsyncInit = () => {
         window.FB?.init({
-          appId: META_APP_ID,
+          appId,
           autoLogAppEvents: true,
+          cookie: true,
           xfbml: false,
-          version: META_GRAPH_VERSION,
+          version: graphVersion,
         });
         resolve();
       };
@@ -96,23 +109,19 @@ export function WhatsAppSettingsForm({
 
   async function connectWithMeta() {
     setMessage(null);
-    if (!META_APP_ID || !META_WHATSAPP_CONFIG_ID) {
-      setMessage("Add NEXT_PUBLIC_META_APP_ID and NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID first.");
-      return;
-    }
     setConnecting(true);
     signupDataRef.current = {};
     try {
       const token = await getToken();
-      const redirectUri = `${window.location.origin}/`;
       const configResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-config`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!configResponse.ok) throw new Error("Embedded Signup is not configured on the backend.");
-      const config = await configResponse.json() as { enabled: boolean; graph_version?: string };
+      const config = await configResponse.json() as EmbeddedConfig;
       if (!config.enabled) throw new Error("Add META_APP_ID, META_APP_SECRET, and META_WHATSAPP_CONFIG_ID on Railway.");
+      if (!config.app_id || !config.config_id) throw new Error("Meta app ID or WhatsApp configuration ID is missing on Railway.");
 
-      await loadFacebookSdk();
+      await loadFacebookSdk(config.app_id, config.graph_version || "v20.0");
       window.FB?.login((response) => {
         void (async () => {
           try {
@@ -123,6 +132,7 @@ export function WhatsAppSettingsForm({
             return;
           }
           const signupData = signupDataRef.current;
+          const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
           const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
             method: "POST",
             headers: {
@@ -131,10 +141,9 @@ export function WhatsAppSettingsForm({
             },
             body: JSON.stringify({
               code,
-              waba_id: signupData.waba_id ?? signupData.business_id ?? "",
+              waba_id: wabaId,
               phone_number_id: signupData.phone_number_id ?? "",
               display_phone_number: signupData.display_phone_number ?? "",
-              redirect_uri: redirectUri,
               meta_payload: signupData,
             }),
           });
@@ -151,11 +160,11 @@ export function WhatsAppSettingsForm({
           }
         })();
       }, {
-        config_id: META_WHATSAPP_CONFIG_ID,
+        config_id: config.config_id,
         response_type: "code",
         override_default_response_type: true,
-        redirect_uri: redirectUri,
         extras: {
+          setup: {},
           featureType: "whatsapp_business_app_onboarding",
           sessionInfoVersion: "3",
         },

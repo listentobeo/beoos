@@ -194,14 +194,6 @@ WHATSAPP_BUSINESS_ACCOUNT_ID=
 WHATSAPP_GRAPH_BASE_URL=https://graph.facebook.com/v20.0
 ```
 
-Frontend Embedded Signup variables:
-
-```env
-NEXT_PUBLIC_META_APP_ID=
-NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID=
-NEXT_PUBLIC_META_GRAPH_VERSION=v20.0
-```
-
 Meta setup required:
 
 - Meta Business account;
@@ -241,8 +233,11 @@ Meta setup required:
 - app has WhatsApp product added;
 - WhatsApp Embedded Signup configuration created in Meta;
 - `META_APP_ID`, `META_APP_SECRET`, and `META_WHATSAPP_CONFIG_ID` set on Railway;
-- `NEXT_PUBLIC_META_APP_ID` and `NEXT_PUBLIC_META_WHATSAPP_CONFIG_ID` set on Vercel;
+- the frontend reads the public Meta app/config values from the authenticated Railway API, so
+  do not maintain a separate Vercel Meta app/config unless the code is intentionally changed;
 - app domains include the BeoOS frontend domain;
+- Facebook Login for Business client OAuth settings include the BeoOS frontend domain and valid
+  OAuth redirect URI;
 - privacy policy, terms, and data deletion URLs are filled in before production review.
 
 Manual WhatsApp setup still works for internal tenants. Embedded Signup is the recommended
