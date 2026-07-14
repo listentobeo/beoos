@@ -24,6 +24,51 @@ type EmbeddedConfig = {
   enabled: boolean;
 };
 
+function hasSignupAssets(data: WhatsAppSignupData) {
+  return Boolean(data.phone_number_id || data.waba_id || data.business_id || data.businessId);
+}
+
+function parseMetaSignupMessage(raw: unknown): WhatsAppSignupData | null {
+  let data = raw;
+  if (typeof data === "string") {
+    const text = data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const params = new URLSearchParams(text);
+      const nested = params.get("data");
+      if (!nested) return null;
+      try {
+        data = JSON.parse(nested);
+      } catch {
+        return null;
+      }
+    }
+  }
+  if (!data || typeof data !== "object") return null;
+
+  const payload = data as {
+    type?: unknown;
+    event?: unknown;
+    data?: unknown;
+    waba_id?: unknown;
+    phone_number_id?: unknown;
+    display_phone_number?: unknown;
+    business_id?: unknown;
+    businessId?: unknown;
+  };
+  if (payload.type && payload.type !== "WA_EMBEDDED_SIGNUP") return null;
+  const source = payload.data && typeof payload.data === "object" ? payload.data : payload;
+  const record = source as Record<string, unknown>;
+  return {
+    waba_id: typeof record.waba_id === "string" ? record.waba_id : undefined,
+    phone_number_id: typeof record.phone_number_id === "string" ? record.phone_number_id : undefined,
+    display_phone_number: typeof record.display_phone_number === "string" ? record.display_phone_number : undefined,
+    business_id: typeof record.business_id === "string" ? record.business_id : undefined,
+    businessId: typeof record.businessId === "string" ? record.businessId : undefined,
+  };
+}
+
 function formatApiError(error: unknown, fallback: string) {
   if (!error) return fallback;
   if (typeof error === "string") return error;
@@ -89,26 +134,34 @@ export function WhatsAppSettingsForm({
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const signupDataRef = useRef<WhatsAppSignupData>({});
+  const signupWaitersRef = useRef<Array<(data: WhatsAppSignupData) => void>>([]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (!String(event.origin).endsWith("facebook.com")) return;
-      let data: unknown = event.data;
-      if (typeof data === "string") {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          return;
-        }
-      }
-      if (!data || typeof data !== "object") return;
-      const payload = data as { type?: string; event?: string; data?: WhatsAppSignupData };
-      if (payload.type === "WA_EMBEDDED_SIGNUP" && payload.data) {
-        signupDataRef.current = payload.data;
+      const origin = String(event.origin);
+      if (!origin.endsWith("facebook.com") && !origin.endsWith("facebook.net")) return;
+      const parsed = parseMetaSignupMessage(event.data);
+      if (parsed && hasSignupAssets(parsed)) {
+        signupDataRef.current = { ...signupDataRef.current, ...parsed };
+        signupWaitersRef.current.splice(0).forEach((resolve) => resolve(signupDataRef.current));
       }
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  const waitForSignupAssets = useCallback(() => {
+    if (hasSignupAssets(signupDataRef.current)) return Promise.resolve(signupDataRef.current);
+    return new Promise<WhatsAppSignupData>((resolve) => {
+      const timeout = window.setTimeout(() => {
+        signupWaitersRef.current = signupWaitersRef.current.filter((waiter) => waiter !== resolve);
+        resolve(signupDataRef.current);
+      }, 5000);
+      signupWaitersRef.current.push((data) => {
+        window.clearTimeout(timeout);
+        resolve(data);
+      });
+    });
   }, []);
 
   const loadFacebookSdk = useCallback((appId: string, graphVersion: string) => {
@@ -172,7 +225,7 @@ export function WhatsAppSettingsForm({
               setConnecting(false);
               return;
             }
-            const signupData = signupDataRef.current;
+            const signupData = await waitForSignupAssets();
             const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
             const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
               method: "POST",
