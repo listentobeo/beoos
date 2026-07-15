@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter
 
 from app.api import (
+    analytics,
     businesses,
     crm,
     email,
@@ -16,6 +17,7 @@ from app.api import (
 )
 
 api_router = APIRouter()
+api_router.include_router(analytics.router)
 api_router.include_router(businesses.router)
 api_router.include_router(crm.router)
 api_router.include_router(email.router)

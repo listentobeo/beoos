@@ -182,6 +182,56 @@ export type CRMStats = {
   needs_follow_up: number;
 };
 
+export type AnalyticsBucket = {
+  key: string;
+  label: string;
+  count: number;
+  value: string | null;
+};
+
+export type AnalyticsTotals = {
+  conversations: number;
+  inbound_messages: number;
+  outbound_messages: number;
+  unread_messages: number;
+  needs_approval: number;
+  leads: number;
+  quotes: number;
+  pending_drafts: number;
+  due_followups: number;
+};
+
+export type AnalyticsConversion = {
+  leads_created: number;
+  quotes_created: number;
+  quotes_accepted: number;
+  lead_to_quote_rate: number;
+  quote_acceptance_rate: number;
+  open_quote_value: string;
+  accepted_quote_value: string;
+};
+
+export type AnalyticsRecentActivity = {
+  label: string;
+  detail: string;
+  occurred_at: string;
+  href: string | null;
+};
+
+export type AnalyticsSummary = {
+  window_days: number;
+  totals: AnalyticsTotals;
+  conversion: AnalyticsConversion;
+  inbox_by_provider: AnalyticsBucket[];
+  thread_statuses: AnalyticsBucket[];
+  lead_sources: AnalyticsBucket[];
+  lead_stages: AnalyticsBucket[];
+  lead_temperatures: AnalyticsBucket[];
+  quote_statuses: AnalyticsBucket[];
+  follow_up_statuses: AnalyticsBucket[];
+  recent_activity: AnalyticsRecentActivity[];
+};
+
 export type FollowUpTask = {
   id: string;
   business_id: string;
@@ -308,6 +358,10 @@ export const beoApi = {
     apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
   crmLeads: (businessId: string) => apiFetch<CRMLead[]>(`/businesses/${businessId}/crm/leads`),
   crmStats: (businessId: string) => apiFetch<CRMStats>(`/businesses/${businessId}/crm/stats`),
+  analytics: (businessId: string, windowDays = 30) =>
+    apiFetch<AnalyticsSummary>(
+      `/businesses/${businessId}/analytics/summary?window_days=${windowDays}`,
+    ),
   scheduleFollowUps: (businessId: string, leadId: string, cadence: "standard" | "hot" | "gentle") =>
     apiFetch<FollowUpScheduleResponse>(`/businesses/${businessId}/crm/leads/${leadId}/follow-ups`, {
       method: "POST",
