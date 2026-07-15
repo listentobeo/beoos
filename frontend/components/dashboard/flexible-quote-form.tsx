@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { FileText, LoaderCircle } from "lucide-react";
+import { FileText, LoaderCircle, PackagePlus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import type { QuoteTemplate } from "@/lib/api";
+import type { PriceItem, QuoteTemplate } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const inputClass =
@@ -20,14 +20,18 @@ type LineItem = {
 export function FlexibleQuoteForm({
   businessId,
   templates,
+  prices,
 }: {
   businessId: string;
   templates: QuoteTemplate[];
+  prices: PriceItem[];
 }) {
   const { getToken } = useAuth();
   const router = useRouter();
   const customTemplates = templates.filter((template) => template.template_type === "custom");
+  const activePrices = prices.filter((price) => price.active);
   const [templateId, setTemplateId] = useState(customTemplates[0]?.id ?? "");
+  const [catalogueItemId, setCatalogueItemId] = useState(activePrices[0]?.id ?? "");
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { label: "", quantity: "1", unit_price: "" },
     { label: "", quantity: "1", unit_price: "" },
@@ -45,6 +49,23 @@ export function FlexibleQuoteForm({
     setLineItems((items) =>
       items.map((item, itemIndex) => (itemIndex === index ? { ...item, [key]: value } : item)),
     );
+  }
+
+  function addBlankLine() {
+    setLineItems((items) => [...items, { label: "", quantity: "1", unit_price: "" }]);
+  }
+
+  function addCatalogueItem() {
+    const item = activePrices.find((price) => price.id === catalogueItemId);
+    if (!item) return;
+    setLineItems((items) => [
+      ...items,
+      {
+        label: item.label,
+        quantity: "1",
+        unit_price: String(item.amount_min ?? item.amount_max ?? ""),
+      },
+    ]);
   }
 
   async function createQuote(formData: FormData) {
@@ -111,6 +132,42 @@ export function FlexibleQuoteForm({
         <input className={inputClass} name="discount_percent" placeholder="Discount %" defaultValue="0" />
         <input className={inputClass} name="tax_percent" placeholder="Tax/VAT %" defaultValue="0" />
         <input className={inputClass} name="deposit_percent" placeholder="Deposit %" defaultValue={String(selectedTemplate?.default_input.deposit_percent ?? "50")} />
+      </div>
+
+      <div className="mt-4 rounded-2xl border bg-[#fbfaf7] p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <label className="flex-1 text-xs font-bold text-[#5f655f]">
+            Add from price catalogue
+            <select
+              className={`${inputClass} mt-1`}
+              value={catalogueItemId}
+              onChange={(event) => setCatalogueItemId(event.target.value)}
+            >
+              {activePrices.length === 0 ? (
+                <option value="">No active catalogue items yet</option>
+              ) : (
+                activePrices.map((price) => (
+                  <option key={price.id} value={price.id}>
+                    {price.service} · {price.label} · {price.amount_min ?? price.amount_max ?? "No price"}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addCatalogueItem}
+            disabled={!catalogueItemId}
+          >
+            <PackagePlus className="size-4" />
+            Add catalogue item
+          </Button>
+          <Button type="button" variant="outline" onClick={addBlankLine}>
+            <Plus className="size-4" />
+            Add blank row
+          </Button>
+        </div>
       </div>
 
       <div className="mt-4 space-y-3">

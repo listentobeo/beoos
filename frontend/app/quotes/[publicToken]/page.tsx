@@ -1,5 +1,6 @@
-import { Banknote, CheckCircle2, FileText } from "lucide-react";
+import { Banknote, CheckCircle2, FileText, ListChecks } from "lucide-react";
 import { AcceptQuoteButton } from "@/components/public/accept-quote-button";
+import { PrintProposalButton } from "@/components/public/print-proposal-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -36,6 +37,18 @@ function money(value: string | null | undefined, currency = "NGN") {
   }).format(amount);
 }
 
+function design(quote: PublicQuote) {
+  const raw = quote.proposal.design;
+  const settings = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const accent = typeof settings.accent_color === "string" ? settings.accent_color : "#ed633f";
+  return { accent };
+}
+
+function lineItems(quote: PublicQuote) {
+  const raw = quote.calculation.line_items;
+  return Array.isArray(raw) ? raw.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [];
+}
+
 async function getQuote(publicToken: string) {
   const response = await fetch(`${API_URL}/quotes/${publicToken}`, { cache: "no-store" });
   if (!response.ok) return null;
@@ -64,10 +77,16 @@ export default async function PublicQuotePage({
     );
   }
 
+  const theme = design(quote);
+  const items = lineItems(quote);
+
   return (
-    <main className="min-h-screen bg-[#f5f1ea] px-4 py-8 sm:px-6">
+    <main className="min-h-screen bg-[#f5f1ea] px-4 py-8 print:bg-white print:px-0 print:py-0 sm:px-6">
       <div className="mx-auto max-w-5xl">
-        <header className="rounded-3xl bg-[#101827] p-6 text-white sm:p-8">
+        <div className="mb-4 flex justify-end print:hidden">
+          <PrintProposalButton />
+        </div>
+        <header className="rounded-3xl bg-[#101827] p-6 text-white print:rounded-none sm:p-8" style={{ borderTop: `6px solid ${theme.accent}` }}>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-white/45">
             {quote.business_name}
           </p>
@@ -108,6 +127,7 @@ export default async function PublicQuotePage({
                 Proposal
               </h2>
               <dl className="mt-5 space-y-4 text-sm leading-7">
+                <div><dt className="font-bold">Summary</dt><dd className="mt-1 text-[#626862]">{text(quote.proposal.summary)}</dd></div>
                 <div><dt className="font-bold">Scope</dt><dd className="mt-1 text-[#626862]">{text(quote.proposal.scope)}</dd></div>
                 <div><dt className="font-bold">Objectives</dt><dd className="mt-1 text-[#626862]">{text(quote.proposal.objectives)}</dd></div>
                 <div><dt className="font-bold">Timeline</dt><dd className="mt-1 text-[#626862]">{text(quote.proposal.timeline)}</dd></div>
@@ -116,6 +136,47 @@ export default async function PublicQuotePage({
                 <div><dt className="font-bold">Warranty</dt><dd className="mt-1 text-[#626862]">{text(quote.proposal.warranty)}</dd></div>
               </dl>
             </Card>
+
+            {items.length > 0 && (
+              <Card className="overflow-hidden">
+                <div className="border-b px-6 py-5">
+                  <h2 className="flex items-center gap-2 font-bold">
+                    <ListChecks className="size-4" style={{ color: theme.accent }} />
+                    Itemized quote
+                  </h2>
+                  <p className="mt-1 text-sm text-[#747973]">
+                    Products, services, quantities, and calculated totals.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-sm">
+                    <thead className="bg-[#fbfaf7] text-left text-[11px] uppercase tracking-wider text-[#858a84]">
+                      <tr>
+                        <th className="px-6 py-3">Item</th>
+                        <th className="px-6 py-3">Qty</th>
+                        <th className="px-6 py-3">Unit price</th>
+                        <th className="px-6 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {items.map((item, index) => (
+                        <tr key={`${String(item.label)}-${index}`}>
+                          <td className="px-6 py-4">
+                            <p className="font-bold">{text(item.label)}</p>
+                            <p className="mt-1 text-xs text-[#747973]">{text(item.description, "")}</p>
+                          </td>
+                          <td className="px-6 py-4">{text(item.quantity, "1")}</td>
+                          <td className="px-6 py-4">{money(String(item.unit_price ?? 0), quote.currency)}</td>
+                          <td className="px-6 py-4 text-right font-bold">
+                            {money(String(item.total ?? 0), quote.currency)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
           </section>
 
           <aside className="space-y-5">
