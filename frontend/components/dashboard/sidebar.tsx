@@ -65,7 +65,7 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
           <div className="grid size-9 place-items-center rounded-xl bg-[#ed633f] text-sm font-black tracking-tight">B</div>
           <div className="min-w-0">
             <p className="text-sm font-bold tracking-tight">BeoOS</p>
-            <p className="truncate text-[10px] text-white/45">Creative business intelligence</p>
+            <p className="truncate text-[10px] text-white/45">Unified business command center</p>
           </div>
           <div className="ml-auto" aria-label="Account menu">
             <UserButton />
@@ -92,7 +92,7 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
           <div className="grid size-10 place-items-center rounded-xl bg-[#ed633f] font-black tracking-tight">B</div>
           <div>
             <p className="text-base font-bold tracking-tight">BeoOS</p>
-            <p className="text-[11px] text-white/45">Creative business intelligence</p>
+            <p className="text-[11px] text-white/45">Unified business command center</p>
           </div>
           <div className="ml-auto" aria-label="Account menu">
             <UserButton />
@@ -126,9 +126,11 @@ export function Sidebar({ businesses, activeId }: { businesses: Business[]; acti
 
         <div className="mt-auto rounded-2xl border border-white/10 bg-white/[0.05] p-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-white/85">
-            <Sparkles className="size-4 text-[#f69a7e]" /> AI email assistant
+            <Sparkles className="size-4 text-[#f69a7e]" /> AI operations assistant
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">Policy-gated replies are active.</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">
+            Inbox, CRM, quotes, follow-ups, and approvals stay tenant-aware.
+          </p>
         </div>
       </aside>
     </>

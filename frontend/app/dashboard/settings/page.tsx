@@ -4,6 +4,7 @@ import { BusinessProfileForm } from "@/components/dashboard/business-profile-for
 import { GmailConnectButton } from "@/components/dashboard/gmail-connect-button";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
+import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-form";
 import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
@@ -16,7 +17,7 @@ export default async function SettingsPage() {
   let businessId: string | null = null;
   let activeBusinessRecord: Business | null = null;
   let businessSlug = "";
-  let businessName = "Current business";
+  let businessName = "BeoOS workspace";
   let websiteFormKey = "";
   let primaryEmail = "Not configured";
   let whatsappNumber = "Not configured";
@@ -54,9 +55,18 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-5 md:px-8">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{businessName}</p>
       <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] sm:text-3xl">Business settings</h1>
-      <p className="mt-2 text-sm text-[#747973]">Connections, reply policies, and channel rules for this business.</p>
+      <p className="mt-2 text-sm leading-6 text-[#747973]">
+        Set up one business tenant at a time. Each tenant gets its own inbox, CRM leads, pricing,
+        quotes, AI policy, WhatsApp number, mailbox connections, and alerts.
+      </p>
 
       <div className="mt-7 grid gap-5 md:grid-cols-2">
+        {!activeBusinessRecord && (
+          <div className="md:col-span-2">
+            <SetupGuide title="Create your first BeoOS business workspace" />
+          </div>
+        )}
+
         <Card className="p-5 md:col-span-2">
           <h2 className="font-bold">Business profile</h2>
           <p className="mt-1 text-sm leading-6 text-[#777c76]">
@@ -65,7 +75,9 @@ export default async function SettingsPage() {
           {activeBusinessRecord ? (
             <BusinessProfileForm business={activeBusinessRecord} />
           ) : (
-            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+            <p className="mt-5 text-sm text-amber-700">
+              {setupMessage} Use the “Add business workspace” section below to create your first tenant.
+            </p>
           )}
         </Card>
 
@@ -83,7 +95,7 @@ export default async function SettingsPage() {
             </div>
           </div>
           <div className="mt-5">
-            {businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}
+            {businessId ? <ZohoConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">Create a business workspace before connecting Zoho Mail.</p>}
           </div>
         </Card>
 
@@ -101,7 +113,7 @@ export default async function SettingsPage() {
             </div>
           </div>
           <div className="mt-5">
-            {businessId ? <GmailConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">{setupMessage}</p>}
+            {businessId ? <GmailConnectButton businessId={businessId} /> : <p className="text-sm text-amber-700">Create a business workspace before connecting Gmail or Google Workspace.</p>}
           </div>
         </Card>
 
@@ -121,7 +133,7 @@ export default async function SettingsPage() {
           {businessId && whatsappConnection ? (
             <WhatsAppSettingsForm businessId={businessId} settings={whatsappConnection} />
           ) : (
-            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+            <p className="mt-5 text-sm text-amber-700">Create a business workspace before connecting WhatsApp.</p>
           )}
         </Card>
 
@@ -157,7 +169,7 @@ export default async function SettingsPage() {
           {businessId && aiPolicy ? (
             <PolicySettingsForm businessId={businessId} policy={aiPolicy} />
           ) : (
-            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+            <p className="mt-5 text-sm text-amber-700">Create a business workspace before setting AI rules.</p>
           )}
         </Card>
 
@@ -169,13 +181,17 @@ export default async function SettingsPage() {
           {businessId && pushStatus ? (
             <PushNotificationSettings businessId={businessId} initialStatus={pushStatus} />
           ) : (
-            <p className="mt-5 text-sm text-amber-700">{setupMessage}</p>
+            <p className="mt-5 text-sm text-amber-700">Create a business workspace before enabling device alerts.</p>
           )}
         </Card>
 
-        <Card className="p-5 md:col-span-2">
-          <h2 className="font-bold">Add another Beo business</h2>
-          <p className="mt-1 text-sm text-[#777c76]">Each business receives isolated inboxes, contacts, prices, prompts, and analytics.</p>
+        <Card id="add-business" className="scroll-mt-6 p-5 md:col-span-2">
+          <h2 className="font-bold">{activeBusinessRecord ? "Add another business workspace" : "Add business workspace"}</h2>
+          <p className="mt-1 text-sm leading-6 text-[#777c76]">
+            Add any service business here: art studio, agency, clinic, school, consultancy, repair
+            shop, or local service team. BeoOS keeps each business separate while giving each one
+            the same inbox, CRM, quote, pricing, AI, and notification system.
+          </p>
           <AddBusinessForm />
         </Card>
       </div>

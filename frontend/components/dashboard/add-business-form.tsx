@@ -37,6 +37,8 @@ export function AddBusinessForm() {
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Could not create this business profile");
+      const created = (await response.json()) as { id: string };
+      document.cookie = `beoos_business_id=${encodeURIComponent(created.id)}; path=/; max-age=31536000; samesite=lax`;
       formElement.reset();
       setMessage("Business profile created.");
       router.refresh();
