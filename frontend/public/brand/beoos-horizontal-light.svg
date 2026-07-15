@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 220" role="img" aria-label="BeoOS horizontal logo for dark backgrounds">
+  <rect width="720" height="220" rx="44" fill="#101827"/>
+  <rect x="36" y="36" width="148" height="148" rx="34" fill="#FFFFFF" opacity=".08"/>
+  <rect x="48" y="48" width="124" height="124" rx="26" fill="#ED633F"/>
+  <text
+    x="110"
+    y="120"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="32"
+    font-weight="850"
+    letter-spacing="-2"
+    fill="#FFFFFF"
+  >BeoOS</text>
+  <text
+    x="220"
+    y="103"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="58"
+    font-weight="900"
+    letter-spacing="-2.6"
+    fill="#FFFFFF"
+  >BeoOS</text>
+  <text
+    x="224"
+    y="145"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="22"
+    font-weight="650"
+    letter-spacing=".6"
+    fill="#D8D7D2"
+  >AI business communication OS</text>
+</svg>

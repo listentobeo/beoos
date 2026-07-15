@@ -13,9 +13,7 @@ export function PublicHeader() {
     <header className="sticky top-0 z-30 border-b bg-[#f5f4f0]/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
         <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="BeoOS home">
-          <span className="grid size-10 place-items-center rounded-2xl bg-[#ed633f] font-black text-white">
-            B
-          </span>
+          <img src="/brand/beoos-mark.svg" alt="" className="size-10 rounded-2xl" />
           <span>
             <span className="block text-lg font-black tracking-tight">BeoOS</span>
             <span className="block text-xs text-[#6f746f]">Business automation OS</span>
@@ -58,9 +56,7 @@ export function PublicFooter() {
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-2xl bg-[#ed633f] font-black text-white">
-              B
-            </span>
+            <img src="/brand/beoos-mark.svg" alt="" className="size-10 rounded-2xl" />
             <div>
               <p className="font-black">BeoOS</p>
               <p className="text-sm text-[#6f746f]">AI communication and sales automation.</p>

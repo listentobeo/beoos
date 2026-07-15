@@ -31,6 +31,7 @@ docs/modules/              Approved module specifications
 - [Module 3.8: Quote Template Designer and Flexible Line Items](docs/modules/module-038-quote-template-designer.md)
 - [Module 3.9: Branded Proposals and Catalogue-Powered Quotes](docs/modules/module-039-branded-proposals.md)
 - [Module 4.1: Internal Analytics and Business Intelligence](docs/modules/module-041-internal-analytics.md)
+- [BeoOS Brand Pack](docs/brand/BEOOS_BRAND_PACK.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
 ## Local setup
