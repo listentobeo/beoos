@@ -23,10 +23,10 @@ export default function SupportPage() {
               For support requests, account questions, or data deletion help.
             </p>
             <a
-              href="mailto:admin@beoarts.com"
+              href="mailto:support@beoos.com.ng"
               className="mt-5 inline-flex rounded-full bg-[#ed633f] px-5 py-3 font-black text-white"
             >
-              admin@beoarts.com
+              support@beoos.com.ng
             </a>
           </div>
           <div className="rounded-3xl border bg-white p-6">

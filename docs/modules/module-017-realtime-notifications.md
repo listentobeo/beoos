@@ -23,7 +23,7 @@ Module 1.7 makes BeoOS feel live while keeping the architecture simple and produ
 ```env
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:admin@beoarts.com
+VAPID_SUBJECT=mailto:support@beoos.com.ng
 ```
 
 ## Frontend flow

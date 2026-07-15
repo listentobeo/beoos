@@ -9,7 +9,7 @@ export default function DataDeletionPage() {
         {
           heading: "How to request deletion",
           body: [
-            "Send an email to admin@beoarts.com using the email address connected to your BeoOS account. Include your name, business name, and the data you want deleted.",
+            "Send an email to support@beoos.com.ng using the email address connected to your BeoOS account. Include your name, business name, and the data you want deleted.",
             "You may request deletion of a full BeoOS account, a specific business workspace, connected mailbox data, WhatsApp connection data, CRM leads, quotes, pricing catalogue data, or AI policy settings.",
           ],
         },

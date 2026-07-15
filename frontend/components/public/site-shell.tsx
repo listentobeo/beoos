@@ -2,7 +2,9 @@ import Link from "next/link";
 
 const navLinks = [
   { href: "/#features", label: "Features" },
+  { href: "/#pricing", label: "Pricing" },
   { href: "/#how-it-works", label: "How it works" },
+  { href: "/about", label: "About" },
   { href: "/support", label: "Support" },
 ];
 
@@ -63,11 +65,18 @@ export function PublicFooter() {
             BeoOS helps brick-and-mortar service businesses manage leads, customer messages,
             quotations, approvals, pricing, and follow-up workflows from one secure dashboard.
           </p>
+          <p className="mt-3 text-sm font-semibold text-[#59605a]">
+            Support:{" "}
+            <a className="text-[#ed633f]" href="mailto:support@beoos.com.ng">
+              support@beoos.com.ng
+            </a>
+          </p>
         </div>
         <div>
           <p className="font-bold">Product</p>
           <div className="mt-3 grid gap-2 text-sm text-[#6f746f]">
             <Link href="/#features">Features</Link>
+            <Link href="/#pricing">Pricing</Link>
             <Link href="/#how-it-works">How it works</Link>
             <Link href="/sign-up">Create account</Link>
           </div>
@@ -75,6 +84,7 @@ export function PublicFooter() {
         <div>
           <p className="font-bold">Company</p>
           <div className="mt-3 grid gap-2 text-sm text-[#6f746f]">
+            <Link href="/about">About</Link>
             <Link href="/support">Support</Link>
             <Link href="/privacy">Privacy Policy</Link>
             <Link href="/terms">Terms of Service</Link>

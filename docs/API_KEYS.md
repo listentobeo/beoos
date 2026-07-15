@@ -285,7 +285,7 @@ Used for browser/device alerts when new inbox messages arrive.
 ```env
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:admin@beoarts.com
+VAPID_SUBJECT=mailto:support@beoos.com.ng
 ```
 
 Push setup required:
