@@ -18,6 +18,21 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            CREATE TYPE followupstatus AS ENUM (
+                'scheduled',
+                'draft_created',
+                'skipped',
+                'cancelled',
+                'failed'
+            );
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        """
+    )
     follow_up_status = postgresql.ENUM(
         "scheduled",
         "draft_created",
@@ -25,8 +40,8 @@ def upgrade() -> None:
         "cancelled",
         "failed",
         name="followupstatus",
+        create_type=False,
     )
-    follow_up_status.create(op.get_bind(), checkfirst=True)
     op.create_table(
         "follow_up_tasks",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
