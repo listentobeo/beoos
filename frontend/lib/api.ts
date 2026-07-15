@@ -272,6 +272,7 @@ export type QuoteTemplateType = "mural" | "custom";
 export type Quote = {
   id: string;
   business_id: string;
+  template_id: string | null;
   lead_id: string | null;
   contact_id: string | null;
   title: string;
@@ -298,6 +299,21 @@ export type Quote = {
   lead_title: string | null;
   contact_name: string | null;
   contact_email: string | null;
+};
+
+export type QuoteTemplate = {
+  id: string;
+  business_id: string;
+  name: string;
+  description: string;
+  template_type: QuoteTemplateType;
+  field_schema: Record<string, unknown>;
+  default_input: Record<string, unknown>;
+  design_settings: Record<string, unknown>;
+  terms_settings: Record<string, unknown>;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -369,6 +385,8 @@ export const beoApi = {
       body: JSON.stringify({ cadence }),
     }),
   quotes: (businessId: string) => apiFetch<Quote[]>(`/businesses/${businessId}/quotes`),
+  quoteTemplates: (businessId: string) =>
+    apiFetch<QuoteTemplate[]>(`/businesses/${businessId}/quotes/templates`),
   quote: (businessId: string, quoteId: string) =>
     apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}`),
   quotePaymentLink: (businessId: string, quoteId: string) =>

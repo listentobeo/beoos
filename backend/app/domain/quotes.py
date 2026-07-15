@@ -58,6 +58,7 @@ class MuralQuoteInput(BaseModel):
 class QuoteCreate(BaseModel):
     lead_id: UUID | None = None
     contact_id: UUID | None = None
+    template_id: UUID | None = None
     title: str = Field(min_length=2, max_length=240)
     template_type: QuoteTemplateType = QuoteTemplateType.mural
     input_data: dict[str, Any] = Field(default_factory=dict)
@@ -75,6 +76,7 @@ class QuoteUpdate(BaseModel):
 class QuoteView(BaseModel):
     id: UUID
     business_id: UUID
+    template_id: UUID | None = None
     lead_id: UUID | None
     contact_id: UUID | None
     title: str
@@ -101,6 +103,42 @@ class QuoteView(BaseModel):
     lead_title: str | None = None
     contact_name: str | None = None
     contact_email: str | None = None
+
+
+class QuoteTemplateCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    description: str = Field(default="", max_length=2000)
+    template_type: QuoteTemplateType = QuoteTemplateType.custom
+    field_schema: dict[str, Any] = Field(default_factory=dict)
+    default_input: dict[str, Any] = Field(default_factory=dict)
+    design_settings: dict[str, Any] = Field(default_factory=dict)
+    terms_settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuoteTemplateUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    description: str = Field(default="", max_length=2000)
+    template_type: QuoteTemplateType = QuoteTemplateType.custom
+    field_schema: dict[str, Any] = Field(default_factory=dict)
+    default_input: dict[str, Any] = Field(default_factory=dict)
+    design_settings: dict[str, Any] = Field(default_factory=dict)
+    terms_settings: dict[str, Any] = Field(default_factory=dict)
+    active: bool = True
+
+
+class QuoteTemplateView(BaseModel):
+    id: UUID
+    business_id: UUID
+    name: str
+    description: str
+    template_type: QuoteTemplateType
+    field_schema: dict[str, Any]
+    default_input: dict[str, Any]
+    design_settings: dict[str, Any]
+    terms_settings: dict[str, Any]
+    active: bool
+    created_at: datetime
+    updated_at: datetime
 
 
 class PublicQuoteView(BaseModel):

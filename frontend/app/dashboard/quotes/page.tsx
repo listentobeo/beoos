@@ -1,8 +1,10 @@
 import { CircleDollarSign, FileText, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { FlexibleQuoteForm } from "@/components/dashboard/flexible-quote-form";
+import { QuoteTemplateManager } from "@/components/dashboard/quote-template-manager";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type Quote } from "@/lib/api";
+import { activeBusiness, beoApi, type Quote, type QuoteTemplate } from "@/lib/api";
 
 export const metadata = { title: "Quotations" };
 
@@ -39,13 +41,19 @@ function quoteStats(quotes: Quote[]) {
 
 export default async function QuotesPage() {
   let quotes: Quote[] = [];
+  let templates: QuoteTemplate[] = [];
   let businessName = "Current business";
+  let businessId: string | null = null;
 
   try {
     const business = await activeBusiness();
     if (business) {
+      businessId = business.id;
       businessName = business.name;
-      quotes = await beoApi.quotes(business.id);
+      [quotes, templates] = await Promise.all([
+        beoApi.quotes(business.id),
+        beoApi.quoteTemplates(business.id),
+      ]);
     }
   } catch {}
 
@@ -85,6 +93,22 @@ export default async function QuotesPage() {
           <div><p className="text-lg font-bold">{money(String(stats.openValue))}</p><p className="text-xs text-[#747973]">Open value</p></div>
         </Card>
       </section>
+
+      {businessId && (
+        <section className="mt-7 space-y-5">
+          <FlexibleQuoteForm businessId={businessId} templates={templates} />
+          <Card className="p-5">
+            <div className="mb-5">
+              <h2 className="text-lg font-bold tracking-[-0.02em]">Quote templates</h2>
+              <p className="mt-1 text-sm leading-6 text-[#747973]">
+                Personalize quotation defaults per business: bulk purchase layouts, service terms,
+                brand colors, payment terms, and reusable proposal language.
+              </p>
+            </div>
+            <QuoteTemplateManager businessId={businessId} templates={templates} />
+          </Card>
+        </section>
+      )}
 
       <Card className="mt-7 overflow-hidden">
         <div className="grid grid-cols-[1.5fr_1fr_1fr_auto] gap-4 border-b bg-[#fbfaf7] px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-[#858a84]">

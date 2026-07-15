@@ -383,6 +383,27 @@ class FollowUpTask(Base, TimestampMixin):
     contact: Mapped[Contact | None] = relationship()
 
 
+class QuoteTemplate(Base, TimestampMixin):
+    __tablename__ = "quote_templates"
+    __table_args__ = (
+        UniqueConstraint("business_id", "name"),
+        Index("ix_quote_templates_business_active", "business_id", "active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    template_type: Mapped[QuoteTemplateType] = mapped_column(
+        Enum(QuoteTemplateType), default=QuoteTemplateType.custom, nullable=False
+    )
+    field_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    default_input: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    design_settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    terms_settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class Quote(Base, TimestampMixin):
     __tablename__ = "quotes"
     __table_args__ = (
@@ -392,6 +413,7 @@ class Quote(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    template_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("quote_templates.id"))
     lead_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_leads.id"))
     contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
     public_token: Mapped[str] = mapped_column(
@@ -422,6 +444,7 @@ class Quote(Base, TimestampMixin):
 
     lead: Mapped[CRMLead | None] = relationship()
     contact: Mapped[Contact | None] = relationship()
+    template: Mapped[QuoteTemplate | None] = relationship()
 
 
 class AuditLog(Base):

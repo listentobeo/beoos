@@ -49,6 +49,11 @@ function calculationRows(quote: Quote): [string, unknown][] {
   return rows.filter(([, value]) => value !== undefined && value !== null);
 }
 
+function lineItems(quote: Quote) {
+  const items = quote.calculation.line_items;
+  return Array.isArray(items) ? items.filter((item) => typeof item === "object" && item) : [];
+}
+
 export default async function QuoteDetailPage({
   params,
 }: {
@@ -86,6 +91,11 @@ export default async function QuoteDetailPage({
   const proposal = quote.proposal;
   const input = quote.input_data;
   const rows = calculationRows(quote);
+  const quoteLineItems = lineItems(quote) as Array<Record<string, unknown>>;
+  const accent =
+    typeof (proposal.design as Record<string, unknown> | undefined)?.accent_color === "string"
+      ? String((proposal.design as Record<string, unknown>).accent_color)
+      : "#ed633f";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
@@ -101,6 +111,7 @@ export default async function QuoteDetailPage({
           <Badge className="bg-orange-50 text-[#c94d2d]">
             {quote.template_type.replaceAll("_", " ")} template
           </Badge>
+          {quote.template_id && <Badge className="bg-blue-50 text-blue-700">tenant template</Badge>}
         </div>
         <h1 className="mt-3 text-2xl font-bold tracking-[-0.035em] text-[#171b23] sm:text-3xl">{quote.title}</h1>
         <p className="mt-1 text-sm text-[#747973]">
@@ -145,6 +156,48 @@ export default async function QuoteDetailPage({
               <div><dt className="font-bold">Warranty</dt><dd className="mt-1 text-[#666b65]">{text(proposal.warranty)}</dd></div>
             </dl>
           </Card>
+
+          {quoteLineItems.length > 0 && (
+            <Card className="overflow-hidden">
+              <div className="border-b px-5 py-4" style={{ borderColor: `${accent}33` }}>
+                <h2 className="font-bold">Line items</h2>
+                <p className="mt-1 text-sm text-[#747973]">
+                  Flexible itemized pricing for products, bulk purchases, and service packages.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-[#fbfaf7] text-left text-[11px] uppercase tracking-wider text-[#858a84]">
+                    <tr>
+                      <th className="px-5 py-3">Item</th>
+                      <th className="px-5 py-3">Qty</th>
+                      <th className="px-5 py-3">Unit price</th>
+                      <th className="px-5 py-3">Discount</th>
+                      <th className="px-5 py-3">Tax</th>
+                      <th className="px-5 py-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {quoteLineItems.map((item, index) => (
+                      <tr key={`${String(item.label)}-${index}`}>
+                        <td className="px-5 py-4">
+                          <p className="font-bold">{text(item.label)}</p>
+                          <p className="mt-1 text-xs text-[#747973]">{text(item.description, "")}</p>
+                        </td>
+                        <td className="px-5 py-4">{text(item.quantity, "1")}</td>
+                        <td className="px-5 py-4">{money(String(item.unit_price ?? 0), quote.currency)}</td>
+                        <td className="px-5 py-4">{text(item.discount_percent, "0")}%</td>
+                        <td className="px-5 py-4">{text(item.tax_percent, "0")}%</td>
+                        <td className="px-5 py-4 text-right font-bold">
+                          {money(String(item.total ?? 0), quote.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
 
           <Card className="p-5">
             <div className="flex items-center gap-2">

@@ -11,6 +11,9 @@ from app.domain.quotes import (
     PublicQuoteAcceptResult,
     PublicQuoteView,
     QuoteCreate,
+    QuoteTemplateCreate,
+    QuoteTemplateUpdate,
+    QuoteTemplateView,
     QuoteUpdate,
     QuoteView,
 )
@@ -24,6 +27,7 @@ from app.infrastructure.models import (
     PriceCatalogItem,
     Quote,
     QuoteStatus,
+    QuoteTemplate,
     QuoteTemplateType,
 )
 from app.services.paystack import PaystackService
@@ -51,6 +55,110 @@ async def list_quotes(
     return [_quote_view(quote, lead, contact) for quote, lead, contact in rows]
 
 
+@router.get("/templates", response_model=list[QuoteTemplateView])
+async def list_quote_templates(
+    business_id: UUID,
+    include_inactive: bool = False,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[QuoteTemplateView]:
+    query = (
+        select(QuoteTemplate)
+        .where(QuoteTemplate.business_id == business_id)
+        .order_by(QuoteTemplate.active.desc(), QuoteTemplate.updated_at.desc())
+    )
+    if not include_inactive:
+        query = query.where(QuoteTemplate.active.is_(True))
+    templates = (await session.scalars(query)).all()
+    return [_template_view(template) for template in templates]
+
+
+@router.post("/templates", response_model=QuoteTemplateView, status_code=201)
+async def create_quote_template(
+    business_id: UUID,
+    payload: QuoteTemplateCreate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> QuoteTemplateView:
+    template = QuoteTemplate(
+        business_id=business_id,
+        name=payload.name,
+        description=payload.description,
+        template_type=payload.template_type,
+        field_schema=payload.field_schema,
+        default_input=payload.default_input,
+        design_settings=payload.design_settings,
+        terms_settings=payload.terms_settings,
+    )
+    session.add(template)
+    await session.flush()
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="quote_template.created",
+            resource_type="quote_template",
+            resource_id=str(template.id),
+            details={"name": template.name, "template_type": template.template_type.value},
+        )
+    )
+    await session.commit()
+    return _template_view(template)
+
+
+@router.patch("/templates/{template_id}", response_model=QuoteTemplateView)
+async def update_quote_template(
+    business_id: UUID,
+    template_id: UUID,
+    payload: QuoteTemplateUpdate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> QuoteTemplateView:
+    template = await _template(session, business_id, template_id, include_inactive=True)
+    template.name = payload.name
+    template.description = payload.description
+    template.template_type = payload.template_type
+    template.field_schema = payload.field_schema
+    template.default_input = payload.default_input
+    template.design_settings = payload.design_settings
+    template.terms_settings = payload.terms_settings
+    template.active = payload.active
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="quote_template.updated",
+            resource_type="quote_template",
+            resource_id=str(template.id),
+            details={"name": template.name, "active": template.active},
+        )
+    )
+    await session.commit()
+    return _template_view(template)
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+async def delete_quote_template(
+    business_id: UUID,
+    template_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    template = await _template(session, business_id, template_id, include_inactive=True)
+    template.active = False
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="quote_template.deactivated",
+            resource_type="quote_template",
+            resource_id=str(template.id),
+            details={"name": template.name},
+        )
+    )
+    await session.commit()
+
+
 @router.get("/{quote_id}", response_model=QuoteView)
 async def get_quote(
     business_id: UUID,
@@ -69,27 +177,35 @@ async def create_quote(
     session: AsyncSession = Depends(get_session),
 ) -> QuoteView:
     business = await _business(session, business_id)
+    template = (
+        await _template(session, business_id, payload.template_id)
+        if payload.template_id
+        else None
+    )
     lead = await _lead(session, business_id, payload.lead_id) if payload.lead_id else None
     contact_id = payload.contact_id or (lead.contact_id if lead else None)
     contact = await _contact(session, business_id, contact_id) if contact_id else None
+    seeded_input = _apply_template(payload.input_data, template)
+    template_type = template.template_type if template else payload.template_type
     input_data = await _attach_catalogue_items(
         session,
         business_id,
-        _seed_input(payload, lead, contact),
+        _seed_input(payload, lead, contact, seeded_input, template_type=template_type),
     )
     calculation, proposal, subtotal, total, deposit = calculate_quote(
         business=business,
-        template_type=payload.template_type.value,
+        template_type=template_type.value,
         input_data=input_data,
     )
     quote = Quote(
         business_id=business_id,
+        template_id=template.id if template else None,
         lead_id=payload.lead_id,
         contact_id=contact_id,
         title=payload.title,
-        template_type=payload.template_type,
+        template_type=template_type,
         status=QuoteStatus.draft,
-        currency="NGN",
+        currency=str(input_data.get("currency") or "NGN").upper()[:3],
         subtotal=subtotal,
         total=total,
         deposit_required=deposit,
@@ -342,6 +458,25 @@ async def _contact(session: AsyncSession, business_id: UUID, contact_id: UUID | 
     return contact
 
 
+async def _template(
+    session: AsyncSession,
+    business_id: UUID,
+    template_id: UUID,
+    *,
+    include_inactive: bool = False,
+) -> QuoteTemplate:
+    query = select(QuoteTemplate).where(
+        QuoteTemplate.id == template_id,
+        QuoteTemplate.business_id == business_id,
+    )
+    if not include_inactive:
+        query = query.where(QuoteTemplate.active.is_(True))
+    template = await session.scalar(query)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Quote template not found")
+    return template
+
+
 async def _get_quote_view(session: AsyncSession, business_id: UUID, quote_id: UUID) -> QuoteView:
     row = (
         await session.execute(
@@ -378,9 +513,11 @@ def _seed_input(
     payload: QuoteCreate,
     lead: CRMLead | None,
     contact: Contact | None,
+    input_data: dict[str, object] | None = None,
+    template_type: QuoteTemplateType | None = None,
 ) -> dict[str, object]:
-    seed = dict(payload.input_data)
-    if payload.template_type == QuoteTemplateType.mural:
+    seed = dict(input_data or payload.input_data)
+    if (template_type or payload.template_type) == QuoteTemplateType.mural:
         seed = default_mural_input(seed)
     if lead:
         seed.setdefault("project_title", lead.title)
@@ -391,6 +528,26 @@ def _seed_input(
         seed.setdefault("email", contact.email)
         seed.setdefault("phone", contact.phone or "")
     return seed
+
+
+def _apply_template(
+    input_data: dict[str, object],
+    template: QuoteTemplate | None,
+) -> dict[str, object]:
+    if template is None:
+        return dict(input_data)
+    merged = dict(template.default_input)
+    merged.update(template.terms_settings)
+    merged["design_settings"] = {
+        **template.design_settings,
+        **(
+            input_data.get("design_settings")
+            if isinstance(input_data.get("design_settings"), dict)
+            else {}
+        ),
+    }
+    merged.update(input_data)
+    return merged
 
 
 async def _attach_catalogue_items(
@@ -439,6 +596,7 @@ def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> 
     return QuoteView(
         id=quote.id,
         business_id=quote.business_id,
+        template_id=quote.template_id,
         lead_id=quote.lead_id,
         contact_id=quote.contact_id,
         title=quote.title,
@@ -465,6 +623,23 @@ def _quote_view(quote: Quote, lead: CRMLead | None, contact: Contact | None) -> 
         lead_title=lead.title if lead else None,
         contact_name=contact.name if contact else None,
         contact_email=contact.email if contact else None,
+    )
+
+
+def _template_view(template: QuoteTemplate) -> QuoteTemplateView:
+    return QuoteTemplateView(
+        id=template.id,
+        business_id=template.business_id,
+        name=template.name,
+        description=template.description,
+        template_type=template.template_type,
+        field_schema=template.field_schema,
+        default_input=template.default_input,
+        design_settings=template.design_settings,
+        terms_settings=template.terms_settings,
+        active=template.active,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
     )
 
 

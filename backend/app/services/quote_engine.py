@@ -15,38 +15,82 @@ def calculate_quote(
 ) -> tuple[dict[str, Any], dict[str, Any], Decimal, Decimal, Decimal | None]:
     if template_type == "mural":
         return calculate_mural_quote(business=business, input_data=input_data)
+    return calculate_custom_quote(business=business, input_data=input_data)
+
+
+def calculate_custom_quote(
+    *,
+    business: Business,
+    input_data: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], Decimal, Decimal, Decimal | None]:
     catalogue_items = input_data.get("catalogue_items")
-    line_items: list[dict[str, str]] = []
-    catalogue_total = ZERO
+    manual_items = input_data.get("line_items")
+    line_items: list[dict[str, str | int]] = []
+
+    if isinstance(manual_items, list):
+        for index, item in enumerate(manual_items, start=1):
+            if not isinstance(item, dict):
+                continue
+            line_items.append(normalize_line_item(item, fallback_label=f"Line item {index}"))
+
     if isinstance(catalogue_items, list):
         for item in catalogue_items:
             if not isinstance(item, dict):
                 continue
-            quantity = money(item.get("quantity") or 1)
-            unit_price = money(item.get("unit_price"))
-            total = quantity * unit_price
-            catalogue_total += total
-            line_items.append(
-                {
-                    "label": str(item.get("label") or "Catalogue item"),
-                    "service": str(item.get("service") or ""),
-                    "quantity": str(quantity),
-                    "unit_price": str(round_money(unit_price)),
-                    "total": str(round_money(total)),
-                }
-            )
-    subtotal = money(input_data.get("subtotal")) or catalogue_total
-    total = money(input_data.get("total") or subtotal)
+            line_items.append(normalize_line_item(item, fallback_label="Catalogue item"))
+
+    line_subtotal = sum((money(item.get("total")) for item in line_items), ZERO)
+    subtotal = money(input_data.get("subtotal")) or line_subtotal
+    discount = percent(subtotal, money(input_data.get("discount_percent")))
+    taxable = subtotal - discount
+    tax = percent(taxable, money(input_data.get("tax_percent")))
+    total = money(input_data.get("total")) or taxable + tax
+    deposit_percent = money(input_data.get("deposit_percent") or 0)
+    deposit = percent(total, deposit_percent) if deposit_percent else None
     calculation = {
+        "currency": str(input_data.get("currency") or "NGN"),
         "subtotal": str(round_money(subtotal)),
+        "discount": str(round_money(discount)),
+        "tax": str(round_money(tax)),
         "total": str(round_money(total)),
+        "deposit_required": str(round_money(deposit)) if deposit is not None else "",
         "line_items": line_items,
     }
     proposal = {
+        "prepared_by": business.name,
+        "client_name": input_data.get("client_name") or "Client",
+        "project_title": (
+            input_data.get("project_title") or input_data.get("title") or "Custom quote"
+        ),
         "summary": input_data.get("summary") or "Custom service quote.",
-        "client_terms": input_data.get("client_terms") or "",
+        "scope": input_data.get("scope") or "Supply and delivery of the listed items/services.",
+        "timeline": input_data.get("timeline") or "Timeline to be agreed after approval.",
+        "payment_terms": input_data.get("payment_terms") or "Payment terms to be agreed.",
+        "assumptions": input_data.get("assumptions") or "",
+        "exclusions": input_data.get("exclusions") or "",
+        "warranty": input_data.get("warranty") or "",
+        "design": input_data.get("design_settings") or {},
+        "line_items": line_items,
     }
-    return calculation, proposal, subtotal, total, None
+    rounded_deposit = round_money(deposit) if deposit is not None else None
+    return calculation, proposal, round_money(subtotal), round_money(total), rounded_deposit
+
+
+def normalize_line_item(item: dict[str, Any], *, fallback_label: str) -> dict[str, str | int]:
+    quantity = money(item.get("quantity") or item.get("qty") or 1)
+    unit_price = money(item.get("unit_price") or item.get("price") or 0)
+    discount = percent(quantity * unit_price, money(item.get("discount_percent")))
+    tax = percent(quantity * unit_price - discount, money(item.get("tax_percent")))
+    total = quantity * unit_price - discount + tax
+    return {
+        "label": str(item.get("label") or item.get("name") or fallback_label),
+        "description": str(item.get("description") or item.get("service") or ""),
+        "quantity": str(quantity),
+        "unit_price": str(round_money(unit_price)),
+        "discount_percent": str(money(item.get("discount_percent"))),
+        "tax_percent": str(money(item.get("tax_percent"))),
+        "total": str(round_money(total)),
+    }
 
 
 def default_mural_input(seed: dict[str, Any] | None = None) -> dict[str, Any]:
