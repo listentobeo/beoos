@@ -252,6 +252,37 @@ async def update_quote(
     return await _get_quote_view(session, business_id, quote.id)
 
 
+@router.delete("/{quote_id}", status_code=204)
+async def delete_quote(
+    business_id: UUID,
+    quote_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    quote = await session.scalar(
+        select(Quote).where(Quote.id == quote_id, Quote.business_id == business_id)
+    )
+    if quote is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="quote.deleted",
+            resource_type="quote",
+            resource_id=str(quote.id),
+            details={
+                "title": quote.title,
+                "status": quote.status.value,
+                "total": str(quote.total),
+                "lead_id": str(quote.lead_id or ""),
+            },
+        )
+    )
+    await session.delete(quote)
+    await session.commit()
+
+
 @public_router.get("/{public_token}", response_model=PublicQuoteView)
 async def get_public_quote(
     public_token: str,

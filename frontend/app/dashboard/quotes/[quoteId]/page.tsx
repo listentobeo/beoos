@@ -1,5 +1,6 @@
 import { ArrowLeft, Banknote, ClipboardList, FileText } from "lucide-react";
 import Link from "next/link";
+import { DeleteQuoteButton } from "@/components/dashboard/delete-quote-button";
 import { QuotePaymentButton } from "@/components/dashboard/quote-actions";
 import { QuoteEditForm } from "@/components/dashboard/quote-edit-form";
 import { Badge } from "@/components/ui/badge";
@@ -218,6 +219,18 @@ export default async function QuoteDetailPage({
               Quotes start as drafts. Later we can add owner approval, PDF export, client acceptance links, and deposit tracking on top of this base engine.
             </p>
           </Card>
+
+          {businessId && (
+            <Card className="border-red-100 p-5">
+              <h2 className="font-bold text-red-700">Danger zone</h2>
+              <p className="mt-2 text-sm leading-6 text-[#747973]">
+                Remove test or duplicate quotes. This does not delete the CRM lead or inbox thread.
+              </p>
+              <div className="mt-4">
+                <DeleteQuoteButton businessId={businessId} quoteId={quote.id} />
+              </div>
+            </Card>
+          )}
         </aside>
       </div>
     </div>
