@@ -54,6 +54,15 @@ function lineItems(quote: Quote) {
   return Array.isArray(items) ? items.filter((item) => typeof item === "object" && item) : [];
 }
 
+function accentColor(quote: Quote) {
+  const design = quote.proposal.design;
+  if (design && typeof design === "object" && "accent_color" in design) {
+    const accent = (design as Record<string, unknown>).accent_color;
+    if (typeof accent === "string" && accent.trim()) return accent;
+  }
+  return "#ed633f";
+}
+
 export default async function QuoteDetailPage({
   params,
 }: {
@@ -92,10 +101,8 @@ export default async function QuoteDetailPage({
   const input = quote.input_data;
   const rows = calculationRows(quote);
   const quoteLineItems = lineItems(quote) as Array<Record<string, unknown>>;
-  const accent =
-    typeof (proposal.design as Record<string, unknown> | undefined)?.accent_color === "string"
-      ? String((proposal.design as Record<string, unknown>).accent_color)
-      : "#ed633f";
+  const isMuralQuote = quote.template_type === "mural";
+  const accent = accentColor(quote);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
@@ -131,10 +138,16 @@ export default async function QuoteDetailPage({
           </p>
         </Card>
         <Card className="p-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#90948f]">Area</p>
-          <p className="mt-2 text-lg font-bold">
-            {text((quote.calculation.area as { sqft?: string } | undefined)?.sqft)} sqft
+          <p className="text-xs font-bold uppercase tracking-wider text-[#90948f]">
+            {isMuralQuote ? "Area" : "Line items"}
           </p>
+          {isMuralQuote ? (
+            <p className="mt-2 text-lg font-bold">
+              {text((quote.calculation.area as { sqft?: string } | undefined)?.sqft)} sqft
+            </p>
+          ) : (
+            <p className="mt-2 text-3xl font-black tracking-tight">{quoteLineItems.length}</p>
+          )}
         </Card>
       </section>
 
@@ -146,8 +159,9 @@ export default async function QuoteDetailPage({
               <h2 className="font-bold">Client proposal</h2>
             </div>
             <dl className="mt-5 space-y-4 text-sm leading-6">
-              <div><dt className="font-bold">Problem</dt><dd className="mt-1 text-[#666b65]">{text(proposal.problem)}</dd></div>
-              <div><dt className="font-bold">Objectives</dt><dd className="mt-1 text-[#666b65]">{text(proposal.objectives)}</dd></div>
+              <div><dt className="font-bold">Summary</dt><dd className="mt-1 text-[#666b65]">{text(proposal.summary)}</dd></div>
+              {isMuralQuote && <div><dt className="font-bold">Problem</dt><dd className="mt-1 text-[#666b65]">{text(proposal.problem)}</dd></div>}
+              {isMuralQuote && <div><dt className="font-bold">Objectives</dt><dd className="mt-1 text-[#666b65]">{text(proposal.objectives)}</dd></div>}
               <div><dt className="font-bold">Scope</dt><dd className="mt-1 text-[#666b65]">{text(proposal.scope)}</dd></div>
               <div><dt className="font-bold">Timeline</dt><dd className="mt-1 text-[#666b65]">{text(proposal.timeline)}</dd></div>
               <div><dt className="font-bold">Payment terms</dt><dd className="mt-1 text-[#666b65]">{text(proposal.payment_terms)}</dd></div>
@@ -199,20 +213,22 @@ export default async function QuoteDetailPage({
             </Card>
           )}
 
-          <Card className="p-5">
-            <div className="flex items-center gap-2">
-              <Banknote className="size-4 text-[#ed633f]" />
-              <h2 className="font-bold">Cost breakdown</h2>
-            </div>
-            <div className="mt-4 divide-y rounded-xl border">
-              {rows.map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                  <span className="text-[#666b65]">{label}</span>
-                  <span className="font-bold tabular-nums">{money(String(value), quote.currency)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          {rows.length > 0 && (
+            <Card className="p-5">
+              <div className="flex items-center gap-2">
+                <Banknote className="size-4 text-[#ed633f]" />
+                <h2 className="font-bold">Cost breakdown</h2>
+              </div>
+              <div className="mt-4 divide-y rounded-xl border">
+                {rows.map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                    <span className="text-[#666b65]">{label}</span>
+                    <span className="font-bold tabular-nums">{money(String(value), quote.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </section>
 
         <aside className="space-y-5">
@@ -242,21 +258,34 @@ export default async function QuoteDetailPage({
             )}
           </Card>
 
-          <Card className="p-5">
-            <h2 className="font-bold">Project input</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div><dt className="text-[#747973]">Project type</dt><dd className="font-semibold">{text(input.project_type)}</dd></div>
-              <div><dt className="text-[#747973]">Location</dt><dd className="font-semibold">{text(input.project_location)}</dd></div>
-              <div><dt className="text-[#747973]">Deadline</dt><dd className="font-semibold">{text(input.deadline)}</dd></div>
-              <div><dt className="text-[#747973]">Surface</dt><dd className="font-semibold">{text(input.surface_type)} · {text(input.surface_condition)}</dd></div>
-              <div><dt className="text-[#747973]">Access</dt><dd className="font-semibold">{text(input.access)}</dd></div>
-              <div><dt className="text-[#747973]">Environment</dt><dd className="font-semibold">{text(input.environment)}</dd></div>
-            </dl>
-          </Card>
-
-          {businessId && (
+          {isMuralQuote ? (
             <Card className="p-5">
-              <h2 className="font-bold">Edit quote basics</h2>
+              <h2 className="font-bold">Mural project input</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div><dt className="text-[#747973]">Project type</dt><dd className="font-semibold">{text(input.project_type)}</dd></div>
+                <div><dt className="text-[#747973]">Location</dt><dd className="font-semibold">{text(input.project_location)}</dd></div>
+                <div><dt className="text-[#747973]">Deadline</dt><dd className="font-semibold">{text(input.deadline)}</dd></div>
+                <div><dt className="text-[#747973]">Surface</dt><dd className="font-semibold">{text(input.surface_type)} · {text(input.surface_condition)}</dd></div>
+                <div><dt className="text-[#747973]">Access</dt><dd className="font-semibold">{text(input.access)}</dd></div>
+                <div><dt className="text-[#747973]">Environment</dt><dd className="font-semibold">{text(input.environment)}</dd></div>
+              </dl>
+            </Card>
+          ) : (
+            <Card className="p-5">
+              <h2 className="font-bold">Template design</h2>
+              <div className="mt-4 rounded-2xl p-4 text-white" style={{ backgroundColor: accent }}>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/65">Accent color</p>
+                <p className="mt-2 text-lg font-black">{accent}</p>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[#747973]">
+                This color is used on the client-facing proposal header and print/PDF view.
+              </p>
+            </Card>
+          )}
+
+          {businessId && isMuralQuote && (
+            <Card className="p-5">
+              <h2 className="font-bold">Edit mural quote basics</h2>
               <p className="mt-2 text-sm leading-6 text-[#747973]">
                 Update the key mural inputs before sharing the proposal link.
               </p>
@@ -269,7 +298,7 @@ export default async function QuoteDetailPage({
           <Card className="p-5">
             <h2 className="font-bold">Approval path</h2>
             <p className="mt-2 text-sm leading-6 text-[#747973]">
-              Quotes start as drafts. Later we can add owner approval, PDF export, client acceptance links, and deposit tracking on top of this base engine.
+              Quotes start as drafts. Share the client link when the value, terms, and design look right.
             </p>
           </Card>
 
