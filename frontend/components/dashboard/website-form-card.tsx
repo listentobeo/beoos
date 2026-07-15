@@ -10,7 +10,7 @@ export function WebsiteFormCard({
 }) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
   const endpoint = `${apiUrl}/forms/${businessSlug}/lead`;
-  const example = `fetch("${endpoint}", {
+  const jsonExample = `fetch("${endpoint}", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -25,6 +25,15 @@ export function WebsiteFormCard({
     source_url: window.location.href
   })
 });`;
+  const htmlExample = `<form method="POST" action="${endpoint}">
+  <input type="hidden" name="form_key" value="${formKey}" />
+  <input name="name" placeholder="Your name" />
+  <input name="email" type="email" placeholder="Email" required />
+  <input name="phone" placeholder="Phone / WhatsApp" />
+  <input name="service" placeholder="Service needed" />
+  <textarea name="message" required></textarea>
+  <button type="submit">Send request</button>
+</form>`;
 
   return (
     <Card className="p-5 md:col-span-2">
@@ -48,8 +57,16 @@ export function WebsiteFormCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-[#858a84]">Tenant form key</p>
           <p className="mt-1 break-all font-mono text-xs text-[#252a33]">{formKey || "Run the latest backend seed to generate this key."}</p>
         </div>
+        <p className="text-xs leading-5 text-[#777c76]">
+          BeoOS accepts JSON, normal HTML form posts, or a secure server-side request with
+          <span className="font-mono"> X-BeoOS-Form-Key</span>. FormSubmit emails that land in
+          your connected mailbox are still treated as normal inbox leads.
+        </p>
         <pre className="overflow-x-auto rounded-xl bg-[#101827] p-4 text-xs leading-6 text-white/80">
-          <code>{example}</code>
+          <code>{jsonExample}</code>
+        </pre>
+        <pre className="overflow-x-auto rounded-xl bg-[#101827] p-4 text-xs leading-6 text-white/80">
+          <code>{htmlExample}</code>
         </pre>
       </div>
     </Card>

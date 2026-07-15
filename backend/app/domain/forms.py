@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class WebsiteLeadSubmission(BaseModel):
-    form_key: str = Field(min_length=16, max_length=200)
+    form_key: str | None = Field(default=None, max_length=200)
     name: str | None = Field(default=None, max_length=200)
     email: EmailStr
     phone: str | None = Field(default=None, max_length=40)

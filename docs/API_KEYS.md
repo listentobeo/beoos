@@ -154,6 +154,23 @@ Each business gets a tenant form key in Business Settings. The website posts to:
 NEXT_PUBLIC_API_URL/forms/{business_slug}/lead
 ```
 
+Accepted form-key locations:
+
+- JSON/body field: `form_key`;
+- normal HTML hidden field: `<input type="hidden" name="form_key" value="..." />`;
+- query string: `?form_key=...` or `?key=...`;
+- server-side header: `X-BeoOS-Form-Key: ...`.
+
+Accepted customer fields include common website/form-builder names:
+
+- email: `email`, `_replyto`, `reply_to`, `client_email`;
+- name: `name`, `full_name`, `client_name`;
+- phone: `phone`, `whatsapp`, `mobile`;
+- service: `service`, `subject`, `project_type`, `product`;
+- message: `message`, `details`, `description`, `project_details`.
+
+FormSubmit emails that arrive through a connected Zoho/Gmail mailbox are still supported. BeoOS extracts the real customer email from the form body and replies to that customer, not to `submissions@formsubmit.co`.
+
 If the form is submitted directly from a browser on the business website, add that website to backend CORS:
 
 ```env

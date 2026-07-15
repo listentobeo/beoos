@@ -1,9 +1,11 @@
 ﻿from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,14 +39,41 @@ logger = structlog.get_logger()
 @router.post("/{business_slug}/lead", response_model=WebsiteLeadResult, status_code=201)
 async def submit_website_lead(
     business_slug: str,
-    payload: WebsiteLeadSubmission,
+    request: Request,
+    query_form_key: str | None = Query(default=None, alias="form_key"),
+    query_key: str | None = Query(default=None, alias="key"),
+    header_form_key: str | None = Header(default=None, alias="X-BeoOS-Form-Key"),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> WebsiteLeadResult:
     business = await session.scalar(select(Business).where(Business.slug == business_slug))
     if business is None:
         raise HTTPException(status_code=404, detail="Business form endpoint not found")
-    if payload.form_key != website_form_key(business.settings):
+
+    payload = await _submission_from_request(request)
+    submitted_form_key = _submitted_form_key(
+        payload,
+        query_form_key=query_form_key,
+        query_key=query_key,
+        header_form_key=header_form_key,
+    )
+    logger.info(
+        "website_lead_intake_requested",
+        business_id=str(business.id),
+        business_slug=business.slug,
+        content_type=request.headers.get("content-type"),
+        has_body_key=bool(payload.form_key),
+        has_query_key=bool(query_form_key or query_key),
+        has_header_key=bool(header_form_key),
+        sender_email=str(payload.email).lower(),
+    )
+    if submitted_form_key != website_form_key(business.settings):
+        logger.warning(
+            "website_lead_invalid_form_key",
+            business_id=str(business.id),
+            business_slug=business.slug,
+            has_submitted_key=bool(submitted_form_key),
+        )
         raise HTTPException(status_code=403, detail="Invalid website form key")
 
     now = datetime.now(UTC)
@@ -129,6 +158,183 @@ async def submit_website_lead(
         thread_id=str(thread.id),
         message="Website enquiry received by BeoOS",
     )
+
+
+async def _submission_from_request(request: Request) -> WebsiteLeadSubmission:
+    data = await _request_data(request)
+    normalized = _normalise_submission_data(data, referer=request.headers.get("referer"))
+    try:
+        return WebsiteLeadSubmission.model_validate(normalized)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Website form submission is missing required fields",
+                "required": ["email", "message"],
+                "errors": exc.errors(),
+            },
+        ) from exc
+
+
+async def _request_data(request: Request) -> dict[str, Any]:
+    content_type = request.headers.get("content-type", "").lower()
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid JSON form payload") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=422, detail="Website form payload must be an object")
+        return body
+
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        return dict(form.multi_items())
+
+    try:
+        body = await request.json()
+    except Exception:
+        form = await request.form()
+        return dict(form.multi_items())
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="Website form payload must be an object")
+    return body
+
+
+def _submitted_form_key(
+    payload: WebsiteLeadSubmission,
+    *,
+    query_form_key: str | None,
+    query_key: str | None,
+    header_form_key: str | None,
+) -> str | None:
+    return (
+        _clean_text(header_form_key)
+        or _clean_text(query_form_key)
+        or _clean_text(query_key)
+        or payload.form_key
+    )
+
+
+def _normalise_submission_data(
+    data: dict[str, Any],
+    *,
+    referer: str | None = None,
+) -> dict[str, Any]:
+    values = _flatten_form_values(data)
+    message = _first_value(
+        values,
+        ("message", "msg", "details", "description", "project_details", "enquiry", "request"),
+    )
+    if not message:
+        message = _message_from_extra_fields(values)
+
+    return {
+        "form_key": _first_value(values, ("form_key", "beoos_form_key", "_beoos_key", "key")),
+        "name": _first_value(values, ("name", "full_name", "fullname", "client_name", "your_name")),
+        "email": _first_value(
+            values,
+            ("email", "_replyto", "reply_to", "replyto", "client_email", "your_email"),
+        ),
+        "phone": _first_value(
+            values,
+            ("phone", "tel", "telephone", "whatsapp", "whatsapp_number", "mobile"),
+        ),
+        "service": _first_value(
+            values,
+            ("service", "subject", "project_type", "interest", "package", "product"),
+        ),
+        "budget": _first_value(values, ("budget", "price_range", "estimated_budget")),
+        "deadline": _first_value(values, ("deadline", "timeline", "delivery_date", "due_date")),
+        "message": message,
+        "source_url": _first_value(values, ("source_url", "page", "page_url", "url", "website"))
+        or referer,
+    }
+
+
+def _flatten_form_values(data: dict[str, Any]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_key, raw_value in data.items():
+        key = str(raw_key).strip().lower()
+        if not key:
+            continue
+        value = raw_value[0] if isinstance(raw_value, list) and raw_value else raw_value
+        text = _clean_text(value)
+        if text:
+            values[key] = text
+    return values
+
+
+def _first_value(values: dict[str, str], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        value = values.get(key)
+        if value:
+            return value
+    return None
+
+
+def _clean_text(value: Any) -> str | None:
+    if value is None or hasattr(value, "filename"):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _message_from_extra_fields(values: dict[str, str]) -> str:
+    ignored = {
+        "form_key",
+        "beoos_form_key",
+        "_beoos_key",
+        "key",
+        "name",
+        "full_name",
+        "fullname",
+        "client_name",
+        "your_name",
+        "email",
+        "_replyto",
+        "reply_to",
+        "replyto",
+        "client_email",
+        "your_email",
+        "phone",
+        "tel",
+        "telephone",
+        "whatsapp",
+        "whatsapp_number",
+        "mobile",
+        "service",
+        "subject",
+        "project_type",
+        "interest",
+        "package",
+        "product",
+        "budget",
+        "price_range",
+        "estimated_budget",
+        "deadline",
+        "timeline",
+        "delivery_date",
+        "due_date",
+        "source_url",
+        "page",
+        "page_url",
+        "url",
+        "website",
+        "_captcha",
+        "_template",
+        "_next",
+        "_subject",
+        "_cc",
+        "_blacklist",
+        "_autoresponse",
+    }
+    lines = [
+        f"{key.replace('_', ' ').title()}: {value}"
+        for key, value in values.items()
+        if key not in ignored and not key.startswith("_")
+    ]
+    return "\n".join(lines[:30]) or "Website form submitted."
 
 
 async def _get_or_create_website_form_mailbox(
