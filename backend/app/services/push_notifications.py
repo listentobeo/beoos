@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
-from py_vapid import Vapid02
+from py_vapid import Vapid02  # type: ignore[import-untyped]
 from pywebpush import WebPushException, webpush  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

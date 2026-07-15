@@ -25,6 +25,7 @@ from app.infrastructure.models import (
     ThreadStatus,
 )
 from app.services.alerts import AlertService
+from app.services.approval_notifications import ApprovalNotificationService
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -100,6 +101,14 @@ async def submit_website_lead(
         channel="website_form",
     )
     await session.commit()
+    if thread.status == ThreadStatus.needs_approval:
+        await ApprovalNotificationService(settings).notify_needs_approval(
+            session,
+            business_id=business.id,
+            thread_id=thread.id,
+            reason="Website enquiry draft is waiting for review",
+        )
+        await session.commit()
 
     try:
         await AlertService(settings).send_website_lead_email(

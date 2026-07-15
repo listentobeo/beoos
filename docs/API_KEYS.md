@@ -1,6 +1,6 @@
 # BeoOS API keys and external setup
 
-This file lists the platform keys needed for Module 1 and Module 1.5.
+This file lists the platform keys needed for the active BeoOS modules.
 
 ## Required now
 
@@ -106,14 +106,43 @@ MAILBOX_AUTO_SYNC_LEASE_MINUTES=5
 
 Keep this enabled on the Railway API service while BeoOS runs as a single backend service. If you later create a separate worker service, disable it on the API service and enable it on the worker.
 
+## Active in Module 3.7: Follow-up scheduler and approval alerts
+
+Used to create approval-gated follow-up drafts for CRM leads and notify the business when a message needs approval.
+
+```env
+FOLLOW_UP_SCHEDULER_ENABLED=true
+FOLLOW_UP_SCHEDULER_INTERVAL_SECONDS=60
+FOLLOW_UP_SCHEDULER_BATCH_SIZE=10
+```
+
+No extra Railway service is required for the current build. The scheduler runs inside the existing API service.
+
 ## Active alerts: Resend
 
-Used for urgent and website-lead email alerts.
+Used for urgent, website-lead, and needs-approval email alerts.
 
 ```env
 RESEND_API_KEY=
 ALERT_FROM_EMAIL=beoos@alerts.beoarts.com
 ```
+
+## Optional future: SMS/text alerts
+
+SMS requires a paid SMS gateway. BeoOS has configuration placeholders, but SMS delivery is not active until a provider integration is selected and implemented.
+
+```env
+SMS_PROVIDER=
+SMS_API_KEY=
+SMS_FROM=
+```
+
+Good provider options:
+
+- Termii for Nigeria-focused SMS;
+- Africa's Talking for wider African coverage;
+- Twilio for global coverage;
+- WhatsApp message templates after Meta production approval.
 
 ## Active website form intake
 

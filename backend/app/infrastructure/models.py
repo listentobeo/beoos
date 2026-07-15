@@ -118,6 +118,14 @@ class QuoteTemplateType(enum.StrEnum):
     custom = "custom"
 
 
+class FollowUpStatus(enum.StrEnum):
+    scheduled = "scheduled"
+    draft_created = "draft_created"
+    skipped = "skipped"
+    cancelled = "cancelled"
+    failed = "failed"
+
+
 class Business(Base, TimestampMixin):
     __tablename__ = "businesses"
 
@@ -343,6 +351,36 @@ class CRMLead(Base, TimestampMixin):
 
     contact: Mapped[Contact | None] = relationship()
     thread: Mapped[EmailThread | None] = relationship()
+
+
+class FollowUpTask(Base, TimestampMixin):
+    __tablename__ = "follow_up_tasks"
+    __table_args__ = (
+        Index("ix_follow_up_business_status_due", "business_id", "status", "scheduled_for"),
+        Index("ix_follow_up_lead_status", "lead_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    lead_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_leads.id"), nullable=False)
+    thread_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("email_threads.id"))
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    sequence_name: Mapped[str] = mapped_column(String(80), default="standard", nullable=False)
+    step_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    channel: Mapped[str] = mapped_column(String(32), default="email", nullable=False)
+    status: Mapped[FollowUpStatus] = mapped_column(
+        Enum(FollowUpStatus), default=FollowUpStatus.scheduled, nullable=False
+    )
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    subject: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    body_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    task_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+    lead: Mapped[CRMLead] = relationship()
+    thread: Mapped[EmailThread | None] = relationship()
+    contact: Mapped[Contact | None] = relationship()
 
 
 class Quote(Base, TimestampMixin):

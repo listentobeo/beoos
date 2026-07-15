@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.services.follow_up_scheduler import FollowUpScheduler
 from app.services.mailbox_scheduler import MailboxAutoSyncScheduler
 
 settings = get_settings()
@@ -16,12 +17,17 @@ settings = get_settings()
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     scheduler: MailboxAutoSyncScheduler | None = None
+    follow_up_scheduler: FollowUpScheduler | None = None
     if settings.app_env != "test":
         scheduler = MailboxAutoSyncScheduler(settings)
         scheduler.start()
+        follow_up_scheduler = FollowUpScheduler(settings)
+        follow_up_scheduler.start()
     try:
         yield
     finally:
+        if follow_up_scheduler is not None:
+            await follow_up_scheduler.stop()
         if scheduler is not None:
             await scheduler.stop()
 

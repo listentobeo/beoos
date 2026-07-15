@@ -182,6 +182,32 @@ export type CRMStats = {
   needs_follow_up: number;
 };
 
+export type FollowUpTask = {
+  id: string;
+  business_id: string;
+  lead_id: string;
+  thread_id: string | null;
+  contact_id: string | null;
+  sequence_name: string;
+  step_number: number;
+  channel: string;
+  status: string;
+  scheduled_for: string;
+  completed_at: string | null;
+  subject: string;
+  body_text: string;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FollowUpScheduleResponse = {
+  success: boolean;
+  cancelled_existing: number;
+  tasks_created: number;
+  tasks: FollowUpTask[];
+};
+
 export type QuoteStatus =
   | "draft"
   | "needs_approval"
@@ -282,6 +308,12 @@ export const beoApi = {
     apiFetch<PushStatus>(`/businesses/${businessId}/notifications/push`),
   crmLeads: (businessId: string) => apiFetch<CRMLead[]>(`/businesses/${businessId}/crm/leads`),
   crmStats: (businessId: string) => apiFetch<CRMStats>(`/businesses/${businessId}/crm/stats`),
+  scheduleFollowUps: (businessId: string, leadId: string, cadence: "standard" | "hot" | "gentle") =>
+    apiFetch<FollowUpScheduleResponse>(`/businesses/${businessId}/crm/leads/${leadId}/follow-ups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cadence }),
+    }),
   quotes: (businessId: string) => apiFetch<Quote[]>(`/businesses/${businessId}/quotes`),
   quote: (businessId: string, quoteId: string) =>
     apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}`),

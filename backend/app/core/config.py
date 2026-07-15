@@ -61,9 +61,15 @@ class Settings(BaseSettings):
     mailbox_auto_sync_interval_seconds: int = 60
     mailbox_auto_sync_batch_size: int = 10
     mailbox_auto_sync_lease_minutes: int = 5
+    follow_up_scheduler_enabled: bool = True
+    follow_up_scheduler_interval_seconds: int = 60
+    follow_up_scheduler_batch_size: int = 10
 
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"
+    sms_provider: str = ""
+    sms_api_key: str = ""
+    sms_from: str = ""
     cors_origins: str = ""
 
     paystack_secret_key: str = ""

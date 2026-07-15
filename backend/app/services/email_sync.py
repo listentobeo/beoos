@@ -29,6 +29,7 @@ from app.infrastructure.models import (
     ThreadStatus,
 )
 from app.services.alerts import AlertService
+from app.services.approval_notifications import ApprovalNotificationService
 from app.services.crypto import SecretCipher
 from app.services.gmail import GmailClient, normalize_gmail_message
 from app.services.openai_email import OpenAIEmailService
@@ -61,6 +62,7 @@ class EmailSyncService:
         self._gmail = GmailClient(settings)
         self._ai = OpenAIEmailService(settings)
         self._alerts = AlertService(settings)
+        self._approval_notifications = ApprovalNotificationService(settings)
 
     async def sync_mailbox(
         self, session: AsyncSession, mailbox: MailboxConnection
@@ -625,6 +627,12 @@ class EmailSyncService:
             )
         else:
             thread.status = ThreadStatus.needs_approval
+            await self._approval_notifications.notify_needs_approval(
+                session,
+                business_id=business.id,
+                thread_id=thread.id,
+                reason="Mailbox reply draft is waiting for review",
+            )
 
         if triage.urgency:
             try:

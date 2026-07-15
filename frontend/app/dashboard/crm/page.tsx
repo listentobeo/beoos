@@ -1,6 +1,7 @@
 import { ArrowUpRight, CalendarClock, CircleDollarSign, Inbox, Trophy, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { CreateQuoteButton } from "@/components/dashboard/create-quote-button";
+import { ScheduleFollowUpButton } from "@/components/dashboard/schedule-follow-up-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type CRMLead, type CRMStats } from "@/lib/api";
@@ -51,6 +52,14 @@ function groupByStage(leads: CRMLead[]) {
     label,
     leads: leads.filter((lead) => lead.stage === stage),
   }));
+}
+
+function dateTime(value: string | null) {
+  if (!value) return "No follow-up scheduled";
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 export default async function CRMPage() {
@@ -162,9 +171,15 @@ export default async function CRMPage() {
                         <div className="flex justify-between gap-3"><dt>Budget</dt><dd className="font-semibold text-[#30343a]">{lead.budget || money(lead.estimated_value, lead.currency)}</dd></div>
                         <div className="flex justify-between gap-3"><dt>Deadline</dt><dd className="truncate font-semibold text-[#30343a]">{lead.deadline || "Not set"}</dd></div>
                         <div className="flex justify-between gap-3"><dt>AI score</dt><dd className="font-semibold text-[#30343a]">{lead.lead_score}/100</dd></div>
+                        <div className="flex justify-between gap-3"><dt>Next follow-up</dt><dd className="text-right font-semibold text-[#30343a]">{dateTime(lead.next_follow_up_at)}</dd></div>
                       </dl>
                       {businessId && lead.stage !== "won" && lead.stage !== "lost" && (
-                        <div className="mt-4">
+                        <div className="mt-4 space-y-2">
+                          <ScheduleFollowUpButton
+                            businessId={businessId}
+                            leadId={lead.id}
+                            hasExistingFollowUp={Boolean(lead.next_follow_up_at)}
+                          />
                           <CreateQuoteButton businessId={businessId} leadId={lead.id} />
                         </div>
                       )}

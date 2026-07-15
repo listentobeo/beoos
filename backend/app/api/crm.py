@@ -14,6 +14,11 @@ from app.domain.crm import (
     CRMLeadView,
     CRMPipelineStats,
 )
+from app.domain.followups import (
+    FollowUpScheduleRequest,
+    FollowUpScheduleResponse,
+    FollowUpTaskView,
+)
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
     AuditLog,
@@ -22,10 +27,13 @@ from app.infrastructure.models import (
     EmailAnalysis,
     EmailMessage,
     EmailThread,
+    FollowUpStatus,
+    FollowUpTask,
     LeadSource,
     LeadStage,
     MailboxConnection,
 )
+from app.services.follow_up_scheduler import standard_follow_up_offsets
 from app.services.lead_qualification import qualify_lead
 
 router = APIRouter(prefix="/businesses/{business_id}/crm", tags=["crm"])
@@ -276,6 +284,140 @@ async def update_lead(
     return await _get_lead_view(session, business_id, lead.id)
 
 
+@router.get("/follow-ups", response_model=list[FollowUpTaskView])
+async def list_follow_ups(
+    business_id: UUID,
+    status: FollowUpStatus | None = Query(default=None),
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[FollowUpTaskView]:
+    query = (
+        select(FollowUpTask)
+        .where(FollowUpTask.business_id == business_id)
+        .order_by(FollowUpTask.scheduled_for.asc())
+    )
+    if status:
+        query = query.where(FollowUpTask.status == status)
+    tasks = (await session.scalars(query)).all()
+    return [_task_view(task) for task in tasks]
+
+
+@router.post(
+    "/leads/{lead_id}/follow-ups",
+    response_model=FollowUpScheduleResponse,
+    status_code=201,
+)
+async def schedule_follow_ups(
+    business_id: UUID,
+    lead_id: UUID,
+    payload: FollowUpScheduleRequest,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> FollowUpScheduleResponse:
+    lead = await session.scalar(
+        select(CRMLead).where(CRMLead.id == lead_id, CRMLead.business_id == business_id)
+    )
+    if lead is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if lead.stage not in OPEN_STAGES:
+        raise HTTPException(status_code=400, detail="Closed leads cannot be scheduled")
+    if lead.thread_id is None:
+        raise HTTPException(status_code=400, detail="Lead has no inbox thread to follow up")
+
+    existing = (
+        await session.scalars(
+            select(FollowUpTask).where(
+                FollowUpTask.business_id == business_id,
+                FollowUpTask.lead_id == lead.id,
+                FollowUpTask.status == FollowUpStatus.scheduled,
+            )
+        )
+    ).all()
+    now = datetime.now(UTC)
+    for task in existing:
+        task.status = FollowUpStatus.cancelled
+        task.completed_at = now
+        task.error = "Replaced by a new follow-up sequence"
+
+    tasks = [
+        FollowUpTask(
+            business_id=business_id,
+            lead_id=lead.id,
+            thread_id=lead.thread_id,
+            contact_id=lead.contact_id,
+            sequence_name=payload.cadence,
+            step_number=index,
+            channel="email",
+            status=FollowUpStatus.scheduled,
+            scheduled_for=now + offset,
+            subject="",
+            body_text="",
+            task_metadata={"created_by": access.user_id},
+        )
+        for index, offset in enumerate(standard_follow_up_offsets(payload.cadence), start=1)
+    ]
+    session.add_all(tasks)
+    lead.next_follow_up_at = tasks[0].scheduled_for
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="follow_up.sequence_scheduled",
+            resource_type="crm_lead",
+            resource_id=str(lead.id),
+            details={
+                "cadence": payload.cadence,
+                "tasks_created": len(tasks),
+                "cancelled_existing": len(existing),
+            },
+        )
+    )
+    await session.commit()
+    for task in tasks:
+        await session.refresh(task)
+    return FollowUpScheduleResponse(
+        success=True,
+        cancelled_existing=len(existing),
+        tasks_created=len(tasks),
+        tasks=[_task_view(task) for task in tasks],
+    )
+
+
+@router.post("/follow-ups/{task_id}/cancel", response_model=FollowUpTaskView)
+async def cancel_follow_up(
+    business_id: UUID,
+    task_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> FollowUpTaskView:
+    task = await session.scalar(
+        select(FollowUpTask).where(
+            FollowUpTask.id == task_id,
+            FollowUpTask.business_id == business_id,
+        )
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Follow-up task not found")
+    if task.status != FollowUpStatus.scheduled:
+        raise HTTPException(status_code=400, detail="Only scheduled follow-ups can be cancelled")
+    task.status = FollowUpStatus.cancelled
+    task.completed_at = datetime.now(UTC)
+    task.error = "Cancelled manually"
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="follow_up.cancelled",
+            resource_type="follow_up_task",
+            resource_id=str(task.id),
+            details={"lead_id": str(task.lead_id)},
+        )
+    )
+    await session.commit()
+    await session.refresh(task)
+    return _task_view(task)
+
+
 async def _ensure_contact(session: AsyncSession, business_id: UUID, contact_id: UUID) -> Contact:
     contact = await session.scalar(
         select(Contact).where(Contact.id == contact_id, Contact.business_id == business_id)
@@ -375,6 +517,27 @@ def _lead_view(
         contact_email=contact.email if contact else None,
         contact_phone=contact.phone if contact else None,
         thread_subject=thread.subject if thread else None,
+    )
+
+
+def _task_view(task: FollowUpTask) -> FollowUpTaskView:
+    return FollowUpTaskView(
+        id=task.id,
+        business_id=task.business_id,
+        lead_id=task.lead_id,
+        thread_id=task.thread_id,
+        contact_id=task.contact_id,
+        sequence_name=task.sequence_name,
+        step_number=task.step_number,
+        channel=task.channel,
+        status=task.status,
+        scheduled_for=task.scheduled_for,
+        completed_at=task.completed_at,
+        subject=task.subject,
+        body_text=task.body_text,
+        error=task.error,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
     )
 
 

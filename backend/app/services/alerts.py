@@ -71,3 +71,34 @@ class AlertService:
             )
 
         await asyncio.to_thread(send)
+
+    async def send_needs_approval_email(
+        self,
+        *,
+        recipient: str,
+        business_name: str,
+        thread_subject: str,
+        reason: str,
+        url: str,
+    ) -> None:
+        if not self._settings.resend_api_key:
+            return
+
+        def send() -> None:
+            resend.Emails.send(
+                {
+                    "from": self._settings.alert_from_email,
+                    "to": [recipient],
+                    "subject": f"[BeoOS Approval] {thread_subject}",
+                    "text": (
+                        f"{business_name} has a message waiting for approval in BeoOS.\n\n"
+                        f"Conversation: {thread_subject}\n"
+                        f"Reason: {reason}\n\n"
+                        f"Open approvals: {url}\n\n"
+                        "Nothing has been sent to the client yet."
+                    ),
+                    "headers": {"X-BeoOS-System": "approval-alert"},
+                }
+            )
+
+        await asyncio.to_thread(send)

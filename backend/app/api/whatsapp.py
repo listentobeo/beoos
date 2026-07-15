@@ -26,6 +26,7 @@ from app.infrastructure.models import (
     MailboxConnection,
     ThreadStatus,
 )
+from app.services.approval_notifications import ApprovalNotificationService
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -86,6 +87,14 @@ async def receive_whatsapp_webhook(
                 body=f"{item.sender_name or item.from_phone}: {item.body_text}",
                 channel="whatsapp",
             )
+            thread = await session.get(EmailThread, created)
+            if thread and thread.status == ThreadStatus.needs_approval:
+                await ApprovalNotificationService(settings).notify_needs_approval(
+                    session,
+                    business_id=business.id,
+                    thread_id=created,
+                    reason="WhatsApp reply draft is waiting for review",
+                )
         else:
             duplicates += 1
 
