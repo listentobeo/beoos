@@ -11,8 +11,8 @@ const navLinks = [
 export function PublicHeader() {
   return (
     <header className="sticky top-0 z-30 border-b bg-[#f5f4f0]/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-        <Link href="/" className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
+        <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="BeoOS home">
           <span className="grid size-10 place-items-center rounded-2xl bg-[#ed633f] font-black text-white">
             B
           </span>
@@ -21,14 +21,19 @@ export function PublicHeader() {
             <span className="block text-xs text-[#6f746f]">Business automation OS</span>
           </span>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-semibold text-[#59605a] md:flex">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-6 text-sm font-semibold text-[#59605a] md:flex">
           {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="hover:text-[#ed633f]">
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-label={`Go to ${link.label}`}
+              className="whitespace-nowrap hover:text-[#ed633f]"
+            >
               {link.label}
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/sign-in"
             className="rounded-full px-4 py-2 text-sm font-bold text-[#101827] hover:bg-white"
