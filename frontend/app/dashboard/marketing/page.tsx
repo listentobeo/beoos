@@ -253,8 +253,8 @@ function MarketingContent({ businessName, summary, businessId }: { businessName:
             Marketing intelligence
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#747973]">
-            Module 4.2 combines Search Console, Blogger, Clarity, and website/form signals into
-            precise content clusters, page fixes, and growth actions per tenant.
+            BeoOS combines Search Console, Blogger, Clarity, and website/form signals into precise
+            content clusters, page fixes, and growth actions per tenant.
           </p>
         </div>
         <Badge className="bg-[#111827] text-white">Last {summary.window_days} days</Badge>
@@ -334,8 +334,8 @@ export default async function MarketingPage() {
             <div>
               <h1 className="text-xl font-bold">Marketing intelligence could not load</h1>
               <p className="mt-2 text-sm leading-6 text-[#747973]">
-                Confirm the backend deployment includes Module 4.2 and that your user has access to
-                the selected business.
+                Confirm the backend deployment is up to date and that your user has access to the
+                selected business.
               </p>
             </div>
           </div>

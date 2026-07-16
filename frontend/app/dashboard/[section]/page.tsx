@@ -21,7 +21,9 @@ export default async function DashboardSectionPage({ params }: { params: Promise
   }
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">Module 1</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">
+        BeoOS workspace
+      </p>
       <h1 className="mt-1 text-3xl font-bold capitalize tracking-[-0.035em]">{section.replaceAll("-", " ")}</h1>
       {threads ? (
         <Card className="mt-7 overflow-hidden"><InboxTable threads={threads} /></Card>
@@ -29,7 +31,7 @@ export default async function DashboardSectionPage({ params }: { params: Promise
         <Card className="mt-7 grid min-h-72 place-items-center p-8 text-center">
           <div>
             <Construction className="mx-auto size-8 text-[#ed633f]" />
-            <p className="mt-4 font-bold">This workspace is ready for the next Module 1 iteration.</p>
+            <p className="mt-4 font-bold">This workspace is ready for the next workflow upgrade.</p>
             <p className="mt-1 text-sm text-[#777c76]">Live data will populate it after the Zoho connection is authorized.</p>
           </div>
         </Card>

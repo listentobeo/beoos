@@ -190,7 +190,7 @@ function AnalyticsContent({
             Business intelligence
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#747973]">
-            Module 4.1 connects inbox activity, WhatsApp, CRM, quotations, approvals, and follow-ups
+            BeoOS connects inbox activity, WhatsApp, CRM, quotations, approvals, and follow-ups
             into one tenant-scoped operating dashboard.
           </p>
         </div>
@@ -396,8 +396,8 @@ export default async function AnalyticsPage() {
             <div>
               <h1 className="text-xl font-bold">Analytics could not load</h1>
               <p className="mt-2 text-sm leading-6 text-[#747973]">
-                Confirm the backend deployment includes Module 4.1 and that your user still has
-                access to the selected business.
+                Confirm the backend deployment is up to date and that your user still has access to
+                the selected business.
               </p>
             </div>
           </div>
