@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 
 export function DeleteQuoteButton({ businessId, quoteId }: { businessId: string; quoteId: string }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +23,8 @@ export function DeleteQuoteButton({ businessId, quoteId }: { businessId: string;
     setLoading(true);
     setError(null);
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/quotes/${quoteId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { detail?: string } | null;

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { FileText, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 
 export function CreateQuoteButton({
   businessId,
@@ -15,7 +14,6 @@ export function CreateQuoteButton({
   businessId: string;
   leadId: string;
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -24,12 +22,10 @@ export function CreateQuoteButton({
     setLoading(true);
     setMessage(null);
     try {
-      const token = await getToken();
       const response = await fetch(
         `${API_URL}/businesses/${businessId}/quotes/from-lead/${leadId}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
         },
       );
       if (!response.ok) {

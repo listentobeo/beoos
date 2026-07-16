@@ -1,13 +1,12 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { BusinessAIPolicy } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 const inputClass = "rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 
 function readCheckbox(form: FormData, name: keyof BusinessAIPolicy) {
@@ -21,7 +20,6 @@ export function PolicySettingsForm({
   businessId: string;
   policy: BusinessAIPolicy;
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,10 +44,9 @@ export function PolicySettingsForm({
     setLoading(true);
     setMessage(null);
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/policy`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Policy could not be saved");

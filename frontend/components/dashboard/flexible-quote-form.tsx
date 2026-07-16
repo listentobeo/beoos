@@ -1,13 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { FileText, LoaderCircle, PackagePlus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { PriceItem, QuoteTemplate } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 const inputClass =
   "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 
@@ -39,7 +38,6 @@ export function FlexibleQuoteForm({
   templates: QuoteTemplate[];
   prices: PriceItem[];
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const customTemplates = templates.filter((template) => template.template_type === "custom");
   const activePrices = prices.filter((price) => price.active);
@@ -109,10 +107,9 @@ export function FlexibleQuoteForm({
     }
     setLoading(true);
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/quotes`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           template_id: templateId || null,
           title: quoteTitle,

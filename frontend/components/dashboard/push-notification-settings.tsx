@@ -2,11 +2,10 @@
 
 import { BellRing, LoaderCircle } from "lucide-react";
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import type { PushStatus } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 
 function urlBase64ToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -34,7 +33,6 @@ export function PushNotificationSettings({
   businessId: string;
   initialStatus: PushStatus;
 }) {
-  const { getToken } = useAuth();
   const [status, setStatus] = useState(initialStatus);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,12 +64,10 @@ export function PushNotificationSettings({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(status.vapid_public_key),
         }));
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/notifications/push`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(serializeSubscription(subscription)),
       });
@@ -89,12 +85,9 @@ export function PushNotificationSettings({
     setLoading(true);
     setMessage(null);
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/notifications/push/test`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
       if (!response.ok) throw new Error(`Test notification failed (${response.status}).`);
       const result = (await response.json()) as { sent: number };
@@ -144,12 +137,10 @@ export function PushNotificationSettings({
       const registration = await navigator.serviceWorker.getRegistration("/beoos-sw.js");
       const subscription = await registration?.pushManager.getSubscription();
       if (subscription) {
-        const token = await getToken();
         await fetch(`${API_URL}/businesses/${businessId}/notifications/push`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(serializeSubscription(subscription)),
         });

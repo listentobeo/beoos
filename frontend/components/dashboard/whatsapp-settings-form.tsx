@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import type { BusinessWhatsAppSettings } from "@/lib/api";
 
 const inputClass = "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
+const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 type WhatsAppSignupData = {
   waba_id?: string;
@@ -128,7 +128,6 @@ export function WhatsAppSettingsForm({
   businessId: string;
   settings: BusinessWhatsAppSettings;
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -204,10 +203,8 @@ export function WhatsAppSettingsForm({
     setConnecting(true);
     signupDataRef.current = {};
     try {
-      const token = await getToken();
       const redirectUri = window.location.href.split("#")[0];
       const configResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-config`, {
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!configResponse.ok) throw new Error("Embedded Signup is not configured on the backend.");
       const config = await configResponse.json() as EmbeddedConfig;
@@ -231,7 +228,6 @@ export function WhatsAppSettingsForm({
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({
                 code,
@@ -283,12 +279,10 @@ export function WhatsAppSettingsForm({
       token_configured: settings.token_configured,
     };
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/whatsapp`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -345,7 +339,7 @@ export function WhatsAppSettingsForm({
       <div className="rounded-xl border border-dashed bg-white p-3 text-xs leading-5 text-[#777c76]">
         Webhook callback:
         <code className="mt-1 block break-all rounded-lg bg-[#f7f6f2] p-2 text-[#262a31]">
-          {API_URL.replace(/\/api\/v1$/, "")}/api/v1/webhooks/whatsapp
+          {PUBLIC_API_URL.replace(/\/api\/v1$/, "")}/api/v1/webhooks/whatsapp
         </code>
       </div>
       <div className="flex items-center gap-3">

@@ -7,4 +7,3 @@ export function Badge({ className, children }: { className?: string; children: R
     </span>
   );
 }
-

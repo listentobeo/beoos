@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, MailPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const API_URL = "/api/beoos";
+
 export function ZohoConnectButton({ businessId }: { businessId: string }) {
-  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,10 +14,9 @@ export function ZohoConnectButton({ businessId }: { businessId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const token = await getToken();
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/integrations/zoho/start?business_id=${businessId}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        `${API_URL}/integrations/zoho/start?business_id=${businessId}`,
+        {},
       );
       if (!response.ok) throw new Error("Unable to begin Zoho connection");
       const data = (await response.json()) as { authorization_url: string };
@@ -38,4 +37,3 @@ export function ZohoConnectButton({ businessId }: { businessId: string }) {
     </div>
   );
 }
-

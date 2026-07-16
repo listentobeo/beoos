@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function DiscardDraftButton({ businessId, draftId }: { businessId: string; draftId: string }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,11 +15,9 @@ export function DiscardDraftButton({ businessId, draftId }: { businessId: string
     setLoading(true);
     setError(null);
     try {
-      const token = await getToken();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const apiUrl = "/api/beoos";
       const response = await fetch(`${apiUrl}/businesses/${businessId}/email/drafts/${draftId}/discard`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("The draft could not be discarded");
       router.refresh();

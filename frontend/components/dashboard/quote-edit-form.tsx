@@ -1,20 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { Quote } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 
 function stringValue(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
 export function QuoteEditForm({ businessId, quote }: { businessId: string; quote: Quote }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const dimensions = quote.input_data.dimensions as { width?: string; height?: string; unit?: string } | undefined;
   const [projectLocation, setProjectLocation] = useState(stringValue(quote.input_data.project_location));
@@ -36,10 +34,9 @@ export function QuoteEditForm({ businessId, quote }: { businessId: string; quote
       dimensions: { ...(dimensions ?? {}), width, height, unit: dimensions?.unit ?? "ft" },
     };
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${businessId}/quotes/${quote.id}`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: quote.title,
           status: quote.status,

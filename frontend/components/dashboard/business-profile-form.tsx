@@ -1,18 +1,16 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { Business } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 const inputClass = "h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 const textareaClass = "min-h-24 w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 
 export function BusinessProfileForm({ business }: { business: Business }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -30,10 +28,9 @@ export function BusinessProfileForm({ business }: { business: Business }) {
     setLoading(true);
     setMessage(null);
     try {
-      const token = await getToken();
       const response = await fetch(`${API_URL}/businesses/${business.id}/profile`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!response.ok) {

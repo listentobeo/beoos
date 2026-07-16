@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { Building2, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,6 @@ import { Button } from "@/components/ui/button";
 const inputClass = "h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 
 export function AddBusinessForm() {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,14 +27,17 @@ export function AddBusinessForm() {
       reply_signature: String(form.get("signature") ?? "").trim(),
     };
     try {
-      const token = await getToken();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const apiUrl = "/api/beoos";
       const response = await fetch(`${apiUrl}/businesses`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Could not create this business profile");
+      if (!response.ok) {
+        const error = await response.json().catch(() => null) as { detail?: unknown } | null;
+        const detail = typeof error?.detail === "string" ? ` ${error.detail}` : "";
+        throw new Error(`Could not create this business profile (${response.status}).${detail}`);
+      }
       const created = (await response.json()) as { id: string };
       document.cookie = `beoos_business_id=${encodeURIComponent(created.id)}; path=/; max-age=31536000; samesite=lax`;
       formElement.reset();

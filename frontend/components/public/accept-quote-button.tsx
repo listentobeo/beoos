@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 
 export function AcceptQuoteButton({
   publicToken,

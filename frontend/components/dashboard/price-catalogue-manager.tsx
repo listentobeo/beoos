@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { LoaderCircle, Save, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { PriceItem } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_URL = "/api/beoos";
 const inputClass = "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#ed633f]/25";
 
 function customFieldsText(fields: PriceItem["custom_fields"]) {
@@ -54,19 +53,16 @@ export function PriceCatalogueManager({
   businessId: string;
   prices: PriceItem[];
 }) {
-  const { getToken } = useAuth();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
 
   async function request(path: string, init: RequestInit) {
-    const token = await getToken();
     const response = await fetch(`${API_URL}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
         ...init.headers,
       },
     });
@@ -116,10 +112,8 @@ export function PriceCatalogueManager({
     setBusy(itemId);
     setMessage(null);
     try {
-      const token = await getToken();
       await fetch(`${API_URL}/businesses/${businessId}/prices/${itemId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       setMessage("Catalogue item deactivated.");
       router.refresh();
