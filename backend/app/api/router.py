@@ -10,6 +10,7 @@ from app.api import (
     forms,
     google_integrations,
     integrations,
+    marketing,
     notifications,
     prices,
     quotes,
@@ -24,6 +25,7 @@ api_router.include_router(email.router)
 api_router.include_router(forms.router)
 api_router.include_router(google_integrations.router)
 api_router.include_router(integrations.router)
+api_router.include_router(marketing.router)
 api_router.include_router(notifications.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)

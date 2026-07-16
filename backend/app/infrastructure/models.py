@@ -126,6 +126,32 @@ class FollowUpStatus(enum.StrEnum):
     failed = "failed"
 
 
+class MarketingMetric(Base, TimestampMixin):
+    __tablename__ = "marketing_metrics"
+    __table_args__ = (
+        Index("ix_marketing_metrics_business_source", "business_id", "source"),
+        Index("ix_marketing_metrics_business_created", "business_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String(40), nullable=False)
+    page_url: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    query: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    impressions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    clicks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sessions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    leads: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ctr: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    average_position: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    engagement_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    avg_time_seconds: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    scroll_depth: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    metric_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+
 class Business(Base, TimestampMixin):
     __tablename__ = "businesses"
 

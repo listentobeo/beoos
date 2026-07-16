@@ -9,6 +9,7 @@ import {
   FilePenLine,
   Inbox,
   MessageCircleMore,
+  Megaphone,
   Settings,
   ShieldAlert,
   Sparkles,
@@ -33,6 +34,7 @@ const manage = [
   ["Quotations", "/dashboard/quotes", FileText],
   ["Price catalogue", "/dashboard/prices", Tags],
   ["Analytics", "/dashboard/analytics", BarChart3],
+  ["Marketing", "/dashboard/marketing", Megaphone],
   ["Business settings", "/dashboard/settings", Settings],
 ] as const;
 

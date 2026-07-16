@@ -1,6 +1,6 @@
 # BeoOS
 
-BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.6.5 adds WhatsApp Embedded Signup so SaaS tenants can connect their own Meta WhatsApp Business Account and phone number. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links. Module 3.6 adds AI lead scoring and editable quote basics. Module 3.7 adds approval-gated follow-up scheduling and approval alerts. Module 3.8 adds tenant quote templates and flexible line-item quotes. Module 3.9 adds branded public proposals and catalogue-powered quote creation. Module 4.1 adds internal analytics and business intelligence across inbox, CRM, quotes, approvals, and follow-ups.
+BeoOS is the multi-business operating system for Beo companies. Module 1 implements the production foundation and the Beo Art Studio AI Email Assistant. Module 1.5 adds tenant-scoped website form intake so website enquiries can enter the same BeoOS inbox and AI policy pipeline. Module 1.6 adds WhatsApp Cloud API intake and approval-based WhatsApp replies. Module 1.6.5 adds WhatsApp Embedded Signup so SaaS tenants can connect their own Meta WhatsApp Business Account and phone number. Module 1.7 adds realtime dashboard refresh and browser push. Module 1.8 adds Gmail / Google Workspace as a second email provider. Module 1.9 adds automatic mailbox sync inside the existing API service. Module 2 adds the tenant CRM lead pipeline. Module 3 adds the generic quotation engine with the first mural quote template. Module 3.5 adds public proposal acceptance and Paystack-ready deposit links. Module 3.6 adds AI lead scoring and editable quote basics. Module 3.7 adds approval-gated follow-up scheduling and approval alerts. Module 3.8 adds tenant quote templates and flexible line-item quotes. Module 3.9 adds branded public proposals and catalogue-powered quote creation. Module 4.1 adds internal analytics and business intelligence across inbox, CRM, quotes, approvals, and follow-ups. Module 4.2 adds tenant marketing intelligence for Search Console, Blogger, Clarity, and website performance signals.
 
 ## Structure
 
@@ -31,6 +31,7 @@ docs/modules/              Approved module specifications
 - [Module 3.8: Quote Template Designer and Flexible Line Items](docs/modules/module-038-quote-template-designer.md)
 - [Module 3.9: Branded Proposals and Catalogue-Powered Quotes](docs/modules/module-039-branded-proposals.md)
 - [Module 4.1: Internal Analytics and Business Intelligence](docs/modules/module-041-internal-analytics.md)
+- [Module 4.2: Marketing Intelligence Layer](docs/modules/module-042-marketing-intelligence-layer.md)
 - [BeoOS Brand Pack](docs/brand/BEOOS_BRAND_PACK.md)
 - [API keys and external setup](docs/API_KEYS.md)
 
@@ -75,6 +76,7 @@ docs/modules/              Approved module specifications
 - **Mailbox auto-sync:** enabled by default in the API service. Tune with `MAILBOX_AUTO_SYNC_*` variables.
 - **Follow-up scheduler:** enabled by default in the API service. Tune with `FOLLOW_UP_SCHEDULER_*` variables.
 - **Paystack:** set `PAYSTACK_SECRET_KEY` when you want BeoOS to generate deposit payment links from proposals.
+- **Marketing intelligence:** Module 4.2 works with manual/API-style imports first. Add Google Search Console, Blogger, and Microsoft Clarity keys later when enabling official connectors.
 - **Supabase:** follow [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## Deployment

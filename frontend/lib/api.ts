@@ -232,6 +232,93 @@ export type AnalyticsSummary = {
   recent_activity: AnalyticsRecentActivity[];
 };
 
+export type MarketingSource = "search_console" | "blogger" | "clarity" | "website" | "manual";
+
+export type MarketingTotal = {
+  source: string;
+  rows: number;
+  impressions: number;
+  clicks: number;
+  sessions: number;
+  leads: number;
+};
+
+export type MarketingPageOpportunity = {
+  page_url: string;
+  title: string;
+  impressions: number;
+  clicks: number;
+  sessions: number;
+  leads: number;
+  ctr: number;
+  average_position: number | null;
+  recommendation: string;
+};
+
+export type MarketingQueryOpportunity = {
+  query: string;
+  page_url: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  average_position: number | null;
+  recommendation: string;
+};
+
+export type MarketingContentCluster = {
+  topic: string;
+  impressions: number;
+  clicks: number;
+  queries: string[];
+  recommended_angle: string;
+};
+
+export type MarketingActionItem = {
+  priority: "high" | "medium" | "low";
+  source: string;
+  label: string;
+  reason: string;
+  recommended_action: string;
+  page_url: string | null;
+};
+
+export type MarketingMetricView = {
+  id: string;
+  source: string;
+  page_url: string;
+  query: string;
+  title: string;
+  impressions: number;
+  clicks: number;
+  sessions: number;
+  leads: number;
+  ctr: string | null;
+  average_position: string | null;
+  engagement_rate: string | null;
+  avg_time_seconds: string | null;
+  scroll_depth: string | null;
+  metric_date: string | null;
+  created_at: string;
+};
+
+export type MarketingSummary = {
+  window_days: number;
+  totals: MarketingTotal[];
+  top_pages: MarketingPageOpportunity[];
+  query_opportunities: MarketingQueryOpportunity[];
+  content_clusters: MarketingContentCluster[];
+  action_items: MarketingActionItem[];
+  recent_metrics: MarketingMetricView[];
+};
+
+export type MarketingImportResponse = {
+  success: boolean;
+  source: string;
+  rows_received: number;
+  rows_created: number;
+  duplicates_skipped: number;
+};
+
 export type FollowUpTask = {
   id: string;
   business_id: string;
@@ -377,6 +464,10 @@ export const beoApi = {
   analytics: (businessId: string, windowDays = 30) =>
     apiFetch<AnalyticsSummary>(
       `/businesses/${businessId}/analytics/summary?window_days=${windowDays}`,
+    ),
+  marketing: (businessId: string, windowDays = 90) =>
+    apiFetch<MarketingSummary>(
+      `/businesses/${businessId}/marketing/summary?window_days=${windowDays}`,
     ),
   scheduleFollowUps: (businessId: string, leadId: string, cadence: "standard" | "hot" | "gentle") =>
     apiFetch<FollowUpScheduleResponse>(`/businesses/${businessId}/crm/leads/${leadId}/follow-ups`, {

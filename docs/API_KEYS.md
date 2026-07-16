@@ -329,6 +329,10 @@ Needed later:
 ```env
 GOOGLE_SEARCH_CONSOLE_CLIENT_ID=
 GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET=
+GOOGLE_BLOGGER_CLIENT_ID=
+GOOGLE_BLOGGER_CLIENT_SECRET=
+MICROSOFT_CLARITY_PROJECT_ID=
+MICROSOFT_CLARITY_API_TOKEN=
 ```
 
 Used for:
@@ -337,4 +341,14 @@ Used for:
 - top queries;
 - top landing pages;
 - content opportunities;
+- Blogger/content performance;
+- Microsoft Clarity behavior/friction signals;
 - brand bible evidence.
+
+Module 4.2 currently works without these keys by importing the same shaped data manually or from a server-side script:
+
+```text
+POST /api/v1/businesses/{business_id}/marketing/import
+```
+
+This keeps the marketing intelligence layer usable before Google/Microsoft connector approval.
