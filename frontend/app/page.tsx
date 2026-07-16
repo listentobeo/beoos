@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BeoOSFloatingHero } from "@/components/public/beoos-floating-hero";
 import { PublicPageShell } from "@/components/public/site-shell";
 
 const features = [
@@ -70,65 +71,7 @@ const pricing = [
 export default function Home() {
   return (
     <PublicPageShell>
-      <section className="mx-auto grid max-w-6xl gap-10 px-5 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-24">
-        <div>
-          <p className="inline-flex rounded-full border bg-white px-4 py-2 text-sm font-bold text-[#ed633f]">
-            AI-powered business communication OS
-          </p>
-          <h1 className="mt-6 max-w-3xl text-5xl font-black tracking-[-0.045em] text-[#101827] md:text-7xl">
-            Run sales, messages, leads, and quotes from one calm dashboard.
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-[#59605a]">
-            BeoOS helps service businesses capture customer requests, classify leads, prepare
-            replies, manage quotations, and keep every channel organized across email, forms,
-            WhatsApp, and CRM workflows.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/sign-up"
-              className="rounded-full bg-[#ed633f] px-6 py-3 text-center font-black text-white shadow-sm hover:bg-[#de5635]"
-            >
-              Create BeoOS account
-            </Link>
-            <Link
-              href="/sign-in"
-              className="rounded-full border bg-white px-6 py-3 text-center font-black text-[#101827] hover:border-[#ed633f]"
-            >
-              Sign in
-            </Link>
-          </div>
-          <p className="mt-4 text-sm text-[#6f746f]">
-            Built for secure, tenant-based automation. No hardcoded business data.
-          </p>
-        </div>
-
-        <div className="rounded-[2rem] border bg-white p-4 shadow-sm">
-          <div className="rounded-[1.5rem] bg-[#101827] p-5 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.25em] text-white/50">Today</p>
-                <h2 className="mt-2 text-2xl font-black">Business command center</h2>
-              </div>
-              <span className="rounded-full bg-[#ed633f] px-3 py-1 text-sm font-bold">
-                Live
-              </span>
-            </div>
-            <div className="mt-6 grid gap-3">
-              {[
-                ["New lead", "WhatsApp request captured and scored"],
-                ["Quote draft", "Pricing pulled from catalogue"],
-                ["Needs approval", "AI reply awaiting owner decision"],
-                ["Follow-up", "Customer deadline detected"],
-              ].map(([label, text]) => (
-                <div key={label} className="rounded-2xl bg-white/8 p-4">
-                  <p className="font-bold">{label}</p>
-                  <p className="mt-1 text-sm text-white/65">{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <BeoOSFloatingHero />
 
       <section id="features" className="border-y bg-white">
         <div className="mx-auto max-w-6xl px-5 py-16">
