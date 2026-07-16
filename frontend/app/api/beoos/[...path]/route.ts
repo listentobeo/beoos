@@ -31,6 +31,13 @@ async function proxy(request: Request, context: RouteContext) {
 
   const { getToken } = await auth();
   const token = await getToken();
+  const isPublicQuoteRequest = path[0] === "quotes" && path[1] === "public";
+  if (!token && !isPublicQuoteRequest) {
+    return Response.json(
+      { detail: "You are not signed in. Refresh the page and sign in again." },
+      { status: 401 },
+    );
+  }
   if (token) headers.set("authorization", `Bearer ${token}`);
 
   const method = request.method.toUpperCase();

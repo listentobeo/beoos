@@ -5,7 +5,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/dashboard(.*)",
-  "/api/beoos/quotes/public(.*)",
+  "/api/beoos(.*)",
   "/quotes(.*)",
   "/about",
   "/privacy",
