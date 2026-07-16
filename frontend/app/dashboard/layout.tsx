@@ -3,6 +3,10 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { beoApi } from "@/lib/api";
 import { activeBusiness, type Business } from "@/lib/api";
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let businesses: Business[] = [];
   let activeId: string | null = null;

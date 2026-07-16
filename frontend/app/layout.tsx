@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://beoos.com.ng"),
   title: { default: "BeoOS", template: "%s · BeoOS" },
   description:
     "BeoOS is an AI-powered business communication OS for inbox, WhatsApp, CRM, quotations, pricing, and customer follow-up automation.",

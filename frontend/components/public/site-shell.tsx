@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const navLinks = [
-  { href: "/#features", label: "Features" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#how-it-works", label: "How it works" },
+  { href: "/features", label: "Features" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/about", label: "About" },
   { href: "/support", label: "Support" },
 ];
@@ -76,9 +76,9 @@ export function PublicFooter() {
         <div>
           <p className="font-bold">Product</p>
           <div className="mt-3 grid gap-2 text-sm text-[#6f746f]">
-            <Link href="/#features">Features</Link>
-            <Link href="/#pricing">Pricing</Link>
-            <Link href="/#how-it-works">How it works</Link>
+            <Link href="/features">Features</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/how-it-works">How it works</Link>
             <Link href="/sign-up">Create account</Link>
           </div>
         </div>

@@ -21,7 +21,10 @@ type PublicQuote = {
   accepted_at: string | null;
 };
 
-export const metadata = { title: "Proposal" };
+export const metadata = {
+  title: "Proposal",
+  robots: { index: false, follow: false },
+};
 
 function text(value: unknown, fallback = "Not set") {
   return typeof value === "string" && value.trim() ? value : fallback;
