@@ -20,7 +20,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen">
       <Sidebar businesses={businesses} activeId={activeId} />
       <DashboardAutoRefresh />
-      <main className="min-h-screen pt-[150px] lg:pl-[264px] lg:pt-0">{children}</main>
+      <main className="min-h-screen pt-[150px] transition-[padding] duration-300 ease-out lg:pl-[var(--beoos-sidebar-width,264px)] lg:pt-0">
+        {children}
+      </main>
     </div>
   );
 }

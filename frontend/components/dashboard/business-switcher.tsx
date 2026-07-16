@@ -1,9 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import type { Business } from "@/lib/api";
 
-export function BusinessSwitcher({ businesses, activeId }: { businesses: Business[]; activeId: string | null }) {
+export function BusinessSwitcher({
+  businesses,
+  activeId,
+  className,
+}: {
+  businesses: Business[];
+  activeId: string | null;
+  className?: string;
+}) {
   const router = useRouter();
 
   function selectBusiness(id: string) {
@@ -17,7 +26,7 @@ export function BusinessSwitcher({ businesses, activeId }: { businesses: Busines
       aria-label="Current business"
       value={activeId ?? ""}
       onChange={(event) => selectBusiness(event.target.value)}
-      className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-white outline-none"
+      className={cn("min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-white outline-none", className)}
     >
       {businesses.length === 0 && <option value="" className="text-[#171b23]">No business yet</option>}
       {businesses.map((business) => <option key={business.id} value={business.id} className="text-[#171b23]">{business.name}</option>)}
