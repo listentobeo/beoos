@@ -1,4 +1,12 @@
-import { Bell, FilePenLine, Inbox, MessageCircleMore, ShieldAlert, UsersRound } from "lucide-react";
+import {
+  AlertCircle,
+  Bell,
+  FilePenLine,
+  Inbox,
+  MessageCircleMore,
+  ShieldAlert,
+  UsersRound,
+} from "lucide-react";
 import Link from "next/link";
 import { ConversationSearch } from "@/components/dashboard/conversation-search";
 import { InboxTable } from "@/components/dashboard/inbox-table";
@@ -113,7 +121,7 @@ export default async function InboxPage({
           <p className="mt-1 text-sm text-[#747973]">
             {connected
               ? `Here's what needs your attention. Local time: ${localTime(timezone)}.`
-              : "Connect your first business to activate the inbox, CRM, quotes, AI replies, and alerts."}
+              : "Set up your first business to activate inbox, CRM, quotes, AI replies, and alerts."}
           </p>
         </div>
         <Button asChild variant="outline" size="icon" aria-label="Notifications">
@@ -123,65 +131,77 @@ export default async function InboxPage({
 
       {noBusiness && (
         <div className="mt-6">
-          <SetupGuide compact />
+          <SetupGuide />
         </div>
       )}
 
       {!connected && !noBusiness && (
-        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          BeoOS could not load this workspace. Check the API deployment and refresh after Railway finishes deploying.
+        <div className="mt-6">
+          <SetupGuide title="Finish your BeoOS workspace setup" />
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <p>
+              BeoOS could not load a business workspace for this production account yet. If you
+              already created Beo Art Studio in development, attach this production Clerk user ID
+              to that business or create a fresh business from Business Settings.
+            </p>
+          </div>
         </div>
       )}
 
       {connected && (
-        <Card className="mt-6 p-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{providerLabel}</p>
-              <h2 className="mt-1 text-base font-bold">{connectedCopy}</h2>
-              <p className="mt-1 text-sm text-[#747973]">
-                {mailbox?.last_synced_at
-                  ? `Last synced ${dateTime(mailbox.last_synced_at, timezone)} · ${mailbox.message_count} messages imported`
-                  : mailbox?.connected
-                    ? `Connected, but no sync has completed yet. ${autoSyncCopy}`
-                    : "Connect Zoho Mail or Gmail in Business Settings before BeoOS can pull messages."}
-              </p>
-              {mailbox?.connected && <p className="mt-1 text-xs text-emerald-700">{autoSyncCopy}</p>}
-            </div>
-            {businessId && mailbox?.connected && <SyncMailboxButton businessId={businessId} />}
-          </div>
-        </Card>
-      )}
-
-      <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {statCards.map(([label, value, Icon, style]) => (
-          <Card key={label} className="flex items-center gap-4 p-4">
-            <div className={`grid size-10 shrink-0 place-items-center rounded-xl ${style}`}><Icon className="size-4" /></div>
-            <div>
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
-              <p className="text-xs text-[#858a84]">{label}</p>
+        <>
+          <Card className="mt-6 p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#90948f]">{providerLabel}</p>
+                <h2 className="mt-1 text-base font-bold">{connectedCopy}</h2>
+                <p className="mt-1 text-sm text-[#747973]">
+                  {mailbox?.last_synced_at
+                    ? `Last synced ${dateTime(mailbox.last_synced_at, timezone)} · ${mailbox.message_count} messages imported`
+                    : mailbox?.connected
+                      ? `Connected, but no sync has completed yet. ${autoSyncCopy}`
+                      : "Connect Zoho Mail or Gmail in Business Settings before BeoOS can pull messages."}
+                </p>
+                {mailbox?.connected && <p className="mt-1 text-xs text-emerald-700">{autoSyncCopy}</p>}
+              </div>
+              {businessId && mailbox?.connected && <SyncMailboxButton businessId={businessId} />}
             </div>
           </Card>
-        ))}
-      </section>
 
-      <Card className="mt-6 overflow-hidden">
-        <div className="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold tracking-tight">Unified inbox</h2>
-            <p className="mt-0.5 text-xs text-[#858a84]">
-              Zoho Mail, Gmail, website forms, and WhatsApp, classified by BeoOS
-            </p>
-            {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for “{query}”</p>}
-          </div>
-          <ConversationSearch initialQuery={query} />
-        </div>
-        <InboxTable
-          threads={threads}
-          mailboxConnected={Boolean(mailbox?.connected)}
-          emptyMessage={query ? `No conversations matched “${query}”. Try a sender, subject, or service keyword.` : undefined}
-        />
-      </Card>
+          <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {statCards.map(([label, value, Icon, style]) => (
+              <Card key={label} className="flex items-center gap-4 p-4">
+                <div className={`grid size-10 shrink-0 place-items-center rounded-xl ${style}`}>
+                  <Icon className="size-4" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tracking-tight">{value}</p>
+                  <p className="text-xs text-[#858a84]">{label}</p>
+                </div>
+              </Card>
+            ))}
+          </section>
+
+          <Card className="mt-6 overflow-hidden">
+            <div className="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-bold tracking-tight">Unified inbox</h2>
+                <p className="mt-0.5 text-xs text-[#858a84]">
+                  Zoho Mail, Gmail, website forms, and WhatsApp, classified by BeoOS
+                </p>
+                {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for “{query}”</p>}
+              </div>
+              <ConversationSearch initialQuery={query} />
+            </div>
+            <InboxTable
+              threads={threads}
+              mailboxConnected={Boolean(mailbox?.connected)}
+              emptyMessage={query ? `No conversations matched “${query}”. Try a sender, subject, or service keyword.` : undefined}
+            />
+          </Card>
+        </>
+      )}
     </div>
   );
 }
