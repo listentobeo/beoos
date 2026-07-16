@@ -74,18 +74,18 @@ export default function Home() {
       <BeoOSFloatingHero />
 
       <section id="features" className="border-y bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <p className="text-sm font-black uppercase tracking-[0.25em] text-[#ed633f]">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-16">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ed633f] sm:text-sm sm:tracking-[0.25em]">
             Features
           </p>
-          <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.035em]">
+          <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.035em] sm:text-4xl">
             Everything a business needs before the customer slips through the cracks.
           </h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
+          <div className="mt-8 grid gap-4 md:mt-10 md:grid-cols-2">
             {features.map((feature) => (
-              <article key={feature.title} className="rounded-3xl border bg-[#f8f7f3] p-6">
-                <h3 className="text-xl font-black">{feature.title}</h3>
-                <p className="mt-3 leading-7 text-[#59605a]">{feature.text}</p>
+              <article key={feature.title} className="rounded-3xl border bg-[#f8f7f3] p-5 sm:p-6">
+                <h3 className="text-lg font-black sm:text-xl">{feature.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-[#59605a] sm:text-base">{feature.text}</p>
               </article>
             ))}
           </div>
@@ -93,23 +93,23 @@ export default function Home() {
       </section>
 
       <section id="pricing" className="border-y bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <p className="text-sm font-black uppercase tracking-[0.25em] text-[#ed633f]">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-16">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ed633f] sm:text-sm sm:tracking-[0.25em]">
             Pricing
           </p>
-          <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.035em]">
+          <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.035em] sm:text-4xl">
             Nigerian starter pricing for businesses that need automation without heavy software bills.
           </h2>
-          <p className="mt-4 max-w-3xl leading-7 text-[#59605a]">
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-[#59605a] sm:text-base">
             These launch plans are designed to validate usage locally. As BeoOS grows, pricing can
             become usage-based for AI messages, connected channels, WhatsApp conversations, storage,
             and team seats.
           </p>
-          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:mt-10 lg:grid-cols-3">
             {pricing.map((plan) => (
               <article
                 key={plan.name}
-                className={`rounded-3xl border p-6 ${
+                className={`rounded-3xl border p-5 sm:p-6 ${
                   plan.highlighted ? "border-[#ed633f] bg-[#fff7f3] shadow-sm" : "bg-[#f8f7f3]"
                 }`}
               >
@@ -118,9 +118,9 @@ export default function Home() {
                     Recommended
                   </p>
                 )}
-                <h3 className="text-2xl font-black">{plan.name}</h3>
+                <h3 className="text-xl font-black sm:text-2xl">{plan.name}</h3>
                 <p className="mt-2 text-sm leading-6 text-[#59605a]">{plan.audience}</p>
-                <p className="mt-5 text-4xl font-black tracking-[-0.04em]">
+                <p className="mt-5 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
                   {plan.price}
                   <span className="text-base font-bold text-[#6f746f]">/month</span>
                 </p>
@@ -148,16 +148,16 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="how-it-works" className="mx-auto max-w-6xl px-5 py-16">
+      <section id="how-it-works" className="mx-auto max-w-6xl px-4 py-12 sm:px-5 sm:py-16">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <p className="text-sm font-black uppercase tracking-[0.25em] text-[#ed633f]">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ed633f] sm:text-sm sm:tracking-[0.25em]">
               How it works
             </p>
-            <h2 className="mt-3 text-4xl font-black tracking-[-0.035em]">
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
               Connect channels, set policy, let AI prepare the work.
             </h2>
-            <p className="mt-4 leading-7 text-[#59605a]">
+            <p className="mt-4 text-sm leading-7 text-[#59605a] sm:text-base">
               Business owners stay in control. BeoOS can draft responses, flag urgent items,
               create CRM leads, and prepare quotes, but policy-sensitive actions remain visible
               for approval.
@@ -166,7 +166,7 @@ export default function Home() {
           <div className="grid gap-3">
             {["Add your business", "Connect email, WhatsApp, or forms", "Write your AI policy", "Review leads, replies, and quotes"].map(
               (step, index) => (
-                <div key={step} className="flex gap-4 rounded-3xl border bg-white p-5">
+                <div key={step} className="flex gap-3 rounded-3xl border bg-white p-4 sm:gap-4 sm:p-5">
                   <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#ed633f] font-black text-white">
                     {index + 1}
                   </span>
@@ -183,9 +183,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#101827] px-5 py-16 text-white">
+      <section className="bg-[#101827] px-4 py-12 text-white sm:px-5 sm:py-16">
         <div className="mx-auto max-w-6xl">
-          <h2 className="max-w-3xl text-4xl font-black tracking-[-0.035em]">
+          <h2 className="max-w-3xl text-3xl font-black tracking-[-0.035em] sm:text-4xl">
             Built for real-world service businesses.
           </h2>
           <div className="mt-8 grid gap-3 md:grid-cols-2">

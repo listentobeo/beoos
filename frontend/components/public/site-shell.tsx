@@ -11,15 +11,15 @@ const navLinks = [
 export function PublicHeader() {
   return (
     <header className="sticky top-0 z-30 border-b bg-[#f5f4f0]/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 md:flex-nowrap md:py-4">
         <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="BeoOS home">
-          <img src="/brand/beoos-mark.svg" alt="" className="size-10 rounded-2xl" />
+          <img src="/brand/beoos-mark.svg" alt="" className="size-9 rounded-2xl sm:size-10" />
           <span>
-            <span className="block text-lg font-black tracking-tight">BeoOS</span>
-            <span className="block text-xs text-[#6f746f]">Business automation OS</span>
+            <span className="block text-base font-black tracking-tight sm:text-lg">BeoOS</span>
+            <span className="hidden text-xs text-[#6f746f] min-[380px]:block">Business automation OS</span>
           </span>
         </Link>
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-6 text-sm font-semibold text-[#59605a] md:flex">
+        <nav className="order-3 -mx-4 flex w-[calc(100%+2rem)] gap-4 overflow-x-auto border-t px-4 pt-3 text-sm font-semibold text-[#59605a] md:order-none md:mx-0 md:w-auto md:min-w-0 md:flex-1 md:justify-center md:gap-6 md:overflow-visible md:border-0 md:px-0 md:pt-0">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -31,16 +31,16 @@ export function PublicHeader() {
             </Link>
           ))}
         </nav>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Link
             href="/sign-in"
-            className="rounded-full px-4 py-2 text-sm font-bold text-[#101827] hover:bg-white"
+            className="rounded-full px-3 py-2 text-xs font-bold text-[#101827] hover:bg-white sm:px-4 sm:text-sm"
           >
             Sign in
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-full bg-[#101827] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#1c2638]"
+            className="rounded-full bg-[#101827] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1c2638] sm:px-4 sm:text-sm"
           >
             Get started
           </Link>
@@ -53,7 +53,7 @@ export function PublicHeader() {
 export function PublicFooter() {
   return (
     <footer className="border-t bg-white">
-      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-5 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-3">
             <img src="/brand/beoos-mark.svg" alt="" className="size-10 rounded-2xl" />
@@ -103,7 +103,7 @@ export function PublicFooter() {
 
 export function PublicPageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen overflow-x-hidden">
       <PublicHeader />
       {children}
       <PublicFooter />

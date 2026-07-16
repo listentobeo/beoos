@@ -128,7 +128,7 @@ const FloatingIconsHero = React.forwardRef<
         ref={ref}
         onMouseMove={handleMouseMove}
         className={cn(
-          "relative isolate flex min-h-[720px] w-full items-center justify-center overflow-hidden bg-[#f5f4f0]",
+          "relative isolate flex min-h-[calc(100svh-110px)] w-full items-center justify-center overflow-hidden bg-[#f5f4f0] sm:min-h-[720px]",
           className,
         )}
         {...props}
@@ -141,29 +141,29 @@ const FloatingIconsHero = React.forwardRef<
           ))}
         </div>
 
-        <div className="relative z-10 mx-auto max-w-5xl px-5 py-24 text-center">
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-16 text-center sm:px-5 sm:py-24">
           {eyebrow && (
-            <p className="mx-auto inline-flex rounded-full border border-[#ed633f]/20 bg-white/80 px-4 py-2 text-sm font-black text-[#ed633f] shadow-sm backdrop-blur">
+            <p className="mx-auto inline-flex max-w-full rounded-full border border-[#ed633f]/20 bg-white/80 px-3 py-2 text-xs font-black text-[#ed633f] shadow-sm backdrop-blur sm:px-4 sm:text-sm">
               {eyebrow}
             </p>
           )}
-          <h1 className="mx-auto mt-6 max-w-4xl text-5xl font-black tracking-[-0.055em] text-[#101827] md:text-7xl">
+          <h1 className="mx-auto mt-5 max-w-4xl text-[2.55rem] font-black leading-[0.96] tracking-[-0.055em] text-[#101827] min-[390px]:text-5xl md:mt-6 md:text-7xl">
             {title}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#59605a]">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#59605a] sm:mt-6 sm:text-lg sm:leading-8">
             {subtitle}
           </p>
-          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild className="h-12 rounded-full px-7 text-base font-black shadow-sm">
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:mt-9 sm:flex-row">
+            <Button asChild className="h-12 rounded-full px-5 text-sm font-black shadow-sm sm:px-7 sm:text-base">
               <a href={ctaHref}>{ctaText}</a>
             </Button>
             {secondaryCtaText && secondaryCtaHref && (
-              <Button asChild variant="outline" className="h-12 rounded-full px-7 text-base font-black">
+              <Button asChild variant="outline" className="h-12 rounded-full px-5 text-sm font-black sm:px-7 sm:text-base">
                 <a href={secondaryCtaHref}>{secondaryCtaText}</a>
               </Button>
             )}
           </div>
-          <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2 text-xs font-bold text-[#6f746f]">
+          <div className="mx-auto mt-7 flex max-w-2xl flex-wrap items-center justify-center gap-2 text-[11px] font-bold text-[#6f746f] sm:mt-8 sm:text-xs">
             {["WhatsApp", "Gmail", "Zoho", "Forms", "CRM", "Quotes", "Pricing", "Alerts"].map((item) => (
               <span key={item} className="rounded-full border bg-white/70 px-3 py-1.5 backdrop-blur">
                 {item}
