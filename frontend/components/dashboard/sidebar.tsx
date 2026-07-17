@@ -17,7 +17,6 @@ import {
   Search,
   Settings,
   ShieldAlert,
-  Sparkles,
   Tags,
   UsersRound,
 } from "lucide-react";
@@ -224,17 +223,6 @@ export function Sidebar({
               ))}
             </nav>
           </div>
-
-          {!collapsed && (
-            <div className="mx-4 mb-4 rounded-2xl border border-[#ffe0d5] bg-[#fff8f4] p-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#9f3f23]">
-                <Sparkles className="size-4 text-[#ed633f]" /> AI operations assistant
-              </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-[#8a665b]">
-                Inbox, CRM, quotes, follow-ups, approvals, and marketing stay tenant-aware.
-              </p>
-            </div>
-          )}
 
           <div className={cn("border-t border-[#edf0f5]", collapsed ? "p-3" : "p-4")}>
             <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-3")}>
