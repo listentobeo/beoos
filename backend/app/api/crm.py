@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import BusinessAccess, require_admin, require_business_access
 from app.domain.crm import (
     CRMLeadCreate,
+    CRMLeadDropRequest,
     CRMLeadFromThread,
     CRMLeadUpdate,
     CRMLeadView,
@@ -284,6 +285,62 @@ async def update_lead(
     return await _get_lead_view(session, business_id, lead.id)
 
 
+@router.post("/leads/{lead_id}/drop", response_model=CRMLeadView)
+async def drop_lead(
+    business_id: UUID,
+    lead_id: UUID,
+    payload: CRMLeadDropRequest,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> CRMLeadView:
+    lead = await session.scalar(
+        select(CRMLead).where(CRMLead.id == lead_id, CRMLead.business_id == business_id)
+    )
+    if lead is None:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    now = datetime.now(UTC)
+    old_stage = lead.stage
+    reason = payload.reason.strip() or "Dropped manually"
+    lead.stage = LeadStage.lost
+    lead.probability = 0
+    lead.lead_score = min(lead.lead_score, 10)
+    lead.next_follow_up_at = None
+    lead.closed_at = now
+    lead.notes = _append_note(lead.notes, f"Dropped: {reason}")
+
+    scheduled_followups = (
+        await session.scalars(
+            select(FollowUpTask).where(
+                FollowUpTask.business_id == business_id,
+                FollowUpTask.lead_id == lead.id,
+                FollowUpTask.status == FollowUpStatus.scheduled,
+            )
+        )
+    ).all()
+    for task in scheduled_followups:
+        task.status = FollowUpStatus.cancelled
+        task.completed_at = now
+        task.error = f"Lead dropped: {reason}"
+
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="crm_lead.dropped",
+            resource_type="crm_lead",
+            resource_id=str(lead.id),
+            details={
+                "old_stage": old_stage.value,
+                "new_stage": LeadStage.lost.value,
+                "cancelled_followups": len(scheduled_followups),
+                "reason": reason,
+            },
+        )
+    )
+    await session.commit()
+    return await _get_lead_view(session, business_id, lead.id)
+
+
 @router.get("/follow-ups", response_model=list[FollowUpTaskView])
 async def list_follow_ups(
     business_id: UUID,
@@ -548,3 +605,9 @@ def _field(values: dict[str, object], key: str) -> str | None:
 
 def _closed_at(stage: LeadStage) -> datetime | None:
     return datetime.now(UTC) if stage in {LeadStage.won, LeadStage.lost} else None
+
+
+def _append_note(existing: str, note: str) -> str:
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    entry = f"[{timestamp}] {note}"
+    return f"{existing.strip()}\n\n{entry}".strip() if existing.strip() else entry

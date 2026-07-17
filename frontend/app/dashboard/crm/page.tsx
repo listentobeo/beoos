@@ -1,6 +1,7 @@
 import { ArrowUpRight, CalendarClock, CircleDollarSign, Inbox, Trophy, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { CreateQuoteButton } from "@/components/dashboard/create-quote-button";
+import { DropLeadButton } from "@/components/dashboard/drop-lead-button";
 import { ScheduleFollowUpButton } from "@/components/dashboard/schedule-follow-up-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -181,6 +182,7 @@ export default async function CRMPage() {
                             hasExistingFollowUp={Boolean(lead.next_follow_up_at)}
                           />
                           <CreateQuoteButton businessId={businessId} leadId={lead.id} />
+                          <DropLeadButton businessId={businessId} leadId={lead.id} />
                         </div>
                       )}
                     </div>

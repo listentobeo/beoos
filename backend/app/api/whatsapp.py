@@ -27,6 +27,7 @@ from app.infrastructure.models import (
     ThreadStatus,
 )
 from app.services.approval_notifications import ApprovalNotificationService
+from app.services.contact_identity import normalize_phone_identity
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -528,7 +529,7 @@ async def _run_whatsapp_ai_intake(
 
 
 def _digits(value: str) -> str:
-    return "".join(character for character in str(value) if character.isdigit())
+    return normalize_phone_identity(value)
 
 
 def _synthetic_whatsapp_email(phone: str) -> str:

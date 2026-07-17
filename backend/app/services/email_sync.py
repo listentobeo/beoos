@@ -30,6 +30,7 @@ from app.infrastructure.models import (
 )
 from app.services.alerts import AlertService
 from app.services.approval_notifications import ApprovalNotificationService
+from app.services.contact_identity import normalize_email_identity
 from app.services.crypto import SecretCipher
 from app.services.gmail import GmailClient, normalize_gmail_message
 from app.services.openai_email import OpenAIEmailService
@@ -397,8 +398,8 @@ class EmailSyncService:
             if direction == Direction.inbound
             else summary.get("toAddress") or summary.get("receiver")
         )
-        contact_name, contact_email = parseaddr(str(contact_source or ""))
-        contact_email = contact_email.lower()
+        contact_name, parsed_contact_email = parseaddr(str(contact_source or ""))
+        contact_email = normalize_email_identity(parsed_contact_email)
         if not contact_email:
             return None
         submitted_contact = _extract_formsubmit_contact(
@@ -406,15 +407,21 @@ class EmailSyncService:
             body_html=body_html,
             sender_email=contact_email,
             summary=summary,
+            excluded_emails={
+                business.primary_email.lower(),
+                mailbox.email_address.lower(),
+                self._settings.alert_from_email.lower(),
+            },
         )
         if direction == Direction.inbound and submitted_contact:
-            contact_email = submitted_contact["email"]
+            contact_email = normalize_email_identity(submitted_contact["email"])
             contact_name = submitted_contact.get("name") or contact_name
+            relay_sender = normalize_email_identity(parseaddr(str(contact_source or ""))[1])
             attachment_metadata = [
                 *attachment_metadata,
                 {
                     "source": "formsubmit_email",
-                    "relay_sender": parseaddr(str(contact_source or ""))[1].lower(),
+                    "relay_sender": relay_sender,
                     "reply_to_email": contact_email,
                     "reply_to_name": contact_name,
                     "reply_to_phone": submitted_contact.get("phone", ""),
@@ -737,9 +744,11 @@ def _extract_formsubmit_contact(
     body_html: str,
     sender_email: str,
     summary: dict[str, Any],
+    excluded_emails: set[str] | None = None,
 ) -> dict[str, str] | None:
     if sender_email not in FORM_RELAY_ADDRESSES and "formsubmit" not in sender_email:
         return None
+    excluded = {normalize_email_identity(email) for email in excluded_emails or set()}
     combined = "\n".join(
         value
         for value in [
@@ -750,11 +759,13 @@ def _extract_formsubmit_contact(
         if value
     )
     candidates = [
-        email.lower()
+        normalize_email_identity(email)
         for email in EMAIL_PATTERN.findall(combined)
-        if email.lower() not in FORM_RELAY_ADDRESSES
-        and "formsubmit" not in email.lower()
-        and "beoos.local" not in email.lower()
+        if normalize_email_identity(email)
+        and normalize_email_identity(email) not in FORM_RELAY_ADDRESSES
+        and normalize_email_identity(email) not in excluded
+        and "formsubmit" not in normalize_email_identity(email)
+        and "beoos.local" not in normalize_email_identity(email)
     ]
     if not candidates:
         return None

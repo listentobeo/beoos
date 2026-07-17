@@ -49,6 +49,10 @@ class CRMLeadFromThread(BaseModel):
     notes: str = Field(default="", max_length=5000)
 
 
+class CRMLeadDropRequest(BaseModel):
+    reason: str = Field(default="", max_length=1000)
+
+
 class CRMLeadView(BaseModel):
     id: UUID
     business_id: UUID

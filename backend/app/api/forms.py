@@ -28,6 +28,7 @@ from app.infrastructure.models import (
 )
 from app.services.alerts import AlertService
 from app.services.approval_notifications import ApprovalNotificationService
+from app.services.contact_identity import normalize_email_identity
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -97,7 +98,7 @@ async def submit_website_lead(
         mailbox_id=mailbox.id,
         provider_message_id=provider_id,
         direction=Direction.inbound,
-        sender_email=str(payload.email).lower(),
+        sender_email=contact.email,
         sender_name=payload.name,
         recipients=[business.primary_email],
         subject=subject,
@@ -142,7 +143,7 @@ async def submit_website_lead(
     try:
         await AlertService(settings).send_website_lead_email(
             recipient=business.primary_email,
-            sender_email=str(payload.email),
+            sender_email=contact.email,
             sender_name=payload.name,
             service=payload.service,
             budget=payload.budget,
@@ -369,7 +370,7 @@ async def _get_or_create_contact(
     business_id: UUID,
     payload: WebsiteLeadSubmission,
 ) -> Contact:
-    email = str(payload.email).lower()
+    email = normalize_email_identity(str(payload.email))
     contact = await session.scalar(
         select(Contact).where(Contact.business_id == business_id, Contact.email == email)
     )
