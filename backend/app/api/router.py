@@ -14,6 +14,7 @@ from app.api import (
     notifications,
     prices,
     quotes,
+    reports,
     whatsapp,
 )
 
@@ -30,6 +31,7 @@ api_router.include_router(notifications.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)
 api_router.include_router(quotes.public_router)
+api_router.include_router(reports.router)
 api_router.include_router(whatsapp.router)
 
 

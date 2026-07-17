@@ -3,6 +3,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.domain.reports import DailyReportSettings
+
 
 class BusinessAIPolicy(BaseModel):
     auto_acknowledge: bool = True
@@ -62,6 +64,7 @@ def default_business_settings() -> dict[str, Any]:
         "website_form_key": secrets.token_urlsafe(24),
         "ai_policy": default_ai_policy(),
         "whatsapp": BusinessWhatsAppSettings().model_dump(),
+        "daily_report": DailyReportSettings().model_dump(mode="json"),
     }
 
 

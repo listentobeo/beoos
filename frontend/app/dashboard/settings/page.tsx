@@ -1,6 +1,7 @@
 ﻿import { CheckCircle2, Mail, MessageCircleMore, ShieldCheck } from "lucide-react";
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
 import { BusinessProfileForm } from "@/components/dashboard/business-profile-form";
+import { DailyReportSettingsCard } from "@/components/dashboard/daily-report-settings";
 import { GmailConnectButton } from "@/components/dashboard/gmail-connect-button";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
@@ -9,7 +10,7 @@ import { WhatsAppSettingsForm } from "@/components/dashboard/whatsapp-settings-f
 import { WebsiteFormCard } from "@/components/dashboard/website-form-card";
 import { ZohoConnectButton } from "@/components/dashboard/zoho-connect-button";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type Business, type BusinessAIPolicy, type BusinessWhatsAppSettings, type MailboxStatus, type PushStatus } from "@/lib/api";
+import { activeBusiness, beoApi, type Business, type BusinessAIPolicy, type BusinessWhatsAppSettings, type DailyReportPreview, type DailyReportSettings, type MailboxStatus, type PushStatus } from "@/lib/api";
 
 export const metadata = { title: "Business settings" };
 
@@ -27,6 +28,8 @@ export default async function SettingsPage() {
   let zohoMailbox: MailboxStatus | null = null;
   let gmailMailbox: MailboxStatus | null = null;
   let pushStatus: PushStatus | null = null;
+  let dailyReportSettings: DailyReportSettings | null = null;
+  let dailyReportPreview: DailyReportPreview | null = null;
   let setupMessage = "Initial business setup has not completed.";
 
   try {
@@ -46,6 +49,15 @@ export default async function SettingsPage() {
       zohoMailbox = summary.zoho_mailbox;
       gmailMailbox = summary.gmail_mailbox;
       pushStatus = summary.push_status;
+      try {
+        [dailyReportSettings, dailyReportPreview] = await Promise.all([
+          beoApi.dailyReportSettings(business.id),
+          beoApi.dailyReportPreview(business.id),
+        ]);
+      } catch {
+        dailyReportSettings = null;
+        dailyReportPreview = null;
+      }
     }
   } catch {
     setupMessage = "Unable to load business data from the BeoOS API.";
@@ -182,6 +194,15 @@ export default async function SettingsPage() {
             <PushNotificationSettings businessId={businessId} initialStatus={pushStatus} />
           ) : (
             <p className="mt-5 text-sm text-amber-700">Create a business workspace before enabling device alerts.</p>
+          )}
+          {businessId && dailyReportSettings ? (
+            <DailyReportSettingsCard
+              businessId={businessId}
+              initialSettings={dailyReportSettings}
+              initialPreview={dailyReportPreview}
+            />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">Daily business reports become available after your API deployment includes report support.</p>
           )}
         </Card>
 

@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     follow_up_scheduler_enabled: bool = True
     follow_up_scheduler_interval_seconds: int = 60
     follow_up_scheduler_batch_size: int = 10
+    daily_report_scheduler_enabled: bool = True
+    daily_report_scheduler_interval_seconds: int = 300
+    daily_report_scheduler_batch_size: int = 25
 
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"

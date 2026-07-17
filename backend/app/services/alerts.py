@@ -102,3 +102,27 @@ class AlertService:
             )
 
         await asyncio.to_thread(send)
+
+    async def send_daily_report_email(
+        self,
+        *,
+        recipient: str,
+        subject: str,
+        text: str,
+    ) -> bool:
+        if not self._settings.resend_api_key:
+            return False
+
+        def send() -> None:
+            resend.Emails.send(
+                {
+                    "from": self._settings.alert_from_email,
+                    "to": [recipient],
+                    "subject": subject,
+                    "text": text,
+                    "headers": {"X-BeoOS-System": "daily-report"},
+                }
+            )
+
+        await asyncio.to_thread(send)
+        return True

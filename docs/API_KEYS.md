@@ -322,6 +322,22 @@ cd backend
 
 Then add the public/private keys to both Railway backend services. The browser only receives the public key from the authenticated API.
 
+## Active: Daily business reports
+
+Used to email each tenant a daily business activity summary from inbox, WhatsApp, CRM, quotes,
+follow-ups, and approvals.
+
+```env
+RESEND_API_KEY=
+ALERT_FROM_EMAIL=beoos@alerts.beoarts.com
+DAILY_REPORT_SCHEDULER_ENABLED=true
+DAILY_REPORT_SCHEDULER_INTERVAL_SECONDS=300
+DAILY_REPORT_SCHEDULER_BATCH_SIZE=25
+```
+
+Daily reports are tenant-based. Each business controls its own recipient, local report time,
+timezone, and push-alert preference from Business Settings.
+
 ## Planned next: Search Console / brand intelligence
 
 Needed later:

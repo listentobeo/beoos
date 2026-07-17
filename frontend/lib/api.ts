@@ -319,6 +319,54 @@ export type MarketingImportResponse = {
   duplicates_skipped: number;
 };
 
+export type DailyReportSettings = {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+  email: string | null;
+  push_enabled: boolean;
+  last_sent_on: string | null;
+  last_sent_at: string | null;
+};
+
+export type DailyReportTotals = {
+  inbound_messages: number;
+  unread_messages: number;
+  whatsapp_messages: number;
+  needs_approval: number;
+  leads_created: number;
+  hot_leads: number;
+  quotes_created: number;
+  quotes_accepted: number;
+  followups_due: number;
+  pending_drafts: number;
+  open_quote_value: string;
+  accepted_quote_value: string;
+};
+
+export type DailyReportPreview = {
+  business_id: string;
+  business_name: string;
+  report_date: string;
+  timezone: string;
+  recipient: string;
+  subject: string;
+  totals: DailyReportTotals;
+  highlights: string[];
+  action_items: string[];
+  recent_activity: AnalyticsRecentActivity[];
+};
+
+export type DailyReportSendResult = {
+  success: boolean;
+  email_sent: boolean;
+  push_sent: number;
+  recipient: string;
+  subject: string;
+  message: string;
+  preview: DailyReportPreview;
+};
+
 export type FollowUpTask = {
   id: string;
   business_id: string;
@@ -469,6 +517,10 @@ export const beoApi = {
     apiFetch<MarketingSummary>(
       `/businesses/${businessId}/marketing/summary?window_days=${windowDays}`,
     ),
+  dailyReportSettings: (businessId: string) =>
+    apiFetch<DailyReportSettings>(`/businesses/${businessId}/reports/daily/settings`),
+  dailyReportPreview: (businessId: string) =>
+    apiFetch<DailyReportPreview>(`/businesses/${businessId}/reports/daily/preview`),
   scheduleFollowUps: (businessId: string, leadId: string, cadence: "standard" | "hot" | "gentle") =>
     apiFetch<FollowUpScheduleResponse>(`/businesses/${businessId}/crm/leads/${leadId}/follow-ups`, {
       method: "POST",
