@@ -125,15 +125,15 @@ function BucketPanel({
 }) {
   const max = maxCount(items);
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-4">
+    <Card className="flex max-h-[440px] min-h-[280px] flex-col overflow-hidden p-5">
+      <div className="flex shrink-0 items-start justify-between gap-4">
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-xs leading-5 text-[#747973]">{description}</p>
         </div>
         <Badge className="bg-[#f7f4ef] text-[#6c6259]">{items.length} groups</Badge>
       </div>
-      <div className="mt-5 space-y-4">
+      <div className="mt-5 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {items.length === 0 ? (
           <p className="rounded-xl bg-[#f7f6f2] p-4 text-sm text-[#747973]">No data yet.</p>
         ) : (
@@ -332,12 +332,14 @@ function AnalyticsContent({
               description="Follow-up automation health."
               items={summary.follow_up_statuses}
             />
-            <Card className="p-5">
-              <h2 className="font-bold">Recent operating activity</h2>
-              <p className="mt-1 text-xs leading-5 text-[#747973]">
-                Latest inbox, CRM, and quotation movements for this business.
-              </p>
-              <div className="mt-5 space-y-3">
+            <Card className="flex max-h-[440px] min-h-[280px] flex-col overflow-hidden p-5">
+              <div className="shrink-0">
+                <h2 className="font-bold">Recent operating activity</h2>
+                <p className="mt-1 text-xs leading-5 text-[#747973]">
+                  Latest inbox, CRM, and quotation movements for this business.
+                </p>
+              </div>
+              <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                 {summary.recent_activity.length === 0 ? (
                   <p className="rounded-xl bg-[#f7f6f2] p-4 text-sm text-[#747973]">
                     No recent activity yet.
