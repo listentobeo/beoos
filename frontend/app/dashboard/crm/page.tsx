@@ -128,17 +128,25 @@ export default async function CRMPage() {
           </div>
         </Card>
       ) : (
-        <section className="mt-7 grid gap-4 xl:grid-cols-4">
+        <>
+        <div className="mt-6 flex flex-col gap-2 rounded-2xl border bg-white px-4 py-3 text-xs text-[#747973] sm:flex-row sm:items-center sm:justify-between">
+          <p>Pipeline stages scroll sideways. Each stage scrolls independently when it has many leads.</p>
+          <p className="font-semibold text-[#ed633f]">{leads.length} total lead{leads.length === 1 ? "" : "s"}</p>
+        </div>
+        <section className="-mx-4 mt-4 flex snap-x gap-4 overflow-x-auto px-4 pb-4 sm:-mx-5 sm:px-5 md:-mx-8 md:px-8">
           {grouped.map(({ stage, label, leads: stageLeads }) => (
-            <Card key={stage} className="overflow-hidden">
-              <div className="flex items-center justify-between border-b bg-[#fbfaf7] px-4 py-3">
+            <Card
+              key={stage}
+              className="max-h-[calc(100vh-240px)] min-h-0 w-[310px] flex-none snap-start overflow-hidden"
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-[#fbfaf7] px-4 py-3">
                 <div>
                   <h2 className="text-sm font-bold">{label}</h2>
                   <p className="text-xs text-[#8a8e88]">{stageLeads.length} lead{stageLeads.length === 1 ? "" : "s"}</p>
                 </div>
                 <Badge className={stageStyles[stage]}>{stage.replaceAll("_", " ")}</Badge>
               </div>
-              <div className="space-y-3 p-3">
+              <div className="max-h-[calc(100vh-312px)] space-y-3 overflow-y-auto p-3">
                 {stageLeads.length === 0 ? (
                   <p className="rounded-xl bg-[#f7f6f2] p-4 text-xs text-[#747973]">No leads in this stage.</p>
                 ) : (
@@ -192,6 +200,7 @@ export default async function CRMPage() {
             </Card>
           ))}
         </section>
+        </>
       )}
     </div>
   );
