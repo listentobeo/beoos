@@ -1,5 +1,6 @@
 import { ArrowLeft, Bot, CheckCircle2, Clock, FileImage, FileText, Mail, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { AutoMarkThreadRead } from "@/components/dashboard/auto-mark-thread-read";
 import { CreateLeadButton } from "@/components/dashboard/create-lead-button";
 import { EditableDraft } from "@/components/dashboard/editable-draft";
 import { ThreadHygieneActions } from "@/components/dashboard/thread-hygiene-actions";
@@ -67,6 +68,13 @@ export default async function EmailThreadPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 md:px-8">
+      {businessId && (
+        <AutoMarkThreadRead
+          businessId={businessId}
+          threadId={detail.thread.id}
+          unreadCount={detail.thread.unread_count}
+        />
+      )}
       <Link href="/dashboard/inbox" className="inline-flex items-center gap-2 text-sm text-[#747973] hover:text-[#171b23]">
         <ArrowLeft className="size-4" /> Back to inbox
       </Link>

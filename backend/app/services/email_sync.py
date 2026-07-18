@@ -180,10 +180,11 @@ class EmailSyncService:
                         summary,
                         content,
                         direction=direction,
+                        historical_import=first_sync,
                     )
                     if created_thread_id:
                         report.messages_created += 1
-                        if direction == Direction.inbound:
+                        if direction == Direction.inbound and not first_sync:
                             sender = summary.get("fromAddress") or summary.get("sender")
                             subject = summary.get("subject") or "(no subject)"
                             await PushNotificationService(self._settings).send_new_inbox_message(
@@ -282,10 +283,11 @@ class EmailSyncService:
                         summary,
                         content,
                         direction=direction,
+                        historical_import=first_sync,
                     )
                     if created_thread_id:
                         report.messages_created += 1
-                        if direction == Direction.inbound:
+                        if direction == Direction.inbound and not first_sync:
                             sender = summary.get("fromAddress") or summary.get("sender")
                             subject = summary.get("subject") or "(no subject)"
                             await PushNotificationService(self._settings).send_new_inbox_message(
@@ -387,6 +389,7 @@ class EmailSyncService:
         content: dict[str, Any],
         *,
         direction: Direction,
+        historical_import: bool = False,
     ) -> UUID | None:
         content_data = content.get("data", content)
         body_html = str(content_data.get("content") or content_data.get("htmlContent") or "")
@@ -467,6 +470,7 @@ class EmailSyncService:
         )
         sent_at = self._parse_zoho_time(summary.get("receivedTime") or summary.get("sentDateInGMT"))
         subject = str(summary.get("subject") or "(no subject)")
+        unread_increment = 1 if direction == Direction.inbound and not historical_import else 0
         if thread is None:
             thread = EmailThread(
                 business_id=business.id,
@@ -474,14 +478,14 @@ class EmailSyncService:
                 provider_thread_id=provider_thread_id,
                 subject=subject,
                 latest_message_at=sent_at,
-                unread_count=1 if direction == Direction.inbound else 0,
+                unread_count=unread_increment,
             )
             session.add(thread)
             await session.flush()
         else:
             thread.latest_message_at = max(thread.latest_message_at, sent_at)
-            if direction == Direction.inbound:
-                thread.unread_count += 1
+            if unread_increment:
+                thread.unread_count += unread_increment
 
         message = EmailMessage(
             thread_id=thread.id,

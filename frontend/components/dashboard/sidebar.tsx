@@ -4,7 +4,6 @@ import { SignOutButton, UserButton, useUser } from "@clerk/nextjs";
 import {
   BarChart3,
   Building2,
-  ChevronLeft,
   ChevronRight,
   ClipboardList,
   FilePenLine,
@@ -26,7 +25,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
 import { cn } from "@/lib/utils";
-import type { Business } from "@/lib/api";
+import type { Business, InboxStats } from "@/lib/api";
 
 const primary = [
   ["Inbox", "/dashboard/inbox", Inbox],
@@ -51,9 +50,11 @@ const STORAGE_KEY = "beoos_sidebar_collapsed";
 export function Sidebar({
   businesses,
   activeId,
+  inboxStats,
 }: {
   businesses: Business[];
   activeId: string | null;
+  inboxStats: InboxStats | null;
 }) {
   const pathname = usePathname();
   const { user } = useUser();
@@ -97,6 +98,30 @@ export function Sidebar({
     );
   }
 
+  function badgeValue(href: string) {
+    if (!inboxStats) return 0;
+    if (href === "/dashboard/inbox") return inboxStats.unread;
+    if (href === "/dashboard/approvals") return inboxStats.needs_approval;
+    if (href === "/dashboard/urgent") return inboxStats.urgent;
+    if (href === "/dashboard/whatsapp") return inboxStats.routed_whatsapp;
+    if (href === "/dashboard/clients") return inboxStats.existing_clients;
+    return 0;
+  }
+
+  function BadgeCount({ value }: { value: number }) {
+    if (value <= 0) return null;
+    return (
+      <span
+        className={cn(
+          "grid min-w-5 place-items-center rounded-full bg-[#ed633f] px-1.5 text-[10px] font-black leading-5 text-white shadow-sm",
+          collapsed && "absolute -right-1 -top-1",
+        )}
+      >
+        {value > 99 ? "99+" : value}
+      </span>
+    );
+  }
+
   const displayName =
     user?.fullName ??
     user?.primaryEmailAddress?.emailAddress?.split("@")[0] ??
@@ -132,9 +157,10 @@ export function Sidebar({
 
         <nav className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
           {allLinks.map(([label, href, Icon]) => (
-            <Link key={href} href={href} className={mobileLinkClass(href)}>
+            <Link key={href} href={href} className={`${mobileLinkClass(href)} relative`}>
               <Icon className="size-3.5" />
               {label}
+              <BadgeCount value={badgeValue(href)} />
             </Link>
           ))}
         </nav>
@@ -147,7 +173,7 @@ export function Sidebar({
         )}
       >
         <div className="flex h-full min-h-0 flex-col">
-          <div className={cn("flex items-center border-b border-[#edf0f5] p-4", collapsed ? "justify-center" : "gap-3")}>
+          <div className="flex items-center gap-2 border-b border-[#edf0f5] p-4">
             <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#ed633f] text-sm font-black text-white shadow-[0_12px_22px_rgba(237,99,63,0.25)]">
               B
             </div>
@@ -159,28 +185,18 @@ export function Sidebar({
                 </p>
               </div>
             )}
-            {!collapsed && (
-              <button
-                type="button"
-                onClick={() => setCollapsed(true)}
-                className="ml-auto grid size-8 place-items-center rounded-xl text-[#7b8799] transition hover:bg-[#f5f7fb] hover:text-[#172033]"
-                aria-label="Collapse sidebar"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-            )}
-          </div>
-
-          {collapsed && (
             <button
               type="button"
-              onClick={() => setCollapsed(false)}
-              className="mx-auto mt-4 grid size-10 place-items-center rounded-2xl border border-[#e7ebf2] bg-white text-[#60708a] shadow-sm transition hover:bg-[#fff0ea] hover:text-[#ed633f]"
-              aria-label="Expand sidebar"
+              onClick={() => setCollapsed((value) => !value)}
+              className={cn(
+                "ml-auto text-lg font-black leading-none text-[#7b8799] transition hover:text-[#ed633f]",
+                collapsed && "ml-0",
+              )}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <ChevronRight className="size-4" />
+              {collapsed ? ">" : "<"}
             </button>
-          )}
+          </div>
 
           {!collapsed && (
             <div className="px-4 pt-4">
@@ -207,6 +223,8 @@ export function Sidebar({
                 <Link key={href} href={href} className={desktopLinkClass(href)} title={label}>
                   <Icon className="size-4 shrink-0" />
                   {!collapsed && <span className="truncate">{label}</span>}
+                  {!collapsed && <span className="ml-auto"><BadgeCount value={badgeValue(href)} /></span>}
+                  {collapsed && <BadgeCount value={badgeValue(href)} />}
                 </Link>
               ))}
             </nav>

@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { ConversationSearch } from "@/components/dashboard/conversation-search";
 import { InfiniteThreadList } from "@/components/dashboard/infinite-thread-list";
+import { MarkAllReadButton } from "@/components/dashboard/mark-all-read-button";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { SyncMailboxButton } from "@/components/dashboard/sync-mailbox-button";
 import { Button } from "@/components/ui/button";
@@ -192,7 +193,12 @@ export default async function InboxPage({
                 </p>
                 {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for "{query}"</p>}
               </div>
-              <ConversationSearch initialQuery={query} />
+              <div className="flex flex-col gap-3 sm:items-end">
+                <ConversationSearch initialQuery={query} />
+                {businessId && (
+                  <MarkAllReadButton businessId={businessId} unreadCount={stats.unread} />
+                )}
+              </div>
             </div>
             {businessId && (
               <InfiniteThreadList

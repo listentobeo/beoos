@@ -4,7 +4,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.elements import ColumnElement
@@ -186,6 +186,26 @@ async def list_threads(
         )
     threads = (await session.scalars(query)).all()
     return [_thread_view(thread) for thread in threads]
+
+
+@router.post("/threads/mark-all-read")
+async def mark_all_threads_read(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    result = await session.execute(
+        update(EmailThread)
+        .where(
+            EmailThread.business_id == business_id,
+            EmailThread.unread_count > 0,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
+        )
+        .values(unread_count=0)
+    )
+    await session.commit()
+    return {"updated": int(result.rowcount or 0)}
 
 
 @router.get("/threads/{thread_id}", response_model=ThreadDetail)
