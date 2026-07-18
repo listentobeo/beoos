@@ -12,6 +12,7 @@ from app.api import (
     integrations,
     marketing,
     notifications,
+    operator,
     prices,
     quotes,
     reports,
@@ -28,6 +29,7 @@ api_router.include_router(google_integrations.router)
 api_router.include_router(integrations.router)
 api_router.include_router(marketing.router)
 api_router.include_router(notifications.router)
+api_router.include_router(operator.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)
 api_router.include_router(quotes.public_router)
