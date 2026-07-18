@@ -26,12 +26,15 @@ from app.infrastructure.models import (
     AuditLog,
     Business,
     Contact,
+    CRMLead,
     Direction,
     DraftStatus,
     EmailDraft,
     EmailMessage,
     EmailThread,
+    FollowUpTask,
     MailboxConnection,
+    Quote,
     ThreadCategory,
     ThreadStatus,
 )
@@ -49,6 +52,25 @@ class DraftUpdate(BaseModel):
 
 class ThreadActionRequest(BaseModel):
     reason: str = Field(default="", max_length=1000)
+
+
+class ClientView(BaseModel):
+    id: UUID
+    name: str | None
+    email: str
+    phone: str | None
+    preferred_channel: str
+    is_existing_client: bool
+    thread_count: int
+    message_count: int
+    latest_thread_id: UUID | None
+    latest_thread_subject: str | None
+    latest_channel: str | None
+    latest_message_at: datetime | None
+
+
+class BulkClientDelete(BaseModel):
+    contact_ids: list[UUID] = Field(min_length=1, max_length=200)
 
 
 @router.get("/mailbox", response_model=MailboxStatus)
@@ -343,6 +365,73 @@ async def list_pending_drafts(
     ]
 
 
+@router.get("/clients", response_model=list[ClientView])
+async def list_clients(
+    business_id: UUID,
+    search: str | None = Query(default=None, max_length=160),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[ClientView]:
+    query = (
+        select(Contact)
+        .where(Contact.business_id == business_id)
+        .order_by(Contact.updated_at.desc(), Contact.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    if search:
+        query = query.where(
+            Contact.name.ilike(f"%{search}%")
+            | Contact.email.ilike(f"%{search}%")
+            | Contact.phone.ilike(f"%{search}%")
+        )
+    contacts = (await session.scalars(query)).all()
+    return [await _client_view(session, contact) for contact in contacts]
+
+
+@router.delete("/clients")
+async def delete_clients(
+    business_id: UUID,
+    payload: BulkClientDelete,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    contact_ids = list(dict.fromkeys(payload.contact_ids))
+    contacts = (
+        await session.scalars(
+            select(Contact).where(
+                Contact.business_id == business_id,
+                Contact.id.in_(contact_ids),
+            )
+        )
+    ).all()
+    if not contacts:
+        return {"deleted": 0}
+    valid_ids = [contact.id for contact in contacts]
+    for model in (EmailThread, CRMLead, FollowUpTask, Quote):
+        await session.execute(
+            update(model)
+            .where(model.business_id == business_id, model.contact_id.in_(valid_ids))
+            .values(contact_id=None)
+        )
+    for contact in contacts:
+        await session.delete(contact)
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="contacts.deleted",
+            resource_type="contact",
+            resource_id="bulk",
+            details={"deleted": len(contacts), "contact_ids": [str(item) for item in valid_ids]},
+        )
+    )
+    await session.commit()
+    return {"deleted": len(contacts)}
+
+
 @router.post("/threads/{thread_id}/mark-read", status_code=204)
 async def mark_thread_read(
     business_id: UUID,
@@ -617,6 +706,67 @@ async def _discard_pending_thread_drafts(
     for draft in drafts:
         draft.status = DraftStatus.rejected
         draft.approved_by = actor_id
+
+
+async def _client_view(session: AsyncSession, contact: Contact) -> ClientView:
+    latest_thread = await session.scalar(
+        select(EmailThread)
+        .where(
+            EmailThread.business_id == contact.business_id,
+            EmailThread.contact_id == contact.id,
+            EmailThread.category != ThreadCategory.spam,
+        )
+        .order_by(EmailThread.latest_message_at.desc())
+        .limit(1)
+    )
+    thread_count = int(
+        await session.scalar(
+            select(func.count(EmailThread.id)).where(
+                EmailThread.business_id == contact.business_id,
+                EmailThread.contact_id == contact.id,
+                EmailThread.category != ThreadCategory.spam,
+            )
+        )
+        or 0
+    )
+    message_count = int(
+        await session.scalar(
+            select(func.count(EmailMessage.id))
+            .join(EmailThread, EmailThread.id == EmailMessage.thread_id)
+            .where(
+                EmailThread.business_id == contact.business_id,
+                EmailThread.contact_id == contact.id,
+                EmailThread.category != ThreadCategory.spam,
+            )
+        )
+        or 0
+    )
+    latest_channel: str | None = None
+    if latest_thread is not None:
+        latest_message = await session.scalar(
+            select(EmailMessage)
+            .where(EmailMessage.thread_id == latest_thread.id)
+            .order_by(EmailMessage.sent_at.desc())
+            .limit(1)
+        )
+        if latest_message is not None:
+            mailbox = await session.get(MailboxConnection, latest_message.mailbox_id)
+            latest_channel = mailbox.provider if mailbox is not None else None
+
+    return ClientView(
+        id=contact.id,
+        name=contact.name,
+        email=contact.email,
+        phone=contact.phone,
+        preferred_channel=contact.preferred_channel,
+        is_existing_client=contact.is_existing_client,
+        thread_count=thread_count,
+        message_count=message_count,
+        latest_thread_id=latest_thread.id if latest_thread else None,
+        latest_thread_subject=latest_thread.subject if latest_thread else None,
+        latest_channel=latest_channel,
+        latest_message_at=latest_thread.latest_message_at if latest_thread else None,
+    )
 
 
 async def _send_approved_whatsapp_draft(

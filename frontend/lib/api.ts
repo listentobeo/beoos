@@ -111,6 +111,20 @@ export type ThreadDetail = {
   messages: ThreadMessage[];
   drafts: DraftView[];
 };
+export type ClientContact = {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  preferred_channel: string;
+  is_existing_client: boolean;
+  thread_count: number;
+  message_count: number;
+  latest_thread_id: string | null;
+  latest_thread_subject: string | null;
+  latest_channel: string | null;
+  latest_message_at: string | null;
+};
 export type PriceItem = {
   id: string;
   service: string;
@@ -489,6 +503,12 @@ export const beoApi = {
   },
   thread: (businessId: string, threadId: string) =>
     apiFetch<ThreadDetail>(`/businesses/${businessId}/email/threads/${threadId}`),
+  clients: (businessId: string, search?: string) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return apiFetch<ClientContact[]>(`/businesses/${businessId}/email/clients${suffix}`);
+  },
   markThreadRead: (businessId: string, threadId: string) =>
     apiFetch<void>(`/businesses/${businessId}/email/threads/${threadId}/mark-read`, {
       method: "POST",

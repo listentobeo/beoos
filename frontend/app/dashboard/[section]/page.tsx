@@ -1,7 +1,8 @@
 import { Archive, Construction, MessageCircleMore, ShieldAlert, ShieldX, UsersRound } from "lucide-react";
+import { ClientDirectory } from "@/components/dashboard/client-directory";
 import { InfiniteThreadList } from "@/components/dashboard/infinite-thread-list";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type Thread } from "@/lib/api";
+import { activeBusiness, beoApi, type ClientContact, type Thread } from "@/lib/api";
 
 type ThreadFilters = { category?: string; status?: string; provider?: string };
 
@@ -63,12 +64,18 @@ export default async function DashboardSectionPage({ params }: { params: Promise
   const config = sectionConfig[section];
   let businessId: string | null = null;
   let threads: Thread[] | null = null;
+  let clients: ClientContact[] = [];
 
   if (config) {
     try {
       const business = await activeBusiness();
       businessId = business?.id ?? null;
-      threads = business ? await beoApi.threads(business.id, config.filters) : [];
+      if (business && section === "clients") {
+        clients = await beoApi.clients(business.id);
+        threads = [];
+      } else {
+        threads = business ? await beoApi.threads(business.id, config.filters) : [];
+      }
     } catch {
       threads = [];
     }
@@ -108,7 +115,9 @@ export default async function DashboardSectionPage({ params }: { params: Promise
       <p className="mt-3 max-w-2xl text-sm leading-6 text-[#747973]">{config.description}</p>
 
       <Card className="mt-7 overflow-hidden">
-        {businessId && threads ? (
+        {businessId && section === "clients" ? (
+          <ClientDirectory businessId={businessId} clients={clients} />
+        ) : businessId && threads ? (
           <InfiniteThreadList
             businessId={businessId}
             initialThreads={threads}
