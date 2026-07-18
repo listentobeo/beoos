@@ -248,6 +248,30 @@ export type AnalyticsSummary = {
 
 export type MarketingSource = "search_console" | "blogger" | "clarity" | "website" | "manual";
 
+export type MarketingConnectionSettings = {
+  website_url: string;
+  search_console_property_url: string;
+  blogger_blog_id: string;
+  clarity_project_id: string;
+  content_goals: string;
+  target_locations: string;
+};
+
+export type MarketingProviderStatus = {
+  key: string;
+  label: string;
+  configured: boolean;
+  connected: boolean;
+  setup_required: string[];
+  notes: string;
+};
+
+export type MarketingConnectionStatus = {
+  business_id: string;
+  settings: MarketingConnectionSettings;
+  providers: MarketingProviderStatus[];
+};
+
 export type MarketingTotal = {
   source: string;
   rows: number;
@@ -465,6 +489,28 @@ export type QuoteTemplate = {
   updated_at: string;
 };
 
+export type QuoteAIDraft = {
+  success: boolean;
+  provider: string;
+  model: string;
+  title: string;
+  template_type: QuoteTemplateType;
+  template_id: string | null;
+  lead_id: string | null;
+  contact_id: string | null;
+  input_data: Record<string, unknown>;
+  line_items: Array<{
+    label: string;
+    description: string;
+    quantity: string;
+    unit_price: string;
+  }>;
+  summary: string;
+  assumptions: string[];
+  missing_information: string[];
+  warnings: string[];
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -537,6 +583,8 @@ export const beoApi = {
     apiFetch<MarketingSummary>(
       `/businesses/${businessId}/marketing/summary?window_days=${windowDays}`,
     ),
+  marketingConnections: (businessId: string) =>
+    apiFetch<MarketingConnectionStatus>(`/businesses/${businessId}/marketing/connections`),
   dailyReportSettings: (businessId: string) =>
     apiFetch<DailyReportSettings>(`/businesses/${businessId}/reports/daily/settings`),
   dailyReportPreview: (businessId: string) =>
@@ -552,6 +600,12 @@ export const beoApi = {
     apiFetch<QuoteTemplate[]>(`/businesses/${businessId}/quotes/templates`),
   quote: (businessId: string, quoteId: string) =>
     apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}`),
+  quoteAIDraft: (businessId: string, body: Record<string, unknown>) =>
+    apiFetch<QuoteAIDraft>(`/businesses/${businessId}/quotes/ai/draft`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   quotePaymentLink: (businessId: string, quoteId: string) =>
     apiFetch<Quote>(`/businesses/${businessId}/quotes/${quoteId}/payment-link`, {
       method: "POST",

@@ -8,6 +8,30 @@ from pydantic import BaseModel, Field
 MarketingSource = Literal["search_console", "blogger", "clarity", "website", "manual"]
 
 
+class MarketingConnectionUpdate(BaseModel):
+    website_url: str = Field(default="", max_length=500)
+    search_console_property_url: str = Field(default="", max_length=500)
+    blogger_blog_id: str = Field(default="", max_length=120)
+    clarity_project_id: str = Field(default="", max_length=120)
+    content_goals: str = Field(default="", max_length=3000)
+    target_locations: str = Field(default="", max_length=1000)
+
+
+class MarketingProviderStatus(BaseModel):
+    key: str
+    label: str
+    configured: bool
+    connected: bool
+    setup_required: list[str] = Field(default_factory=list)
+    notes: str = ""
+
+
+class MarketingConnectionStatus(BaseModel):
+    business_id: UUID
+    settings: MarketingConnectionUpdate
+    providers: list[MarketingProviderStatus]
+
+
 class MarketingMetricImportRow(BaseModel):
     page_url: str = ""
     query: str = ""

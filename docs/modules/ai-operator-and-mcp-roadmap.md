@@ -17,7 +17,8 @@ Remote MCP Server
 
 ## Current foundation
 
-The first operator layer is live as a safe read-and-plan assistant.
+The first operator layer is live as a safe read-and-plan assistant, and the quote layer now has an
+AI draft endpoint that prepares structured quote data before a human creates the actual record.
 
 It can inspect tenant-scoped context from:
 
@@ -25,12 +26,19 @@ It can inspect tenant-scoped context from:
 - inbox thread totals and recent threads;
 - CRM lead pipeline;
 - price catalogue / inventory sample;
-- quote templates and recent quotes;
+- quote templates, recent quotes, and AI quote draft readiness;
 - marketing data source availability;
 - follow-up and approval signals.
 
-At this stage it does not mutate data or send messages. Write actions are returned as
-`needs_confirmation` or `future_tool` suggestions.
+At this stage the floating operator does not mutate data or send messages. Write actions are
+returned as `needs_confirmation` suggestions. The dedicated quote studio can prepare draft quote
+payloads, but a user must still click “Create quote from draft”.
+
+Implemented tenant endpoints:
+
+- `POST /api/v1/businesses/{business_id}/operator/chat`
+- `POST /api/v1/businesses/{business_id}/quotes/ai/draft`
+- `GET/PATCH /api/v1/businesses/{business_id}/marketing/connections`
 
 ## Shared tool registry direction
 
@@ -79,11 +87,15 @@ The MCP server must never expose raw database access. It should expose business 
 
 ## Quote intelligence direction
 
-The quote operator should eventually:
+The quote operator now starts to:
 
 - read a client thread or CRM lead;
 - pull relevant price catalogue items;
 - apply a business-specific quote template;
+- produce structured quote input data for review.
+
+Next it should:
+
 - accept uploaded images or files;
 - generate a designed client proposal;
 - prepare Paystack / Stripe payment links;
@@ -130,4 +142,3 @@ Initial target registries:
 Positioning:
 
 > BeoOS is an AI-native business operating system for creative businesses and SMEs.
-

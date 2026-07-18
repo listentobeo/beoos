@@ -1,10 +1,11 @@
 import { CircleDollarSign, FileText, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { AIQuoteStudio } from "@/components/dashboard/ai-quote-studio";
 import { FlexibleQuoteForm } from "@/components/dashboard/flexible-quote-form";
 import { QuoteTemplateManager } from "@/components/dashboard/quote-template-manager";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { activeBusiness, beoApi, type PriceItem, type Quote, type QuoteTemplate } from "@/lib/api";
+import { activeBusiness, beoApi, type CRMLead, type PriceItem, type Quote, type QuoteTemplate } from "@/lib/api";
 
 export const metadata = { title: "Quotations" };
 
@@ -43,6 +44,7 @@ export default async function QuotesPage() {
   let quotes: Quote[] = [];
   let templates: QuoteTemplate[] = [];
   let prices: PriceItem[] = [];
+  let leads: CRMLead[] = [];
   let businessName = "Current business";
   let businessId: string | null = null;
 
@@ -51,10 +53,11 @@ export default async function QuotesPage() {
     if (business) {
       businessId = business.id;
       businessName = business.name;
-      [quotes, templates, prices] = await Promise.all([
+      [quotes, templates, prices, leads] = await Promise.all([
         beoApi.quotes(business.id),
         beoApi.quoteTemplates(business.id),
         beoApi.prices(business.id),
+        beoApi.crmLeads(business.id),
       ]);
     }
   } catch {}
@@ -98,6 +101,7 @@ export default async function QuotesPage() {
 
       {businessId && (
         <section className="mt-7 space-y-5">
+          <AIQuoteStudio businessId={businessId} templates={templates} leads={leads} />
           <FlexibleQuoteForm businessId={businessId} templates={templates} prices={prices} />
           <Card className="p-5">
             <div className="mb-5">

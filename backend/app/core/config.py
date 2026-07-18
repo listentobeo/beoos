@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     replicate_api_token: str = ""
     replicate_model: str = "openai/gpt-5.4"
     replicate_timeout_seconds: int = 90
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-5"
+    ai_quote_provider: Literal["auto", "openai", "replicate", "anthropic"] = "auto"
+    microsoft_clarity_api_token: str = ""
+    microsoft_clarity_base_url: str = "https://www.clarity.ms"
 
     zoho_client_id: str = ""
     zoho_client_secret: str = ""
@@ -77,6 +82,8 @@ class Settings(BaseSettings):
 
     paystack_secret_key: str = ""
     paystack_public_key: str = ""
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
 
     @property
     def effective_ai_provider(self) -> Literal["openai", "replicate"]:

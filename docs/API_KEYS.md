@@ -46,6 +46,27 @@ REPLICATE_TIMEOUT_SECONDS=90
 
 Keep `AI_PROVIDER=openai` if you want to use direct OpenAI API keys instead.
 
+### Claude / Anthropic quote drafting
+
+Optional. Use this when you want long-form, polished quote/proposal drafting from the quotation
+studio while keeping general inbox AI on OpenAI or Replicate.
+
+```env
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-5
+AI_QUOTE_PROVIDER=auto
+```
+
+Provider behavior:
+
+- `AI_QUOTE_PROVIDER=auto`: prefer Anthropic if available, otherwise use the existing BeoOS AI provider;
+- `AI_QUOTE_PROVIDER=anthropic`: force Claude for quote drafting;
+- `AI_QUOTE_PROVIDER=openai`: force OpenAI for quote drafting;
+- `AI_QUOTE_PROVIDER=replicate`: force Replicate for quote drafting.
+
+If no AI key is configured, the AI quote studio still returns a deterministic structured draft from
+CRM, templates, and price catalogue data.
+
 ### Secret encryption key
 
 Used to encrypt OAuth tokens.
@@ -68,6 +89,15 @@ Used for proposal deposit payment links.
 ```env
 PAYSTACK_SECRET_KEY=
 PAYSTACK_PUBLIC_KEY=
+```
+
+### Stripe
+
+Planned for international card payments on public quote links.
+
+```env
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
 ```
 
 ## Active provider: Zoho Mail
@@ -338,17 +368,18 @@ DAILY_REPORT_SCHEDULER_BATCH_SIZE=25
 Daily reports are tenant-based. Each business controls its own recipient, local report time,
 timezone, and push-alert preference from Business Settings.
 
-## Planned next: Search Console / brand intelligence
+## Active setup: Search Console / Blogger / Microsoft Clarity readiness
 
-Needed later:
+Used by the Marketing Intelligence layer. The dashboard now stores tenant-specific website,
+Search Console, Blogger, and Clarity identifiers in each business settings record. Live API pulls
+can be enabled after the keys and OAuth permissions are connected.
 
 ```env
-GOOGLE_SEARCH_CONSOLE_CLIENT_ID=
-GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET=
-GOOGLE_BLOGGER_CLIENT_ID=
-GOOGLE_BLOGGER_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 MICROSOFT_CLARITY_PROJECT_ID=
 MICROSOFT_CLARITY_API_TOKEN=
+MICROSOFT_CLARITY_BASE_URL=https://www.clarity.ms
 ```
 
 Used for:
@@ -361,10 +392,26 @@ Used for:
 - Microsoft Clarity behavior/friction signals;
 - brand bible evidence.
 
-Module 4.2 currently works without these keys by importing the same shaped data manually or from a server-side script:
+The Marketing page works today without these keys by importing the same shaped data manually or
+from a server-side script:
 
 ```text
 POST /api/v1/businesses/{business_id}/marketing/import
 ```
 
 This keeps the marketing intelligence layer usable before Google/Microsoft connector approval.
+
+Tenant setup endpoint:
+
+```text
+GET/PATCH /api/v1/businesses/{business_id}/marketing/connections
+```
+
+Each business stores:
+
+- website URL;
+- Search Console property URL;
+- Blogger blog ID;
+- Microsoft Clarity project ID;
+- content goals;
+- target locations.

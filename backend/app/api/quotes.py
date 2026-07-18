@@ -10,6 +10,8 @@ from app.core.security import BusinessAccess, require_admin, require_business_ac
 from app.domain.quotes import (
     PublicQuoteAcceptResult,
     PublicQuoteView,
+    QuoteAIDraftRequest,
+    QuoteAIDraftResponse,
     QuoteCreate,
     QuoteTemplateCreate,
     QuoteTemplateUpdate,
@@ -31,6 +33,7 @@ from app.infrastructure.models import (
     QuoteTemplateType,
 )
 from app.services.paystack import PaystackService
+from app.services.quote_ai import QuoteAIService
 from app.services.quote_engine import calculate_quote, default_mural_input
 
 router = APIRouter(prefix="/businesses/{business_id}/quotes", tags=["quotes"])
@@ -157,6 +160,21 @@ async def delete_quote_template(
         )
     )
     await session.commit()
+
+
+@router.post("/ai/draft", response_model=QuoteAIDraftResponse)
+async def draft_quote_with_ai(
+    business_id: UUID,
+    payload: QuoteAIDraftRequest,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> QuoteAIDraftResponse:
+    return await QuoteAIService(get_settings()).draft(
+        session=session,
+        business_id=business_id,
+        user_id=access.user_id,
+        payload=payload,
+    )
 
 
 @router.get("/{quote_id}", response_model=QuoteView)

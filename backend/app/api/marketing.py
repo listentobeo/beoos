@@ -8,24 +8,28 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.security import BusinessAccess, require_admin, require_business_access
 from app.domain.marketing import (
     MarketingActionItem,
+    MarketingConnectionStatus,
+    MarketingConnectionUpdate,
     MarketingContentCluster,
     MarketingImportRequest,
     MarketingImportResponse,
     MarketingMetricView,
     MarketingPageOpportunity,
+    MarketingProviderStatus,
     MarketingQueryOpportunity,
     MarketingSummary,
     MarketingTotal,
 )
 from app.infrastructure.database import get_session
-from app.infrastructure.models import MarketingMetric
+from app.infrastructure.models import AuditLog, Business, MarketingMetric
 
 router = APIRouter(prefix="/businesses/{business_id}/marketing", tags=["marketing"])
 
@@ -63,6 +67,52 @@ STOPWORDS = {
     "you",
     "your",
 }
+
+
+@router.get("/connections", response_model=MarketingConnectionStatus)
+async def marketing_connections(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> MarketingConnectionStatus:
+    business = await _business(session, business_id)
+    tenant_settings = _marketing_settings(business)
+    return MarketingConnectionStatus(
+        business_id=business_id,
+        settings=tenant_settings,
+        providers=_provider_status(settings=settings, tenant_settings=tenant_settings),
+    )
+
+
+@router.patch("/connections", response_model=MarketingConnectionStatus)
+async def update_marketing_connections(
+    business_id: UUID,
+    payload: MarketingConnectionUpdate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> MarketingConnectionStatus:
+    business = await _business(session, business_id)
+    merged_settings = dict(business.settings or {})
+    merged_settings["marketing"] = payload.model_dump()
+    business.settings = merged_settings
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="marketing.connections.updated",
+            resource_type="business",
+            resource_id=str(business_id),
+            details=payload.model_dump(),
+        )
+    )
+    await session.commit()
+    return MarketingConnectionStatus(
+        business_id=business_id,
+        settings=payload,
+        providers=_provider_status(settings=settings, tenant_settings=payload),
+    )
 
 
 @router.get("/summary", response_model=MarketingSummary)
@@ -150,6 +200,86 @@ async def import_marketing_metrics(
         rows_created=created,
         duplicates_skipped=skipped,
     )
+
+
+async def _business(session: AsyncSession, business_id: UUID) -> Business:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+    return business
+
+
+def _marketing_settings(business: Business) -> MarketingConnectionUpdate:
+    raw = (business.settings or {}).get("marketing") if isinstance(business.settings, dict) else {}
+    if not isinstance(raw, dict):
+        raw = {}
+    return MarketingConnectionUpdate.model_validate(raw)
+
+
+def _provider_status(
+    *,
+    settings: Settings,
+    tenant_settings: MarketingConnectionUpdate,
+) -> list[MarketingProviderStatus]:
+    google_configured = bool(settings.google_client_id and settings.google_client_secret)
+    clarity_configured = bool(settings.microsoft_clarity_api_token)
+    return [
+        MarketingProviderStatus(
+            key="search_console",
+            label="Google Search Console",
+            configured=google_configured,
+            connected=google_configured and bool(tenant_settings.search_console_property_url),
+            setup_required=[
+                item
+                for item, ready in [
+                    ("GOOGLE_CLIENT_ID", bool(settings.google_client_id)),
+                    ("GOOGLE_CLIENT_SECRET", bool(settings.google_client_secret)),
+                    ("Search Console property URL", bool(tenant_settings.search_console_property_url)),
+                ]
+                if not ready
+            ],
+            notes="Uses the existing Google OAuth app plus a tenant-owned verified property.",
+        ),
+        MarketingProviderStatus(
+            key="blogger",
+            label="Blogger",
+            configured=google_configured,
+            connected=google_configured and bool(tenant_settings.blogger_blog_id),
+            setup_required=[
+                item
+                for item, ready in [
+                    ("GOOGLE_CLIENT_ID", bool(settings.google_client_id)),
+                    ("GOOGLE_CLIENT_SECRET", bool(settings.google_client_secret)),
+                    ("Blogger blog ID", bool(tenant_settings.blogger_blog_id)),
+                ]
+                if not ready
+            ],
+            notes="Uses Blogger API to read posts and performance metadata for content strategy.",
+        ),
+        MarketingProviderStatus(
+            key="clarity",
+            label="Microsoft Clarity",
+            configured=clarity_configured,
+            connected=clarity_configured and bool(tenant_settings.clarity_project_id),
+            setup_required=[
+                item
+                for item, ready in [
+                    ("MICROSOFT_CLARITY_API_TOKEN", clarity_configured),
+                    ("Clarity project ID", bool(tenant_settings.clarity_project_id)),
+                ]
+                if not ready
+            ],
+            notes="Uses Clarity export data to identify friction, rage clicks, scroll depth, and drop-offs.",
+        ),
+        MarketingProviderStatus(
+            key="website",
+            label="Website / form leads",
+            configured=True,
+            connected=bool(tenant_settings.website_url),
+            setup_required=[] if tenant_settings.website_url else ["Website URL"],
+            notes="Connects the business website identity to BeoOS lead and content analysis.",
+        ),
+    ]
 
 
 def _totals(metrics: list[MarketingMetric]) -> list[MarketingTotal]:

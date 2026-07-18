@@ -65,6 +65,49 @@ class QuoteCreate(BaseModel):
     valid_until: datetime | None = None
 
 
+class QuoteAIDraftRequest(BaseModel):
+    prompt: str = Field(
+        min_length=4,
+        max_length=6000,
+        description="Natural language instruction, e.g. 'Create a premium quote for this lead'.",
+    )
+    lead_id: UUID | None = None
+    contact_id: UUID | None = None
+    template_id: UUID | None = None
+    template_type: QuoteTemplateType = QuoteTemplateType.custom
+    title: str = Field(default="", max_length=240)
+    client_name: str = Field(default="", max_length=200)
+    service: str = Field(default="", max_length=160)
+    budget: str = Field(default="", max_length=160)
+    deadline: str = Field(default="", max_length=160)
+    notes: str = Field(default="", max_length=4000)
+    reference_assets: list[str] = Field(default_factory=list, max_length=12)
+
+
+class QuoteAIDraftLineItem(BaseModel):
+    label: str
+    description: str = ""
+    quantity: str = "1"
+    unit_price: str = "0"
+
+
+class QuoteAIDraftResponse(BaseModel):
+    success: bool = True
+    provider: str
+    model: str
+    title: str
+    template_type: QuoteTemplateType
+    template_id: UUID | None = None
+    lead_id: UUID | None = None
+    contact_id: UUID | None = None
+    input_data: dict[str, Any]
+    line_items: list[QuoteAIDraftLineItem] = Field(default_factory=list)
+    summary: str
+    assumptions: list[str] = Field(default_factory=list)
+    missing_information: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class QuoteUpdate(BaseModel):
     title: str = Field(min_length=2, max_length=240)
     status: QuoteStatus = QuoteStatus.draft

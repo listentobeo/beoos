@@ -9,6 +9,7 @@ import {
   Search,
 } from "lucide-react";
 import Link from "next/link";
+import { MarketingConnectionPanel } from "@/components/dashboard/marketing-connection-panel";
 import { MarketingImportForm } from "@/components/dashboard/marketing-import-form";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import {
   activeBusiness,
   beoApi,
   type MarketingActionItem,
+  type MarketingConnectionStatus,
   type MarketingContentCluster,
   type MarketingPageOpportunity,
   type MarketingQueryOpportunity,
@@ -240,7 +242,17 @@ function PagePanel({ pages }: { pages: MarketingPageOpportunity[] }) {
   );
 }
 
-function MarketingContent({ businessName, summary, businessId }: { businessName: string; summary: MarketingSummary; businessId: string }) {
+function MarketingContent({
+  businessName,
+  summary,
+  businessId,
+  connections,
+}: {
+  businessName: string;
+  summary: MarketingSummary;
+  businessId: string;
+  connections: MarketingConnectionStatus;
+}) {
   const hasData = total(summary, "rows") > 0;
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-5 md:px-8">
@@ -266,6 +278,10 @@ function MarketingContent({ businessName, summary, businessId }: { businessName:
         <SignalCard icon={MousePointerClick} label="Clicks" value={total(summary, "clicks")} helper="Search/blog visits" />
         <SignalCard icon={Compass} label="Sessions" value={total(summary, "sessions")} helper="Behavior signals" />
         <SignalCard icon={Bot} label="Leads" value={total(summary, "leads")} helper="Imported conversion signal" />
+      </section>
+
+      <section className="mt-5">
+        <MarketingConnectionPanel businessId={businessId} status={connections} />
       </section>
 
       <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -321,8 +337,18 @@ export default async function MarketingPage() {
         </div>
       );
     }
-    const summary = await beoApi.marketing(business.id);
-    return <MarketingContent businessName={business.name} summary={summary} businessId={business.id} />;
+    const [summary, connections] = await Promise.all([
+      beoApi.marketing(business.id),
+      beoApi.marketingConnections(business.id),
+    ]);
+    return (
+      <MarketingContent
+        businessName={business.name}
+        summary={summary}
+        businessId={business.id}
+        connections={connections}
+      />
+    );
   } catch {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-5 md:px-8">

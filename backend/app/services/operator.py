@@ -437,18 +437,23 @@ class OperatorService:
             actions.append(
                 OperatorActionSuggestion(
                     label="Prepare an AI quote draft",
-                    kind="future_tool",
-                    reason="Quote generation will use CRM, price catalogue, template, and uploads.",
+                    kind="needs_confirmation",
+                    reason=(
+                        "Quote drafting can now use CRM, price catalogue, templates, "
+                        "and tenant instructions."
+                    ),
                     tool_name="create_quote_draft",
+                    payload={"endpoint": "/quotes/ai/draft", "requires_review": True},
                 )
             )
         if "marketing" in message.lower() or mode == "marketing":
             actions.append(
                 OperatorActionSuggestion(
                     label="Connect Search Console, Blogger, and Clarity",
-                    kind="future_tool",
+                    kind="needs_confirmation",
                     reason="Marketing intelligence needs tenant-owned traffic and behavior data.",
                     tool_name="connect_marketing_sources",
+                    payload={"endpoint": "/marketing/connections", "requires_api_keys": True},
                 )
             )
         return OperatorChatResponse(
