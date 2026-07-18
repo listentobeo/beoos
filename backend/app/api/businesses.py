@@ -835,6 +835,8 @@ async def _inbox_stats(session: AsyncSession, business_id: UUID) -> InboxStats:
         value = await session.scalar(
             select(func.count(EmailThread.id)).where(
                 EmailThread.business_id == business_id,
+                EmailThread.category != ThreadCategory.spam,
+                EmailThread.status != ThreadStatus.closed,
                 *conditions,
             )
         )
@@ -842,7 +844,9 @@ async def _inbox_stats(session: AsyncSession, business_id: UUID) -> InboxStats:
 
     unread_value = await session.scalar(
         select(func.coalesce(func.sum(EmailThread.unread_count), 0)).where(
-            EmailThread.business_id == business_id
+            EmailThread.business_id == business_id,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
         )
     )
     whatsapp_value = await session.scalar(
@@ -851,6 +855,8 @@ async def _inbox_stats(session: AsyncSession, business_id: UUID) -> InboxStats:
         .join(MailboxConnection, MailboxConnection.id == EmailMessage.mailbox_id)
         .where(
             EmailThread.business_id == business_id,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
             MailboxConnection.provider == "whatsapp",
         )
     )
@@ -872,7 +878,11 @@ async def _recent_threads(
     query = (
         select(EmailThread)
         .options(selectinload(EmailThread.contact))
-        .where(EmailThread.business_id == business_id)
+        .where(
+            EmailThread.business_id == business_id,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
+        )
         .order_by(EmailThread.priority.desc(), EmailThread.latest_message_at.desc())
         .limit(50)
     )

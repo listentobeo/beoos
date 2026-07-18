@@ -29,6 +29,7 @@ from app.infrastructure.models import (
 from app.services.alerts import AlertService
 from app.services.approval_notifications import ApprovalNotificationService
 from app.services.contact_identity import normalize_email_identity
+from app.services.inbox_hygiene import should_skip_ai_draft
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -482,6 +483,18 @@ async def _run_ai_intake(
     thread.is_deal = triage.is_deal
     thread.is_professional = triage.is_professional
     thread.priority = 100 if triage.urgency else (50 if triage.is_deal else 10)
+    if should_skip_ai_draft(triage):
+        thread.status = ThreadStatus.closed
+        thread.unread_count = 0
+        message.processed_at = datetime.now(UTC)
+        logger.info(
+            "website_form_ai_draft_skipped_for_noise",
+            business_id=str(business.id),
+            thread_id=str(thread.id),
+            category=triage.category.value,
+            recommended_action=triage.recommended_action.value,
+        )
+        return
     decision = EmailPolicyEngine(
         signature=business.reply_signature,
         whatsapp_number=business.whatsapp_number,

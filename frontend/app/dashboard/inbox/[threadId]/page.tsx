@@ -1,8 +1,8 @@
 import { ArrowLeft, Bot, CheckCircle2, Clock, FileImage, FileText, Mail, ShieldAlert } from "lucide-react";
 import Link from "next/link";
-import { ApproveDraftButton } from "@/components/dashboard/approve-draft-button";
 import { CreateLeadButton } from "@/components/dashboard/create-lead-button";
-import { DiscardDraftButton } from "@/components/dashboard/discard-draft-button";
+import { EditableDraft } from "@/components/dashboard/editable-draft";
+import { ThreadHygieneActions } from "@/components/dashboard/thread-hygiene-actions";
 import { ThreadReadActions } from "@/components/dashboard/thread-read-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -166,11 +166,17 @@ export default async function EmailThreadPage({
               </div>
             </dl>
             {businessId && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-3">
                 <ThreadReadActions
                   businessId={businessId}
                   threadId={detail.thread.id}
                   unreadCount={detail.thread.unread_count}
+                />
+                <ThreadHygieneActions
+                  businessId={businessId}
+                  threadId={detail.thread.id}
+                  category={detail.thread.category}
+                  status={detail.thread.status}
                 />
               </div>
             )}
@@ -183,7 +189,6 @@ export default async function EmailThreadPage({
                 <h2 className="font-bold">AI draft</h2>
               </div>
               <p className="mt-2 text-xs uppercase tracking-wide text-[#90948f]">{latestDraft.status} · {latestDraft.draft_type.replaceAll("_", " ")}</p>
-              <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[#373c43]">{latestDraft.body_text}</p>
               {latestDraft.policy_reasons.length > 0 && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
                   <p className="text-xs font-bold text-amber-900">Needs your review</p>
@@ -192,12 +197,7 @@ export default async function EmailThreadPage({
                   </ul>
                 </div>
               )}
-              {businessId && latestDraft.status === "pending" && (
-                <div className="mt-4 flex flex-wrap justify-end gap-3">
-                  <DiscardDraftButton businessId={businessId} draftId={latestDraft.id} />
-                  <ApproveDraftButton businessId={businessId} draftId={latestDraft.id} />
-                </div>
-              )}
+              {businessId && <EditableDraft businessId={businessId} draft={latestDraft} />}
             </Card>
           ) : (
             <Card className="p-5">

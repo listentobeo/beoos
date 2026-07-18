@@ -1,6 +1,5 @@
 import { FilePenLine, ShieldAlert } from "lucide-react";
-import { ApproveDraftButton } from "@/components/dashboard/approve-draft-button";
-import { DiscardDraftButton } from "@/components/dashboard/discard-draft-button";
+import { EditableDraft } from "@/components/dashboard/editable-draft";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type DraftQueueItem } from "@/lib/api";
@@ -39,7 +38,6 @@ export default async function ApprovalsPage() {
             </div>
             <div className="p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#949893]">Proposed reply</p>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#373c43]">{draft.body_text}</p>
               {draft.policy_reasons.length > 0 && (
                 <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3">
                   <p className="flex items-center gap-2 text-xs font-bold text-amber-900"><ShieldAlert className="size-4" /> Why approval is required</p>
@@ -48,12 +46,7 @@ export default async function ApprovalsPage() {
                   </ul>
                 </div>
               )}
-              {businessId && (
-                <div className="mt-5 flex flex-wrap justify-end gap-3">
-                  <DiscardDraftButton businessId={businessId} draftId={draft.id} />
-                  <ApproveDraftButton businessId={businessId} draftId={draft.id} />
-                </div>
-              )}
+              {businessId && <EditableDraft businessId={businessId} draft={draft} />}
             </div>
           </Card>
         ))}

@@ -14,6 +14,7 @@ import {
   LogOut,
   Megaphone,
   MessageCircleMore,
+  ShieldX,
   Search,
   Settings,
   ShieldAlert,
@@ -33,6 +34,7 @@ const primary = [
   ["Urgent", "/dashboard/urgent", ShieldAlert],
   ["Existing clients", "/dashboard/clients", UsersRound],
   ["WhatsApp inbox", "/dashboard/whatsapp", MessageCircleMore],
+  ["Spam / noise", "/dashboard/spam", ShieldX],
 ] as const;
 
 const manage = [

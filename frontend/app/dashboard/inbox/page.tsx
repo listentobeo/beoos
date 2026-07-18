@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ConversationSearch } from "@/components/dashboard/conversation-search";
-import { InboxTable } from "@/components/dashboard/inbox-table";
+import { InfiniteThreadList } from "@/components/dashboard/infinite-thread-list";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { SyncMailboxButton } from "@/components/dashboard/sync-mailbox-button";
 import { Button } from "@/components/ui/button";
@@ -190,15 +190,19 @@ export default async function InboxPage({
                 <p className="mt-0.5 text-xs text-[#858a84]">
                   Zoho Mail, Gmail, website forms, and WhatsApp, classified by BeoOS
                 </p>
-                {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for “{query}”</p>}
+                {query && <p className="mt-1 text-xs font-medium text-[#ed633f]">Showing results for "{query}"</p>}
               </div>
               <ConversationSearch initialQuery={query} />
             </div>
-            <InboxTable
-              threads={threads}
-              mailboxConnected={Boolean(mailbox?.connected)}
-              emptyMessage={query ? `No conversations matched “${query}”. Try a sender, subject, or service keyword.` : undefined}
-            />
+            {businessId && (
+              <InfiniteThreadList
+                businessId={businessId}
+                initialThreads={threads}
+                filters={query ? { search: query } : undefined}
+                mailboxConnected={Boolean(mailbox?.connected)}
+                emptyMessage={query ? `No conversations matched "${query}". Try a sender, subject, or service keyword.` : undefined}
+              />
+            )}
           </Card>
         </>
       )}

@@ -1,5 +1,4 @@
-﻿import html
-import re
+﻿import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -33,6 +32,7 @@ from app.services.approval_notifications import ApprovalNotificationService
 from app.services.contact_identity import normalize_email_identity
 from app.services.crypto import SecretCipher
 from app.services.gmail import GmailClient, normalize_gmail_message
+from app.services.inbox_hygiene import clean_message_text, is_obvious_noise, should_skip_ai_draft
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
 from app.services.push_notifications import PushNotificationService
@@ -390,7 +390,9 @@ class EmailSyncService:
     ) -> UUID | None:
         content_data = content.get("data", content)
         body_html = str(content_data.get("content") or content_data.get("htmlContent") or "")
-        body_text = str(content_data.get("plainText") or self._html_to_text(body_html))
+        body_text = clean_message_text(
+            str(content_data.get("plainText") or self._html_to_text(body_html))
+        )
         attachments = content_data.get("attachments") or summary.get("attachments") or []
         attachment_metadata = attachments if isinstance(attachments, list) else []
         contact_source = (
@@ -502,6 +504,41 @@ class EmailSyncService:
         session.add(message)
         await session.flush()
 
+        if direction == Direction.inbound and is_obvious_noise(
+            subject=subject,
+            sender_email=contact_email,
+            body_text=body_text,
+            business_email=business.primary_email,
+        ):
+            thread.category = ThreadCategory.spam
+            thread.status = ThreadStatus.closed
+            thread.priority = -10
+            thread.unread_count = 0
+            message.processed_at = datetime.now(UTC)
+            session.add(
+                EmailAnalysis(
+                    message_id=message.id,
+                    category=ThreadCategory.spam,
+                    intent="System notification or verification code",
+                    confidence=Decimal("1"),
+                    urgency=False,
+                    is_deal=False,
+                    is_professional=False,
+                    risk_flags=[],
+                    extracted_fields={},
+                    recommended_action=RecommendedAction.ignore.value,
+                    model="beoos-hygiene-rules",
+                )
+            )
+            logger.info(
+                "email_message_marked_noise",
+                business_id=str(business.id),
+                thread_id=str(thread.id),
+                sender_email=contact_email,
+                subject=subject[:160],
+            )
+            return thread.id
+
         is_recent = sent_at >= datetime.now(UTC) - timedelta(minutes=15)
         if direction == Direction.outbound or not is_recent:
             message.processed_at = datetime.now(UTC)
@@ -557,6 +594,18 @@ class EmailSyncService:
         thread.is_deal = triage.is_deal
         thread.is_professional = triage.is_professional
         thread.priority = 100 if triage.urgency else (50 if triage.is_deal else 10)
+        if should_skip_ai_draft(triage):
+            thread.status = ThreadStatus.closed
+            thread.unread_count = 0
+            message.processed_at = datetime.now(UTC)
+            logger.info(
+                "email_ai_draft_skipped_for_noise",
+                business_id=str(business.id),
+                thread_id=str(thread.id),
+                category=triage.category.value,
+                recommended_action=triage.recommended_action.value,
+            )
+            return thread.id
         decision = EmailPolicyEngine(
             signature=business.reply_signature,
             whatsapp_number=business.whatsapp_number,
@@ -729,8 +778,7 @@ class EmailSyncService:
 
     @staticmethod
     def _html_to_text(value: str) -> str:
-        without_tags = re.sub(r"<[^>]+>", " ", value)
-        return re.sub(r"\s+", " ", html.unescape(without_tags)).strip()
+        return clean_message_text(value)
 
     @staticmethod
     def _whatsapp_link(number: str) -> str:

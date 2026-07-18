@@ -3,6 +3,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -39,6 +40,15 @@ from app.services.whatsapp import WhatsAppCloudService
 
 router = APIRouter(prefix="/businesses/{business_id}/email", tags=["email"])
 logger = structlog.get_logger()
+
+
+class DraftUpdate(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    body_text: str = Field(min_length=1, max_length=5000)
+
+
+class ThreadActionRequest(BaseModel):
+    reason: str = Field(default="", max_length=1000)
 
 
 @router.get("/mailbox", response_model=MailboxStatus)
@@ -158,6 +168,11 @@ async def list_threads(
         query = query.where(EmailThread.category == category)
     if status:
         query = query.where(EmailThread.status == status)
+    if category is None and status is None:
+        query = query.where(
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
+        )
     if provider:
         query = (
             query.join(EmailMessage, EmailMessage.thread_id == EmailThread.id)
@@ -233,14 +248,19 @@ async def inbox_stats(
     async def count(*conditions: ColumnElement[bool]) -> int:
         value = await session.scalar(
             select(func.count(EmailThread.id)).where(
-                EmailThread.business_id == business_id, *conditions
+                EmailThread.business_id == business_id,
+                EmailThread.category != ThreadCategory.spam,
+                EmailThread.status != ThreadStatus.closed,
+                *conditions,
             )
         )
         return int(value or 0)
 
     unread_value = await session.scalar(
         select(func.coalesce(func.sum(EmailThread.unread_count), 0)).where(
-            EmailThread.business_id == business_id
+            EmailThread.business_id == business_id,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
         )
     )
     whatsapp_value = await session.scalar(
@@ -249,6 +269,8 @@ async def inbox_stats(
         .join(MailboxConnection, MailboxConnection.id == EmailMessage.mailbox_id)
         .where(
             EmailThread.business_id == business_id,
+            EmailThread.category != ThreadCategory.spam,
+            EmailThread.status != ThreadStatus.closed,
             MailboxConnection.provider == "whatsapp",
         )
     )
@@ -275,6 +297,8 @@ async def list_pending_drafts(
             .where(
                 EmailThread.business_id == business_id,
                 EmailDraft.status == DraftStatus.pending,
+                EmailThread.category != ThreadCategory.spam,
+                EmailThread.status != ThreadStatus.closed,
             )
             .order_by(EmailDraft.created_at.desc())
         )
@@ -337,6 +361,82 @@ async def mark_thread_unread(
     await session.commit()
 
 
+@router.post("/threads/{thread_id}/archive", status_code=204)
+async def archive_thread(
+    business_id: UUID,
+    thread_id: UUID,
+    payload: ThreadActionRequest | None = None,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    thread = await _thread_for_action(session, business_id, thread_id)
+    thread.status = ThreadStatus.closed
+    thread.unread_count = 0
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="email_thread.archived",
+            resource_type="email_thread",
+            resource_id=str(thread.id),
+            details={"reason": payload.reason if payload else ""},
+        )
+    )
+    await session.commit()
+
+
+@router.post("/threads/{thread_id}/spam", status_code=204)
+async def mark_thread_spam(
+    business_id: UUID,
+    thread_id: UUID,
+    payload: ThreadActionRequest | None = None,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    thread = await _thread_for_action(session, business_id, thread_id)
+    thread.category = ThreadCategory.spam
+    thread.status = ThreadStatus.closed
+    thread.priority = -10
+    thread.unread_count = 0
+    await _discard_pending_thread_drafts(session, thread.id, access.user_id)
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="email_thread.marked_spam",
+            resource_type="email_thread",
+            resource_id=str(thread.id),
+            details={"reason": payload.reason if payload else ""},
+        )
+    )
+    await session.commit()
+
+
+@router.post("/threads/{thread_id}/restore", status_code=204)
+async def restore_thread(
+    business_id: UUID,
+    thread_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    thread = await _thread_for_action(session, business_id, thread_id)
+    if thread.category == ThreadCategory.spam:
+        thread.category = ThreadCategory.general
+    if thread.status == ThreadStatus.closed:
+        thread.status = ThreadStatus.acknowledged
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=access.user_id,
+            action="email_thread.restored",
+            resource_type="email_thread",
+            resource_id=str(thread.id),
+            details={},
+        )
+    )
+    await session.commit()
+
+
 @router.post("/drafts/{draft_id}/approve")
 async def approve_draft(
     business_id: UUID,
@@ -373,6 +473,51 @@ async def approve_draft(
     finally:
         await service.close()
     return {"status": "sent", "draft_id": str(draft.id)}
+
+
+@router.patch("/drafts/{draft_id}", response_model=DraftView)
+async def update_draft(
+    business_id: UUID,
+    draft_id: UUID,
+    payload: DraftUpdate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> DraftView:
+    draft = await session.scalar(
+        select(EmailDraft)
+        .join(EmailThread, EmailThread.id == EmailDraft.thread_id)
+        .where(EmailDraft.id == draft_id, EmailThread.business_id == business_id)
+        .with_for_update()
+    )
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    if draft.status != DraftStatus.pending:
+        raise HTTPException(status_code=409, detail="Only pending drafts can be edited")
+    draft.subject = payload.subject.strip()
+    draft.body_text = payload.body_text.strip()
+    thread = await session.get(EmailThread, draft.thread_id)
+    if thread is not None:
+        session.add(
+            AuditLog(
+                business_id=thread.business_id,
+                actor_id=access.user_id,
+                action="email_draft.edited",
+                resource_type="email_draft",
+                resource_id=str(draft.id),
+                details={"thread_id": str(thread.id), "draft_type": draft.draft_type},
+            )
+        )
+    await session.commit()
+    await session.refresh(draft)
+    return DraftView(
+        id=draft.id,
+        subject=draft.subject,
+        body_text=draft.body_text,
+        status=draft.status.value,
+        draft_type=draft.draft_type,
+        auto_send_eligible=draft.auto_send_eligible,
+        policy_reasons=draft.policy_reasons,
+    )
 
 
 @router.post("/drafts/{draft_id}/discard")
@@ -418,6 +563,40 @@ async def discard_draft(
         )
     await session.commit()
     return {"status": "discarded", "draft_id": str(draft.id)}
+
+
+async def _thread_for_action(
+    session: AsyncSession,
+    business_id: UUID,
+    thread_id: UUID,
+) -> EmailThread:
+    thread = await session.scalar(
+        select(EmailThread).where(
+            EmailThread.id == thread_id,
+            EmailThread.business_id == business_id,
+        )
+    )
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return thread
+
+
+async def _discard_pending_thread_drafts(
+    session: AsyncSession,
+    thread_id: UUID,
+    actor_id: str,
+) -> None:
+    drafts = (
+        await session.scalars(
+            select(EmailDraft).where(
+                EmailDraft.thread_id == thread_id,
+                EmailDraft.status == DraftStatus.pending,
+            )
+        )
+    ).all()
+    for draft in drafts:
+        draft.status = DraftStatus.rejected
+        draft.approved_by = actor_id
 
 
 async def _send_approved_whatsapp_draft(
