@@ -153,7 +153,7 @@ export function ExternalAccessCard({ businessId }: { businessId: string }) {
               <div>
                 <p className="font-semibold">{token.name}</p>
                 <p className="mt-1 text-xs text-[#777c76]">
-                  {token.token_prefix}... · {token.scopes.length} scopes · expires {formatDate(token.expires_at)}
+                  {token.token_prefix}... Â· {token.scopes.length} scopes Â· expires {formatDate(token.expires_at)}
                 </p>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${token.revoked_at ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
@@ -182,3 +182,4 @@ function formatDate(value: string | null) {
   if (!value) return "never";
   return new Date(value).toLocaleDateString();
 }
+
