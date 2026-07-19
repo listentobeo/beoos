@@ -146,6 +146,14 @@ export function WhatsAppSettingsForm({
       const origin = String(event.origin);
       if (!origin.endsWith("facebook.com") && !origin.endsWith("facebook.net")) return;
       const parsed = parseMetaSignupMessage(event.data);
+      if (process.env.NODE_ENV !== "production") {
+        console.info("Meta WhatsApp signup message", {
+          origin,
+          parsed: Boolean(parsed),
+          waba_id_present: Boolean(parsed?.waba_id || parsed?.business_id || parsed?.businessId),
+          phone_number_id_present: Boolean(parsed?.phone_number_id),
+        });
+      }
       if (!parsed || !hasSignupAssets(parsed)) return;
       signupDataRef.current = { ...signupDataRef.current, ...parsed };
       signupWaitersRef.current.splice(0).forEach((resolve) => resolve(signupDataRef.current));
@@ -222,8 +230,15 @@ export function WhatsAppSettingsForm({
           try {
             const code = response.authResponse?.code;
             const accessToken = response.authResponse?.accessToken;
+            if (process.env.NODE_ENV !== "production") {
+              console.info("Meta WhatsApp login callback", {
+                status: response.status,
+                code_present: Boolean(code),
+                sdk_access_token_present: Boolean(accessToken),
+              });
+            }
             if (!code && !accessToken) {
-              setMessage("Meta signup was cancelled or did not return an access token.");
+              setMessage("Meta signup was cancelled or did not return an authorization code.");
               setConnecting(false);
               return;
             }
@@ -260,6 +275,8 @@ export function WhatsAppSettingsForm({
       }, {
         config_id: attempt.config_id,
         redirect_uri: redirectUri,
+        response_type: "code",
+        override_default_response_type: true,
         state: attempt.state,
         extras: {
           setup: {},
