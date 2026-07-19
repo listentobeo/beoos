@@ -55,26 +55,28 @@ function hasSignupAssets(data: WhatsAppSignupData) {
   return Boolean(data.phone_number_id || data.waba_id || data.business_id || data.businessId);
 }
 
-function parseMetaSignupMessage(raw: unknown): WhatsAppSignupData | null {
-  let data = raw;
-  if (typeof data === "string") {
-    const text = data;
+function parsePossiblyNestedMetaData(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    const nested = new URLSearchParams(value).get("data");
+    if (!nested) return value;
     try {
-      data = JSON.parse(text);
+      return JSON.parse(nested);
     } catch {
-      const nested = new URLSearchParams(text).get("data");
-      if (!nested) return null;
-      try {
-        data = JSON.parse(nested);
-      } catch {
-        return null;
-      }
+      return value;
     }
   }
+}
+
+function parseMetaSignupMessage(raw: unknown): WhatsAppSignupData | null {
+  let data = parsePossiblyNestedMetaData(raw);
   if (!data || typeof data !== "object") return null;
 
   const payload = data as {
     type?: unknown;
+    event?: unknown;
     data?: unknown;
     waba_id?: unknown;
     phone_number_id?: unknown;
@@ -83,7 +85,8 @@ function parseMetaSignupMessage(raw: unknown): WhatsAppSignupData | null {
     businessId?: unknown;
   };
   if (payload.type && payload.type !== "WA_EMBEDDED_SIGNUP") return null;
-  const source = payload.data && typeof payload.data === "object" ? payload.data : payload;
+  const nestedData = parsePossiblyNestedMetaData(payload.data);
+  const source = nestedData && typeof nestedData === "object" ? nestedData : payload;
   const record = source as Record<string, unknown>;
   return {
     waba_id: typeof record.waba_id === "string" ? record.waba_id : undefined,
@@ -146,14 +149,12 @@ export function WhatsAppSettingsForm({
       const origin = String(event.origin);
       if (!origin.endsWith("facebook.com") && !origin.endsWith("facebook.net")) return;
       const parsed = parseMetaSignupMessage(event.data);
-      if (process.env.NODE_ENV !== "production") {
-        console.info("Meta WhatsApp signup message", {
-          origin,
-          parsed: Boolean(parsed),
-          waba_id_present: Boolean(parsed?.waba_id || parsed?.business_id || parsed?.businessId),
-          phone_number_id_present: Boolean(parsed?.phone_number_id),
-        });
-      }
+      console.info("Meta WhatsApp signup message", {
+        origin,
+        parsed: Boolean(parsed),
+        waba_id_present: Boolean(parsed?.waba_id || parsed?.business_id || parsed?.businessId),
+        phone_number_id_present: Boolean(parsed?.phone_number_id),
+      });
       if (!parsed || !hasSignupAssets(parsed)) return;
       signupDataRef.current = { ...signupDataRef.current, ...parsed };
       signupWaitersRef.current.splice(0).forEach((resolve) => resolve(signupDataRef.current));
@@ -168,7 +169,7 @@ export function WhatsAppSettingsForm({
       const timeout = window.setTimeout(() => {
         signupWaitersRef.current = signupWaitersRef.current.filter((waiter) => waiter !== resolve);
         resolve(signupDataRef.current);
-      }, 5000);
+      }, 20000);
       signupWaitersRef.current.push((data) => {
         window.clearTimeout(timeout);
         resolve(data);
@@ -230,19 +231,22 @@ export function WhatsAppSettingsForm({
           try {
             const code = response.authResponse?.code;
             const accessToken = response.authResponse?.accessToken;
-            if (process.env.NODE_ENV !== "production") {
-              console.info("Meta WhatsApp login callback", {
-                status: response.status,
-                code_present: Boolean(code),
-                sdk_access_token_present: Boolean(accessToken),
-              });
-            }
+            console.info("Meta WhatsApp login callback", {
+              status: response.status,
+              code_present: Boolean(code),
+              sdk_access_token_present: Boolean(accessToken),
+            });
             if (!code && !accessToken) {
               setMessage("Meta signup was cancelled or did not return an authorization code.");
               setConnecting(false);
               return;
             }
             const signupData = await waitForSignupAssets();
+            if (!hasSignupAssets(signupData)) {
+              throw new Error(
+                "Meta returned an authorization code, but did not send WhatsApp session info. Check the Meta configuration, allowed domains, and Embedded Signup sessionInfoVersion.",
+              );
+            }
             const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
             const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
               method: "POST",

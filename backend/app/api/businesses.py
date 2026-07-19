@@ -1001,14 +1001,13 @@ async def _resolve_whatsapp_assets(
                     resolved["display_phone_number"] = str(data.get("display_phone_number") or "")
 
         if not resolved["business_account_id"] or not resolved["phone_number_id"]:
-            discovered = await _discover_whatsapp_assets(
-                client=client,
-                settings=settings,
-                access_token=access_token,
-                preferred_phone_number=preferred_phone_number,
+            logger.warning(
+                "whatsapp_embedded_signup_missing_session_assets",
+                business_account_id_present=bool(resolved["business_account_id"]),
+                phone_number_id_present=bool(resolved["phone_number_id"]),
+                display_phone_number_present=bool(resolved["display_phone_number"]),
+                preferred_phone_number_present=bool(preferred_phone_number),
             )
-            for key, value in discovered.items():
-                resolved[key] = resolved[key] or value
 
     return resolved
 
