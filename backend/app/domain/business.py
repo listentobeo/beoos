@@ -32,7 +32,11 @@ class BusinessWhatsAppSettings(BaseModel):
     business_account_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
     connected_via: str = Field(default="manual", max_length=40)
+    connection_mode: str = Field(default="unknown", max_length=40)
+    connection_status: str = Field(default="not_connected", max_length=40)
     connected_at: str = Field(default="", max_length=80)
+    last_error_code: str = Field(default="", max_length=120)
+    last_error_message: str = Field(default="", max_length=500)
     token_configured: bool = False
 
 
@@ -53,6 +57,10 @@ def normalized_whatsapp_settings(settings: dict[str, Any] | None) -> BusinessWha
         raw_settings = {}
     normalized = BusinessWhatsAppSettings.model_validate(raw_settings)
     normalized.token_configured = bool(raw_settings.get("access_token_encrypted"))
+    if normalized.connected_via == "embedded_signup" and normalized.connection_mode == "unknown":
+        normalized.connection_mode = "cloud_api_only"
+    if normalized.enabled and normalized.connection_status == "not_connected":
+        normalized.connection_status = "connected"
     return normalized
 
 

@@ -9,6 +9,8 @@ const inputClass = "w-full rounded-xl border bg-white px-3 py-2 text-sm outline-
 const API_URL = "/api/beoos";
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
+type WhatsAppConnectionMode = "coexistence" | "cloud_api_only";
+
 type WhatsAppSignupData = {
   waba_id?: string;
   phone_number_id?: string;
@@ -17,11 +19,24 @@ type WhatsAppSignupData = {
   businessId?: string;
 };
 
-type EmbeddedConfig = {
+type SignupAttempt = {
+  attempt_id: string;
+  state: string;
   app_id: string;
   config_id: string;
   graph_version: string;
+  connection_mode: WhatsAppConnectionMode;
   enabled: boolean;
+  coexistence_enabled: boolean;
+};
+
+type WhatsAppConnectionTestResult = {
+  success: boolean;
+  calls_made: string[];
+  business_management_checked: boolean;
+  whatsapp_business_management_checked: boolean;
+  phone_numbers_found: number;
+  errors: string[];
 };
 
 function hasSignupAssets(data: WhatsAppSignupData) {
@@ -131,7 +146,9 @@ export function WhatsAppSettingsForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [connectingMode, setConnectingMode] = useState<WhatsAppConnectionMode | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<WhatsAppConnectionTestResult | null>(null);
   const signupDataRef = useRef<WhatsAppSignupData>({});
   const signupWaitersRef = useRef<Array<(data: WhatsAppSignupData) => void>>([]);
 
@@ -198,20 +215,30 @@ export function WhatsAppSettingsForm({
     });
   }, []);
 
-  async function connectWithMeta() {
+  async function createSignupAttempt(mode: WhatsAppConnectionMode, redirectUri: string) {
+    const response = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/signup-attempt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connection_mode: mode, redirect_uri: redirectUri }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(formatApiError(error, `Meta signup is not configured (${response.status}).`));
+    }
+    return response.json() as Promise<SignupAttempt>;
+  }
+
+  async function connectWithMeta(mode: WhatsAppConnectionMode) {
     setMessage(null);
-    setConnecting(true);
+    setConnectingMode(mode);
     signupDataRef.current = {};
     try {
       const redirectUri = window.location.href.split("#")[0];
-      const configResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-config`, {
-      });
-      if (!configResponse.ok) throw new Error("Embedded Signup is not configured on the backend.");
-      const config = await configResponse.json() as EmbeddedConfig;
-      if (!config.enabled) throw new Error("Add META_APP_ID, META_APP_SECRET, and META_WHATSAPP_CONFIG_ID on Railway.");
-      if (!config.app_id || !config.config_id) throw new Error("Meta app ID or WhatsApp configuration ID is missing on Railway.");
+      const attempt = await createSignupAttempt(mode, redirectUri);
+      if (!attempt.enabled) throw new Error("Meta WhatsApp signup is not enabled for this connection mode.");
+      if (!attempt.app_id || !attempt.config_id) throw new Error("Meta app ID or WhatsApp configuration ID is missing on Railway.");
 
-      await loadFacebookSdk(config.app_id, config.graph_version || "v20.0");
+      await loadFacebookSdk(attempt.app_id, attempt.graph_version || "v20.0");
       window.FB?.login((response) => {
         void (async () => {
           try {
@@ -219,17 +246,18 @@ export function WhatsAppSettingsForm({
             const accessToken = response.authResponse?.accessToken;
             if (!code && !accessToken) {
               setMessage("Meta signup was cancelled or did not return an access token.");
-              setConnecting(false);
+              setConnectingMode(null);
               return;
             }
             const signupData = await waitForSignupAssets();
             const wabaId = signupData.waba_id ?? signupData.business_id ?? signupData.businessId ?? "";
             const finalizeResponse = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/embedded-signup`, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
+                attempt_id: attempt.attempt_id,
+                state: attempt.state,
+                connection_mode: attempt.connection_mode,
                 code,
                 access_token: accessToken ?? "",
                 waba_id: wabaId,
@@ -243,26 +271,28 @@ export function WhatsAppSettingsForm({
               const error = await finalizeResponse.json().catch(() => null);
               throw new Error(formatApiError(error, `Meta connection failed (${finalizeResponse.status}).`));
             }
-            setMessage("WhatsApp connected through Meta Embedded Signup.");
-            setConnecting(false);
+            const label = mode === "coexistence" ? "WhatsApp Business app coexistence" : "dedicated Cloud API number";
+            setMessage(`WhatsApp connected through ${label}.`);
+            setConnectingMode(null);
             router.refresh();
           } catch (error) {
             setMessage(error instanceof Error ? error.message : "Meta connection failed.");
-            setConnecting(false);
+            setConnectingMode(null);
           }
         })();
       }, {
-        config_id: config.config_id,
+        config_id: attempt.config_id,
         redirect_uri: redirectUri,
+        state: attempt.state,
         extras: {
           setup: {},
-          featureType: "whatsapp_business_app_onboarding",
+          featureType: mode === "coexistence" ? "whatsapp_business_app_onboarding" : undefined,
           sessionInfoVersion: "3",
         },
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Meta connection failed.");
-      setConnecting(false);
+      setConnectingMode(null);
     }
   }
 
@@ -275,15 +305,17 @@ export function WhatsAppSettingsForm({
       business_account_id: String(formData.get("business_account_id") ?? "").trim(),
       display_phone_number: String(formData.get("display_phone_number") ?? "").trim(),
       connected_via: settings.connected_via,
+      connection_mode: settings.connection_mode,
+      connection_status: settings.connection_status,
       connected_at: settings.connected_at,
+      last_error_code: settings.last_error_code,
+      last_error_message: settings.last_error_message,
       token_configured: settings.token_configured,
     };
     try {
       const response = await fetch(`${API_URL}/businesses/${businessId}/whatsapp`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error(`Save failed (${response.status}).`);
@@ -296,57 +328,147 @@ export function WhatsAppSettingsForm({
     }
   }
 
+
+  async function testConnection() {
+    setTestingConnection(true);
+    setTestResult(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/test-connection`, {
+        method: "POST",
+      });
+      const result = await response.json().catch(() => null) as
+        | WhatsAppConnectionTestResult
+        | { detail?: string }
+        | null;
+      if (!response.ok) {
+        const detail = result && "detail" in result ? result.detail : "";
+        throw new Error(detail || `Meta API test failed (${response.status}).`);
+      }
+      const connectionResult = result as WhatsAppConnectionTestResult;
+      setTestResult(connectionResult);
+      setMessage(
+        connectionResult.success
+          ? "Meta API test completed successfully."
+          : "Meta API test completed with warnings.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Meta API test failed.");
+    } finally {
+      setTestingConnection(false);
+    }
+  }
+  const statusLabel = settings.connection_status || (settings.enabled ? "connected" : "not connected");
+  const modeLabel = settings.connection_mode === "coexistence"
+    ? "WhatsApp Business app coexistence"
+    : settings.connection_mode === "cloud_api_only"
+      ? "Dedicated Cloud API number"
+      : settings.connected_via === "embedded_signup"
+        ? "Embedded Signup legacy connection"
+        : "Manual setup";
+
   return (
     <div className="mt-5 grid gap-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="font-semibold">Connect customer-owned WhatsApp</h3>
-            <p className="mt-1 text-sm text-[#777c76]">
-              Recommended for SaaS tenants. The customer logs into Meta and connects their own WABA/phone number to this business only.
-            </p>
-            <p className="mt-2 text-xs text-[#777c76]">
-              Status: {settings.connected_via === "embedded_signup" ? "Connected with Meta Embedded Signup" : "Manual setup"}
-              {settings.token_configured ? " · tenant token saved" : ""}
-            </p>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="rounded-2xl border border-[#ed633f]/25 bg-[#fff8f5] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed633f]">Recommended</div>
+              <h3 className="mt-1 font-semibold">Keep WhatsApp on my phone</h3>
+              <p className="mt-1 text-sm text-[#777c76]">
+                Connect the number already used in WhatsApp Business. Keep using calls, Status, and manual replies while BeoOS receives messages and prepares AI drafts.
+              </p>
+            </div>
+            <Button type="button" onClick={() => connectWithMeta("coexistence")} disabled={Boolean(connectingMode)} size="sm">
+              {connectingMode === "coexistence" ? "Connecting..." : "Connect coexistence"}
+            </Button>
           </div>
-          <Button type="button" onClick={connectWithMeta} disabled={connecting} size="sm">
-            {connecting ? "Connecting..." : "Connect with Meta"}
-          </Button>
+          <ul className="mt-4 grid gap-2 text-xs text-[#777c76]">
+            <li>• Number must be active in the official WhatsApp Business app.</li>
+            <li>• You need admin access to the Meta business portfolio.</li>
+            <li>• Do not delete WhatsApp or deregister the number.</li>
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="font-semibold">Use a dedicated API number</h3>
+              <p className="mt-1 text-sm text-[#777c76]">
+                Connect a separate number managed by BeoOS and WhatsApp Cloud API. Use this when the business does not need the same number on the phone app.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={() => connectWithMeta("cloud_api_only")} disabled={Boolean(connectingMode)} size="sm">
+              {connectingMode === "cloud_api_only" ? "Connecting..." : "Connect API number"}
+            </Button>
+          </div>
         </div>
       </div>
 
+      <div className="rounded-2xl border bg-white p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-semibold">Current WhatsApp connection</h3>
+            <p className="mt-1 text-[#777c76]">{modeLabel} · {statusLabel}{settings.token_configured ? " · tenant token saved" : ""}</p>
+          </div>
+          {settings.last_error_message && <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">Needs attention</span>}
+        </div>
+        {settings.last_error_message && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{settings.last_error_message}</p>}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" onClick={testConnection} disabled={testingConnection} size="sm">
+            {testingConnection ? "Testing..." : "Run Meta API test"}
+          </Button>
+          <p className="text-xs text-[#777c76]">
+            Use this after connection to trigger Meta app review test calls.
+          </p>
+        </div>
+        {testResult && (
+          <div className="mt-3 rounded-xl bg-[#f7f6f2] p-3 text-xs leading-5 text-[#646a64]">
+            <p className="font-semibold text-[#262a31]">
+              Calls made: {testResult.calls_made.join(", ") || "none"}
+            </p>
+            <p>Business management: {testResult.business_management_checked ? "passed" : "not confirmed"}</p>
+            <p>WhatsApp management: {testResult.whatsapp_business_management_checked ? "passed" : "not confirmed"}</p>
+            <p>Phone numbers found: {testResult.phone_numbers_found}</p>
+            {testResult.errors.length > 0 && (
+              <p className="mt-1 text-red-700">{testResult.errors.join(" ")}</p>
+            )}
+          </div>
+        )}
+      </div>
+
       <form action={save} className="grid gap-3">
-      <label className="flex items-start gap-3 rounded-xl bg-[#f7f6f2] p-3 text-sm">
-        <input name="enabled" type="checkbox" defaultChecked={settings.enabled} className="mt-1" />
-        <span>
-          <span className="block font-semibold">Enable WhatsApp Cloud API for this business</span>
-          <span className="text-[#777c76]">Inbound webhooks will create inbox threads for this tenant.</span>
-        </span>
-      </label>
-      <label className="text-xs font-semibold text-[#646a64]">
-        Meta phone number ID
-        <input className={`${inputClass} mt-1.5`} name="phone_number_id" defaultValue={settings.phone_number_id} placeholder="e.g. 123456789012345" />
-      </label>
-      <label className="text-xs font-semibold text-[#646a64]">
-        WhatsApp Business Account ID
-        <input className={`${inputClass} mt-1.5`} name="business_account_id" defaultValue={settings.business_account_id} placeholder="Optional but useful for audits" />
-      </label>
-      <label className="text-xs font-semibold text-[#646a64]">
-        Display phone number
-        <input className={`${inputClass} mt-1.5`} name="display_phone_number" defaultValue={settings.display_phone_number} placeholder="+234..." />
-      </label>
-      <div className="rounded-xl border border-dashed bg-white p-3 text-xs leading-5 text-[#777c76]">
-        Webhook callback:
-        <code className="mt-1 block break-all rounded-lg bg-[#f7f6f2] p-2 text-[#262a31]">
-          {PUBLIC_API_URL.replace(/\/api\/v1$/, "")}/api/v1/webhooks/whatsapp
-        </code>
-      </div>
-      <div className="flex items-center gap-3">
-        <Button type="submit" disabled={saving} size="sm">{saving ? "Saving..." : "Save WhatsApp settings"}</Button>
-        {message && <p className="text-xs text-[#747973]">{message}</p>}
-      </div>
+        <label className="flex items-start gap-3 rounded-xl bg-[#f7f6f2] p-3 text-sm">
+          <input name="enabled" type="checkbox" defaultChecked={settings.enabled} className="mt-1" />
+          <span>
+            <span className="block font-semibold">Enable WhatsApp Cloud API for this business</span>
+            <span className="text-[#777c76]">Inbound webhooks will create inbox threads for this tenant.</span>
+          </span>
+        </label>
+        <label className="text-xs font-semibold text-[#646a64]">
+          Meta phone number ID
+          <input className={`${inputClass} mt-1.5`} name="phone_number_id" defaultValue={settings.phone_number_id} placeholder="e.g. 123456789012345" />
+        </label>
+        <label className="text-xs font-semibold text-[#646a64]">
+          WhatsApp Business Account ID
+          <input className={`${inputClass} mt-1.5`} name="business_account_id" defaultValue={settings.business_account_id} placeholder="Optional but useful for audits" />
+        </label>
+        <label className="text-xs font-semibold text-[#646a64]">
+          Display phone number
+          <input className={`${inputClass} mt-1.5`} name="display_phone_number" defaultValue={settings.display_phone_number} placeholder="+234..." />
+        </label>
+        <div className="rounded-xl border border-dashed bg-white p-3 text-xs leading-5 text-[#777c76]">
+          Webhook callback:
+          <code className="mt-1 block break-all rounded-lg bg-[#f7f6f2] p-2 text-[#262a31]">
+            {PUBLIC_API_URL.replace(/\/api\/v1$/, "")}/api/v1/webhooks/whatsapp
+          </code>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={saving} size="sm">{saving ? "Saving..." : "Save WhatsApp settings"}</Button>
+          {message && <p className="text-xs text-[#747973]">{message}</p>}
+        </div>
       </form>
     </div>
   );
 }
+

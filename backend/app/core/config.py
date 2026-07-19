@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     meta_app_secret: str = ""
     meta_app_id: str = ""
     meta_whatsapp_config_id: str = ""
+    meta_whatsapp_coexistence_config_id: str = ""
+    meta_whatsapp_cloud_config_id: str = ""
+    whatsapp_coexistence_enabled: bool = True
     whatsapp_verify_token: str = ""
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""

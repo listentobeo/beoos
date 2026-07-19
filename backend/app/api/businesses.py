@@ -1,5 +1,6 @@
-﻿from datetime import UTC, datetime, timedelta
-from typing import Any
+import secrets
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 from uuid import UUID
 
 import httpx
@@ -36,6 +37,10 @@ from app.infrastructure.models import (
     Role,
     ThreadCategory,
     ThreadStatus,
+    WhatsAppConnection,
+    WhatsAppConnectionMode,
+    WhatsAppConnectionStatus,
+    WhatsAppSignupAttempt,
 )
 from app.services.crypto import SecretCipher
 
@@ -78,9 +83,31 @@ class WhatsAppEmbeddedConfig(BaseModel):
     config_id: str
     graph_version: str
     enabled: bool
+    connection_mode: str
+    coexistence_enabled: bool
+    recommended: bool = False
+
+
+class WhatsAppSignupAttemptPayload(BaseModel):
+    connection_mode: Literal["coexistence", "cloud_api_only"] = "coexistence"
+    redirect_uri: str = Field(default="", max_length=2000)
+
+
+class WhatsAppSignupAttemptView(BaseModel):
+    attempt_id: str
+    state: str
+    app_id: str
+    config_id: str
+    graph_version: str
+    connection_mode: str
+    enabled: bool
+    coexistence_enabled: bool
 
 
 class WhatsAppEmbeddedSignupPayload(BaseModel):
+    attempt_id: str = Field(default="", max_length=80)
+    state: str = Field(default="", max_length=180)
+    connection_mode: Literal["coexistence", "cloud_api_only", "unknown"] = "unknown"
     code: str = Field(default="", max_length=2048)
     access_token: str = Field(default="", max_length=20000)
     waba_id: str = Field(default="", max_length=120)
@@ -97,7 +124,17 @@ class WhatsAppEmbeddedSignupResult(BaseModel):
     business_account_id: str
     display_phone_number: str
     connected_via: str
+    connection_mode: str
+    connection_status: str
 
+
+class WhatsAppConnectionTestResult(BaseModel):
+    success: bool
+    calls_made: list[str]
+    business_management_checked: bool = False
+    whatsapp_business_management_checked: bool = False
+    phone_numbers_found: int = 0
+    errors: list[str] = Field(default_factory=list)
 
 class DashboardSummary(BaseModel):
     business: BusinessView
@@ -327,9 +364,34 @@ async def update_business_whatsapp(
     for secret_field in ("access_token_encrypted", "token_expires_at", "meta_payload"):
         if current_whatsapp.get(secret_field):
             next_whatsapp[secret_field] = current_whatsapp[secret_field]
+
+    preserved_status_fields = (
+        "connected_via",
+        "connected_at",
+        "connection_mode",
+        "connection_status",
+        "last_error_code",
+        "last_error_message",
+    )
+    for status_field in preserved_status_fields:
+        if current_whatsapp.get(status_field) and not next_whatsapp.get(status_field):
+            next_whatsapp[status_field] = current_whatsapp[status_field]
+    if current_whatsapp.get("connection_mode") and next_whatsapp.get("connection_mode") in (
+        "",
+        "unknown",
+    ):
+        next_whatsapp["connection_mode"] = current_whatsapp["connection_mode"]
+    if current_whatsapp.get("connection_status") and next_whatsapp.get("connection_status") in (
+        "",
+        "not_connected",
+    ):
+        next_whatsapp["connection_status"] = current_whatsapp["connection_status"]
     if current_whatsapp.get("connected_via") == "embedded_signup":
         next_whatsapp["connected_via"] = current_whatsapp["connected_via"]
-        next_whatsapp["connected_at"] = current_whatsapp.get("connected_at", payload.connected_at)
+        next_whatsapp["connected_at"] = current_whatsapp.get(
+            "connected_at",
+            payload.connected_at,
+        )
     settings["whatsapp"] = next_whatsapp
     business.settings = settings
     await session.commit()
@@ -348,22 +410,187 @@ async def update_business_whatsapp(
     )
 
 
+@router.post("/{business_id}/whatsapp/test-connection", response_model=WhatsAppConnectionTestResult)
+async def test_whatsapp_connection(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> WhatsAppConnectionTestResult:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    settings_blob = dict(business.settings or {})
+    whatsapp = settings_blob.get("whatsapp")
+    if not isinstance(whatsapp, dict):
+        whatsapp = {}
+
+    connection = await session.scalar(
+        select(WhatsAppConnection).where(WhatsAppConnection.business_id == business.id)
+    )
+    encrypted_token = ""
+    if connection and connection.access_token_encrypted:
+        encrypted_token = connection.access_token_encrypted
+    elif whatsapp.get("access_token_encrypted"):
+        encrypted_token = str(whatsapp["access_token_encrypted"])
+    if not encrypted_token:
+        raise HTTPException(status_code=409, detail="No tenant WhatsApp access token is stored")
+
+    cipher = SecretCipher(settings.secret_encryption_key)
+    try:
+        access_token = cipher.decrypt(encrypted_token)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Stored WhatsApp token cannot be decrypted",
+        ) from exc
+
+    calls_made: list[str] = []
+    errors: list[str] = []
+    business_management_checked = False
+    whatsapp_business_management_checked = False
+    phone_numbers_found = 0
+    base_url = settings.whatsapp_graph_base_url.rstrip("/")
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        profile_response = await client.get(
+            f"{base_url}/me",
+            headers=headers,
+            params={"fields": "id,name"},
+        )
+        calls_made.append("GET /me")
+        if not profile_response.is_success:
+            errors.append(f"public_profile check failed: {profile_response.text[:200]}")
+
+        businesses_response = await client.get(
+            f"{base_url}/me/businesses",
+            headers=headers,
+            params={"fields": "id,name", "limit": 25},
+        )
+        calls_made.append("GET /me/businesses")
+        business_management_checked = businesses_response.is_success
+        if not businesses_response.is_success:
+            errors.append(f"business_management check failed: {businesses_response.text[:200]}")
+
+        waba_id = ""
+        if connection and connection.waba_id:
+            waba_id = connection.waba_id
+        elif whatsapp.get("business_account_id"):
+            waba_id = str(whatsapp["business_account_id"])
+        if waba_id:
+            phone_response = await client.get(
+                f"{base_url}/{waba_id}/phone_numbers",
+                headers=headers,
+                params={"fields": "id,display_phone_number,verified_name", "limit": 25},
+            )
+            calls_made.append("GET /{waba_id}/phone_numbers")
+            whatsapp_business_management_checked = phone_response.is_success
+            if phone_response.is_success:
+                data = phone_response.json()
+                phone_numbers = data.get("data") if isinstance(data, dict) else []
+                phone_numbers_found = len(phone_numbers) if isinstance(phone_numbers, list) else 0
+            else:
+                errors.append(
+                    f"whatsapp_business_management check failed: {phone_response.text[:200]}"
+                )
+        else:
+            errors.append("No WABA ID stored yet; finish Embedded Signup first.")
+
+    if connection:
+        connection.last_error_code = None if not errors else "connection_test_failed"
+        connection.last_error_message = None if not errors else "; ".join(errors)[:1000]
+        await session.commit()
+
+    return WhatsAppConnectionTestResult(
+        success=not errors,
+        calls_made=calls_made,
+        business_management_checked=business_management_checked,
+        whatsapp_business_management_checked=whatsapp_business_management_checked,
+        phone_numbers_found=phone_numbers_found,
+        errors=errors,
+    )
+
 @router.get("/{business_id}/whatsapp/embedded-config", response_model=WhatsAppEmbeddedConfig)
 async def whatsapp_embedded_config(
     business_id: UUID,
     _access: BusinessAccess = Depends(require_admin),
     settings: Settings = Depends(get_settings),
+    mode: Literal["coexistence", "cloud_api_only"] = "coexistence",
 ) -> WhatsAppEmbeddedConfig:
     del business_id
+    config_id = _whatsapp_config_id_for_mode(settings, mode)
     return WhatsAppEmbeddedConfig(
         app_id=settings.meta_app_id,
-        config_id=settings.meta_whatsapp_config_id,
+        config_id=config_id,
         graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v20.0",
         enabled=bool(
             settings.meta_app_id
-            and settings.meta_whatsapp_config_id
+            and config_id
             and settings.meta_app_secret
+            and (mode != "coexistence" or settings.whatsapp_coexistence_enabled)
         ),
+        connection_mode=mode,
+        coexistence_enabled=settings.whatsapp_coexistence_enabled,
+        recommended=mode == "coexistence",
+    )
+
+
+@router.post("/{business_id}/whatsapp/signup-attempt", response_model=WhatsAppSignupAttemptView)
+async def create_whatsapp_signup_attempt(
+    business_id: UUID,
+    payload: WhatsAppSignupAttemptPayload,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> WhatsAppSignupAttemptView:
+    business = await session.get(Business, business_id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    config_id = _whatsapp_config_id_for_mode(settings, payload.connection_mode)
+    enabled = bool(
+        settings.meta_app_id
+        and settings.meta_app_secret
+        and config_id
+        and (
+            payload.connection_mode != "coexistence"
+            or settings.whatsapp_coexistence_enabled
+        )
+    )
+    if not enabled:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Meta WhatsApp signup is not configured for this connection mode. "
+                "Check META_APP_ID, META_APP_SECRET, and the matching Meta WhatsApp config ID."
+            ),
+        )
+
+    attempt = WhatsAppSignupAttempt(
+        business_id=business.id,
+        clerk_user_id=access.user_id,
+        state=secrets.token_urlsafe(48),
+        connection_mode=WhatsAppConnectionMode(payload.connection_mode),
+        status=WhatsAppConnectionStatus.signup_started,
+        config_id=config_id,
+        redirect_uri=payload.redirect_uri,
+        expires_at=datetime.now(UTC) + timedelta(minutes=20),
+        meta_payload={},
+    )
+    session.add(attempt)
+    await session.commit()
+
+    return WhatsAppSignupAttemptView(
+        attempt_id=str(attempt.id),
+        state=attempt.state,
+        app_id=settings.meta_app_id,
+        config_id=config_id,
+        graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v20.0",
+        connection_mode=payload.connection_mode,
+        enabled=enabled,
+        coexistence_enabled=settings.whatsapp_coexistence_enabled,
     )
 
 
@@ -380,6 +607,35 @@ async def complete_whatsapp_embedded_signup(
         raise HTTPException(status_code=404, detail="Business not found")
     if not settings.meta_app_id or not settings.meta_app_secret:
         raise HTTPException(status_code=409, detail="Meta app credentials are not configured")
+
+    attempt: WhatsAppSignupAttempt | None = None
+    connection_mode = payload.connection_mode
+    if payload.attempt_id or payload.state:
+        attempt_conditions = [WhatsAppSignupAttempt.business_id == business.id]
+        if payload.attempt_id:
+            attempt_conditions.append(WhatsAppSignupAttempt.id == UUID(payload.attempt_id))
+        if payload.state:
+            attempt_conditions.append(WhatsAppSignupAttempt.state == payload.state)
+        attempt = await session.scalar(select(WhatsAppSignupAttempt).where(*attempt_conditions))
+        if attempt is None:
+            raise HTTPException(status_code=403, detail="WhatsApp signup attempt is invalid")
+        if attempt.clerk_user_id != access.user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="WhatsApp signup attempt belongs to another user",
+            )
+        if attempt.expires_at < datetime.now(UTC):
+            attempt.status = WhatsAppConnectionStatus.failed
+            attempt.last_error_code = "signup_attempt_expired"
+            attempt.last_error_message = "The WhatsApp signup attempt expired before completion."
+            await session.commit()
+            raise HTTPException(
+                status_code=409,
+                detail="WhatsApp signup attempt expired. Please try again.",
+            )
+        connection_mode = attempt.connection_mode.value
+        attempt.status = WhatsAppConnectionStatus.authorization_received
+        attempt.meta_payload = payload.meta_payload
 
     if payload.code:
         try:
@@ -398,6 +654,13 @@ async def complete_whatsapp_embedded_signup(
             try:
                 token_response = await _exchange_meta_access_token(settings, payload.access_token)
             except HTTPException as token_error:
+                if attempt:
+                    _mark_whatsapp_attempt_failed(
+                        attempt,
+                        "token_exchange_failed",
+                        str(token_error.detail),
+                    )
+                    await session.commit()
                 raise code_error from token_error
     elif payload.access_token:
         logger.info("meta_embedded_signup_using_sdk_token", business_id=str(business.id))
@@ -407,6 +670,13 @@ async def complete_whatsapp_embedded_signup(
     access_token = str(token_response.get("access_token") or "")
     if not access_token:
         logger.warning("whatsapp_embedded_signup_missing_token", business_id=str(business.id))
+        if attempt:
+            _mark_whatsapp_attempt_failed(
+                attempt,
+                "missing_token",
+                "Meta did not return an access token",
+            )
+            await session.commit()
         raise HTTPException(status_code=400, detail="Meta did not return an access token")
 
     resolved = await _resolve_whatsapp_assets(
@@ -424,6 +694,14 @@ async def complete_whatsapp_embedded_signup(
             payload=payload.model_dump(exclude={"code", "access_token"}),
             resolved=resolved,
         )
+        if attempt:
+            _mark_whatsapp_attempt_failed(
+                attempt,
+                "missing_whatsapp_assets",
+                "Meta login worked, but BeoOS could not read the WhatsApp Business Account "
+                "and phone number.",
+            )
+            await session.commit()
         raise HTTPException(
             status_code=400,
             detail=(
@@ -450,6 +728,8 @@ async def complete_whatsapp_embedded_signup(
             "business_account_id": resolved["business_account_id"],
             "display_phone_number": resolved["display_phone_number"],
             "connected_via": "embedded_signup",
+            "connection_mode": connection_mode,
+            "connection_status": "connected",
             "connected_at": datetime.now(UTC).isoformat(),
             "access_token_encrypted": cipher.encrypt(access_token),
             "token_expires_at": token_expires_at,
@@ -460,6 +740,21 @@ async def complete_whatsapp_embedded_signup(
     business.settings = settings_blob
     if resolved["display_phone_number"]:
         business.whatsapp_number = resolved["display_phone_number"]
+
+    await _upsert_whatsapp_connection(
+        session=session,
+        business=business,
+        access_token_encrypted=current_whatsapp["access_token_encrypted"],
+        token_expires_at=token_expires_at,
+        connected_by_user_id=access.user_id,
+        connection_mode=connection_mode,
+        resolved=resolved,
+        meta_payload=payload.meta_payload,
+    )
+    if attempt:
+        attempt.status = WhatsAppConnectionStatus.connected
+        attempt.completed_at = datetime.now(UTC)
+        attempt.meta_payload = payload.meta_payload
 
     await session.commit()
     logger.info(
@@ -476,7 +771,76 @@ async def complete_whatsapp_embedded_signup(
         business_account_id=resolved["business_account_id"],
         display_phone_number=resolved["display_phone_number"],
         connected_via="embedded_signup",
+        connection_mode=connection_mode,
+        connection_status="connected",
     )
+
+
+def _whatsapp_config_id_for_mode(
+    settings: Settings,
+    mode: Literal["coexistence", "cloud_api_only"],
+) -> str:
+    if mode == "coexistence":
+        return settings.meta_whatsapp_coexistence_config_id or settings.meta_whatsapp_config_id
+    return settings.meta_whatsapp_cloud_config_id or settings.meta_whatsapp_config_id
+
+
+def _mark_whatsapp_attempt_failed(
+    attempt: WhatsAppSignupAttempt,
+    code: str,
+    message: str,
+) -> None:
+    attempt.status = WhatsAppConnectionStatus.failed
+    attempt.last_error_code = code
+    attempt.last_error_message = message[:1000]
+
+
+async def _upsert_whatsapp_connection(
+    *,
+    session: AsyncSession,
+    business: Business,
+    access_token_encrypted: str,
+    token_expires_at: str,
+    connected_by_user_id: str,
+    connection_mode: str,
+    resolved: dict[str, str],
+    meta_payload: dict[str, Any],
+) -> WhatsAppConnection:
+    connection = await session.scalar(
+        select(WhatsAppConnection).where(WhatsAppConnection.business_id == business.id)
+    )
+    expires_at: datetime | None = None
+    if token_expires_at:
+        try:
+            expires_at = datetime.fromisoformat(token_expires_at)
+        except ValueError:
+            expires_at = None
+    if connection is None:
+        connection = WhatsAppConnection(
+            business_id=business.id,
+            waba_id=resolved["business_account_id"],
+            phone_number_id=resolved["phone_number_id"],
+            access_token_encrypted=access_token_encrypted,
+            connected_by_user_id=connected_by_user_id,
+        )
+        session.add(connection)
+    connection.meta_business_id = str(meta_payload.get("business_id") or "") or None
+    connection.waba_id = resolved["business_account_id"]
+    connection.phone_number_id = resolved["phone_number_id"]
+    connection.display_phone_number = resolved["display_phone_number"] or None
+    connection.connection_mode = WhatsAppConnectionMode(connection_mode)
+    connection.connection_status = WhatsAppConnectionStatus.connected
+    connection.access_token_encrypted = access_token_encrypted
+    connection.token_expires_at = expires_at
+    connection.connected_by_user_id = connected_by_user_id
+    connection.connected_at = datetime.now(UTC)
+    connection.last_error_code = None
+    connection.last_error_message = None
+    connection.connection_metadata = {
+        "connected_via": "embedded_signup",
+        "meta_payload": meta_payload,
+    }
+    return connection
 
 
 async def _exchange_meta_code(
@@ -574,7 +938,10 @@ async def _resolve_whatsapp_assets(
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
         if resolved["business_account_id"]:
             response = await client.get(
-                f"{settings.whatsapp_graph_base_url.rstrip('/')}/{resolved['business_account_id']}/phone_numbers",
+                (
+                    f"{settings.whatsapp_graph_base_url.rstrip('/')}/"
+                    f"{resolved['business_account_id']}/phone_numbers"
+                ),
                 headers={"Authorization": f"Bearer {access_token}"},
                 params={"fields": "id,display_phone_number,verified_name"},
             )
@@ -988,3 +1355,12 @@ async def _push_status(
         enabled=exists is not None,
         vapid_public_key=settings.vapid_public_key,
     )
+
+
+
+
+
+
+
+
+

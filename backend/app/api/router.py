@@ -7,10 +7,12 @@ from app.api import (
     businesses,
     crm,
     email,
+    external_access,
     forms,
     google_integrations,
     integrations,
     marketing,
+    mcp,
     notifications,
     operator,
     prices,
@@ -24,10 +26,12 @@ api_router.include_router(analytics.router)
 api_router.include_router(businesses.router)
 api_router.include_router(crm.router)
 api_router.include_router(email.router)
+api_router.include_router(external_access.router)
 api_router.include_router(forms.router)
 api_router.include_router(google_integrations.router)
 api_router.include_router(integrations.router)
 api_router.include_router(marketing.router)
+api_router.include_router(mcp.router)
 api_router.include_router(notifications.router)
 api_router.include_router(operator.router)
 api_router.include_router(prices.router)

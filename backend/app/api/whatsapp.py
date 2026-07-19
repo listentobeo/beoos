@@ -25,6 +25,8 @@ from app.infrastructure.models import (
     EmailThread,
     MailboxConnection,
     ThreadStatus,
+    WhatsAppConnection,
+    WhatsAppConnectionStatus,
 )
 from app.services.approval_notifications import ApprovalNotificationService
 from app.services.contact_identity import normalize_phone_identity
@@ -249,6 +251,17 @@ async def _find_business_for_phone_number(
     phone_number_id: str,
     display_phone_number: str,
 ) -> Business | None:
+    if phone_number_id:
+        connection = await session.scalar(
+            select(WhatsAppConnection).where(
+                WhatsAppConnection.phone_number_id == phone_number_id,
+                WhatsAppConnection.connection_status == WhatsAppConnectionStatus.connected,
+            )
+        )
+        if connection:
+            connection.last_webhook_at = datetime.now(UTC)
+            return await session.get(Business, connection.business_id)
+
     businesses = (await session.scalars(select(Business))).all()
     display_digits = _digits(display_phone_number)
     for business in businesses:
@@ -533,7 +546,7 @@ async def _run_whatsapp_ai_intake(
             auto_send_eligible=False,
             policy_reasons=[
                 *decision.reasons,
-                "WhatsApp replies require approval in Module 1.6",
+                "WhatsApp replies require approval before sending",
             ],
         )
     )
@@ -553,3 +566,5 @@ def _synthetic_whatsapp_email(phone: str) -> str:
 def _whatsapp_link(number: str) -> str:
     digits = _digits(number)
     return f"https://wa.me/{digits}"
+
+

@@ -2,6 +2,7 @@
 import { AddBusinessForm } from "@/components/dashboard/add-business-form";
 import { BusinessProfileForm } from "@/components/dashboard/business-profile-form";
 import { DailyReportSettingsCard } from "@/components/dashboard/daily-report-settings";
+import { ExternalAccessCard } from "@/components/dashboard/external-access-card";
 import { GmailConnectButton } from "@/components/dashboard/gmail-connect-button";
 import { PolicySettingsForm } from "@/components/dashboard/policy-settings-form";
 import { PushNotificationSettings } from "@/components/dashboard/push-notification-settings";
@@ -203,6 +204,21 @@ export default async function SettingsPage() {
             />
           ) : (
             <p className="mt-5 text-sm text-amber-700">Daily business reports become available after your API deployment includes report support.</p>
+          )}
+        </Card>
+
+        <Card className="p-5 md:col-span-2">
+          <h2 className="font-bold">AI client access</h2>
+          <p className="mt-1 text-sm leading-6 text-[#777c76]">
+            Connect external AI tools to this tenant through BeoOS MCP. Start with read-only
+            access so agents can analyse your business without changing records.
+          </p>
+          {businessId ? (
+            <ExternalAccessCard businessId={businessId} />
+          ) : (
+            <p className="mt-5 text-sm text-amber-700">
+              Create a business workspace before generating external AI access tokens.
+            </p>
           )}
         </Card>
 

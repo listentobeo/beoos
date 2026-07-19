@@ -260,9 +260,12 @@ GOOGLE_PUBSUB_TOPIC=
 Used for inbound WhatsApp messages and approval-based replies.
 
 ```env
-META_APP_SECRET=
 META_APP_ID=
+META_APP_SECRET=
 META_WHATSAPP_CONFIG_ID=
+META_WHATSAPP_COEXISTENCE_CONFIG_ID=
+META_WHATSAPP_CLOUD_CONFIG_ID=
+WHATSAPP_COEXISTENCE_ENABLED=true
 WHATSAPP_VERIFY_TOKEN=
 WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
@@ -308,7 +311,7 @@ Meta setup required:
 
 - app has WhatsApp product added;
 - WhatsApp Embedded Signup configuration created in Meta;
-- `META_APP_ID`, `META_APP_SECRET`, and `META_WHATSAPP_CONFIG_ID` set on Railway;
+- `META_APP_ID`, `META_APP_SECRET`, and the correct WhatsApp configuration IDs set on Railway. Use `META_WHATSAPP_COEXISTENCE_CONFIG_ID` for “Keep WhatsApp on my phone”, `META_WHATSAPP_CLOUD_CONFIG_ID` for a dedicated API number, and keep `META_WHATSAPP_CONFIG_ID` only as a fallback;
 - the frontend reads the public Meta app/config values from the authenticated Railway API, so
   do not maintain a separate Vercel Meta app/config unless the code is intentionally changed;
 - app domains include the BeoOS frontend domain;
@@ -415,3 +418,4 @@ Each business stores:
 - Microsoft Clarity project ID;
 - content goals;
 - target locations.
+

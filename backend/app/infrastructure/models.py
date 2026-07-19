@@ -126,6 +126,31 @@ class FollowUpStatus(enum.StrEnum):
     failed = "failed"
 
 
+class WhatsAppConnectionMode(enum.StrEnum):
+    coexistence = "coexistence"
+    cloud_api_only = "cloud_api_only"
+    unknown = "unknown"
+
+
+class WhatsAppConnectionStatus(enum.StrEnum):
+    not_connected = "not_connected"
+    signup_started = "signup_started"
+    authorization_received = "authorization_received"
+    connecting = "connecting"
+    connected = "connected"
+    action_required = "action_required"
+    disconnected = "disconnected"
+    failed = "failed"
+
+
+class WhatsAppMessageSource(enum.StrEnum):
+    customer = "customer"
+    business_app = "business_app"
+    beoos_agent = "beoos_agent"
+    beoos_ai = "beoos_ai"
+    unknown = "unknown"
+
+
 class MarketingMetric(Base, TimestampMixin):
     __tablename__ = "marketing_metrics"
     __table_args__ = (
@@ -173,6 +198,110 @@ class BusinessMember(Base, TimestampMixin):
     business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
     clerk_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     role: Mapped[Role] = mapped_column(Enum(Role), default=Role.owner, nullable=False)
+
+
+class ExternalAPIToken(Base, TimestampMixin):
+    __tablename__ = "external_api_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash"),
+        Index("ix_external_api_tokens_business_active", "business_id", "revoked_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    token_prefix: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(96), nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    created_by_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class WhatsAppConnection(Base, TimestampMixin):
+    __tablename__ = "whatsapp_connections"
+    __table_args__ = (
+        UniqueConstraint("business_id"),
+        UniqueConstraint("phone_number_id"),
+        Index("ix_whatsapp_connections_waba_phone", "waba_id", "phone_number_id"),
+        Index("ix_whatsapp_connections_business_status", "business_id", "connection_status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    meta_business_id: Mapped[str | None] = mapped_column(String(120))
+    waba_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone_number_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    display_phone_number: Mapped[str | None] = mapped_column(String(40))
+    connection_mode: Mapped[WhatsAppConnectionMode] = mapped_column(
+        Enum(WhatsAppConnectionMode), default=WhatsAppConnectionMode.unknown, nullable=False
+    )
+    connection_status: Mapped[WhatsAppConnectionStatus] = mapped_column(
+        Enum(WhatsAppConnectionStatus),
+        default=WhatsAppConnectionStatus.not_connected,
+        nullable=False,
+    )
+    access_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    connected_by_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_history_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+    last_error_message: Mapped[str | None] = mapped_column(Text)
+    connection_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class WhatsAppSignupAttempt(Base, TimestampMixin):
+    __tablename__ = "whatsapp_signup_attempts"
+    __table_args__ = (
+        Index("ix_whatsapp_signup_business_status", "business_id", "status"),
+        Index("ix_whatsapp_signup_state", "state"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    clerk_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    state: Mapped[str] = mapped_column(String(160), unique=True, nullable=False)
+    connection_mode: Mapped[WhatsAppConnectionMode] = mapped_column(
+        Enum(WhatsAppConnectionMode), default=WhatsAppConnectionMode.unknown, nullable=False
+    )
+    status: Mapped[WhatsAppConnectionStatus] = mapped_column(
+        Enum(WhatsAppConnectionStatus),
+        default=WhatsAppConnectionStatus.signup_started,
+        nullable=False,
+    )
+    config_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    redirect_uri: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+    last_error_message: Mapped[str | None] = mapped_column(Text)
+    meta_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class WhatsAppWebhookEvent(Base, TimestampMixin):
+    __tablename__ = "whatsapp_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("event_key"),
+        Index("ix_whatsapp_events_business_created", "business_id", "created_at"),
+        Index("ix_whatsapp_events_phone", "phone_number_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("businesses.id"))
+    event_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    waba_id: Mapped[str | None] = mapped_column(String(120))
+    phone_number_id: Mapped[str | None] = mapped_column(String(120))
+    message_id: Mapped[str | None] = mapped_column(String(255))
+    message_source: Mapped[WhatsAppMessageSource] = mapped_column(
+        Enum(WhatsAppMessageSource), default=WhatsAppMessageSource.unknown, nullable=False
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_event: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
 
 class MailboxConnection(Base, TimestampMixin):
@@ -487,3 +616,4 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+

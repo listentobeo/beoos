@@ -1,4 +1,4 @@
-﻿import { auth } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { cache } from "react";
 
@@ -22,7 +22,11 @@ export type BusinessWhatsAppSettings = {
   business_account_id: string;
   display_phone_number: string;
   connected_via: string;
+  connection_mode: string;
+  connection_status: string;
   connected_at: string;
+  last_error_code: string;
+  last_error_message: string;
   token_configured: boolean;
 };
 
@@ -619,4 +623,5 @@ export async function activeBusiness(existingBusinesses?: Business[]) {
   const selectedId = (await cookies()).get("beoos_business_id")?.value;
   return businesses.find((business) => business.id === selectedId) ?? businesses[0] ?? null;
 }
+
 
