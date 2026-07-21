@@ -72,7 +72,7 @@ function parsePossiblyNestedMetaData(value: unknown): unknown {
 }
 
 function parseMetaSignupMessage(raw: unknown): WhatsAppSignupData | null {
-  let data = parsePossiblyNestedMetaData(raw);
+  const data = parsePossiblyNestedMetaData(raw);
   if (!data || typeof data !== "object") return null;
 
   const payload = data as {
@@ -111,13 +111,13 @@ function formatApiError(error: unknown, fallback: string) {
         if (!item || typeof item !== "object") return String(item);
         const field = item as { loc?: unknown; msg?: unknown; message?: unknown };
         const location = Array.isArray(field.loc) ? field.loc.join(".") : "";
-        const message =
+        const detailMessage =
           typeof field.msg === "string"
             ? field.msg
             : typeof field.message === "string"
               ? field.message
               : JSON.stringify(item);
-        return location ? `${location}: ${message}` : message;
+        return location ? `${location}: ${detailMessage}` : detailMessage;
       })
       .join("; ");
   }
@@ -323,86 +323,88 @@ export function WhatsAppSettingsForm({
       : "Not connected through Meta signup";
 
   return (
-    <div className="mt-5 grid gap-4">
-      <div className="rounded-3xl border border-[#ed633f]/25 bg-gradient-to-br from-[#fff8f5] to-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed633f]">Tenant-based WhatsApp setup</div>
-            <h3 className="mt-2 text-xl font-bold text-[#111827]">Connect WhatsApp through Meta</h3>
-            <p className="mt-2 text-sm leading-6 text-[#646a64]">
-              Each business authorizes its own WhatsApp Business Account through standard WhatsApp Embedded Signup. BeoOS stores an encrypted tenant token, routes messages to the correct business, and can make the API calls Meta requires for review.
-            </p>
-          </div>
-          <Button type="button" onClick={connectWithMeta} disabled={connecting} className="min-w-48">
-            {connecting ? "Opening Meta..." : hasTenantToken ? "Reconnect WhatsApp with Meta" : "Connect WhatsApp with Meta"}
-          </Button>
+    <div className="mt-5 rounded-3xl border border-[#eaded4] bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-2xl">
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed633f]">Standard embedded signup</div>
+          <h3 className="mt-2 text-xl font-bold text-[#111827]">Connect WhatsApp with Meta</h3>
+          <p className="mt-2 text-sm leading-6 text-[#646a64]">
+            Each business authorizes its own WhatsApp Business Account. BeoOS stores the tenant token securely and routes messages by phone number ID.
+          </p>
         </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <SetupStep title="1. Embedded Signup" text="Choose the business portfolio, WhatsApp Business Account, and phone number inside Meta." />
-          <SetupStep title="2. Tenant token" text="BeoOS encrypts and stores the access token for this business only. No manual shared token is needed." />
-          <SetupStep title="3. API review test" text="Run the test to trigger public profile, business management, and WhatsApp management API calls." />
-        </div>
+        <Button type="button" onClick={connectWithMeta} disabled={connecting} className="w-full sm:w-auto sm:min-w-52">
+          {connecting ? "Opening Meta..." : hasTenantToken ? "Reconnect WhatsApp" : "Connect WhatsApp"}
+        </Button>
       </div>
 
-      <div className="rounded-2xl border bg-white p-4 text-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <StatusTile label="Connection" value={statusLabel} detail={modeLabel} />
+        <StatusTile
+          label="Tenant token"
+          value={hasTenantToken ? "Saved" : "Missing"}
+          detail={hasTenantToken ? "Ready for Meta API tests." : "Connect with Meta first."}
+          tone={hasTenantToken ? "success" : "warning"}
+        />
+        <StatusTile label="Review mode" value="Standard signup" detail="Coexistence feature type is not used." />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-[#eaded4] bg-[#fffdfa] p-4 text-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold">Current WhatsApp connection</h3>
-            <p className="mt-1 text-[#777c76]">
-              {modeLabel} · {statusLabel} · {hasTenantToken ? "tenant token saved" : "tenant token missing"}
-            </p>
+            <p className="font-semibold text-[#262a31]">Meta review test</p>
+            <p className="mt-1 text-xs text-[#777c76]">Run this after signup to trigger the API calls Meta expects.</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${hasTenantToken ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-            {hasTenantToken ? "Ready for API test" : "Connect first"}
-          </span>
-        </div>
-
-        {!hasTenantToken && (
-          <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-            Old manual WhatsApp IDs may still exist, but Meta API testing needs a tenant access token. Complete the Meta signup above before running the test.
-          </p>
-        )}
-        {settings.last_error_message && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{settings.last_error_message}</p>}
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button type="button" variant="outline" onClick={testConnection} disabled={testingConnection || !hasTenantToken} size="sm">
             {testingConnection ? "Testing..." : "Run Meta API test"}
           </Button>
-          <p className="text-xs text-[#777c76]">Use this after connection to trigger Meta app review test calls.</p>
         </div>
 
         {testResult && (
-          <div className="mt-3 rounded-xl bg-[#f7f6f2] p-3 text-xs leading-5 text-[#646a64]">
-            <p className="font-semibold text-[#262a31]">Calls made: {testResult.calls_made.join(", ") || "none"}</p>
-            <p>Business management: {testResult.business_management_checked ? "passed" : "not confirmed"}</p>
-            <p>WhatsApp management: {testResult.whatsapp_business_management_checked ? "passed" : "not confirmed"}</p>
-            <p>Phone numbers found: {testResult.phone_numbers_found}</p>
-            {testResult.errors.length > 0 && <p className="mt-1 text-red-700">{testResult.errors.join(" ")}</p>}
+          <div className="mt-3 grid gap-2 text-xs text-[#646a64] sm:grid-cols-2">
+            <p className="rounded-xl bg-white p-3"><span className="font-semibold text-[#262a31]">Calls:</span> {testResult.calls_made.join(", ") || "none"}</p>
+            <p className="rounded-xl bg-white p-3"><span className="font-semibold text-[#262a31]">Phone numbers:</span> {testResult.phone_numbers_found}</p>
+            <p className="rounded-xl bg-white p-3"><span className="font-semibold text-[#262a31]">Business:</span> {testResult.business_management_checked ? "passed" : "not confirmed"}</p>
+            <p className="rounded-xl bg-white p-3"><span className="font-semibold text-[#262a31]">WhatsApp:</span> {testResult.whatsapp_business_management_checked ? "passed" : "not confirmed"}</p>
+            {testResult.errors.length > 0 && <p className="rounded-xl bg-red-50 p-3 text-red-700 sm:col-span-2">{testResult.errors.join(" ")}</p>}
           </div>
         )}
       </div>
 
-      <div className="rounded-2xl border border-dashed bg-white p-4 text-xs leading-5 text-[#777c76]">
-        <p className="font-semibold text-[#262a31]">Meta webhook callback</p>
+      {settings.last_error_message && <p className="mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">{settings.last_error_message}</p>}
+      {message && <p className="mt-4 rounded-xl bg-[#f7f6f2] p-3 text-xs text-[#747973]">{message}</p>}
+
+      <details className="mt-4 rounded-2xl border border-dashed bg-white p-4 text-xs leading-5 text-[#777c76]">
+        <summary className="cursor-pointer font-semibold text-[#262a31]">Webhook callback and review details</summary>
         <code className="mt-2 block break-all rounded-lg bg-[#f7f6f2] p-3 text-[#262a31]">
           {PUBLIC_API_URL.replace(/\/api\/v1$/, "")}/api/v1/webhooks/whatsapp
         </code>
         <p className="mt-2">
-          Use this callback in Meta Webhooks with the same verify token stored in Railway. Once a tenant finishes Meta signup, inbound messages are routed by phone number ID to the correct BeoOS business.
+          Use this callback in Meta Webhooks with the verify token stored in Railway. Inbound messages route to the correct BeoOS business by phone number ID.
         </p>
-      </div>
-
-      {message && <p className="rounded-xl bg-[#f7f6f2] p-3 text-xs text-[#747973]">{message}</p>}
+      </details>
     </div>
   );
 }
 
-function SetupStep({ title, text }: { title: string; text: string }) {
+function StatusTile({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "neutral" | "success" | "warning";
+}) {
+  const valueClass =
+    tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-[#262a31]";
+
   return (
-    <div className="rounded-2xl bg-white p-4 text-sm shadow-sm">
-      <p className="font-semibold text-[#111827]">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[#777c76]">{text}</p>
+    <div className="rounded-2xl bg-[#f7f6f2] p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8b8178]">{label}</p>
+      <p className={`mt-1 text-sm font-semibold ${valueClass}`}>{value}</p>
+      <p className="mt-1 text-xs leading-5 text-[#777c76]">{detail}</p>
     </div>
   );
 }

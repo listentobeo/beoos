@@ -80,7 +80,7 @@ export default async function SettingsPage() {
           </div>
         )}
 
-        <Card className="p-5 md:col-span-2">
+        <Card className="p-5">
           <h2 className="font-bold">Business profile</h2>
           <p className="mt-1 text-sm leading-6 text-[#777c76]">
             Edit the core details BeoOS uses for greetings, email matching, WhatsApp routing, timezone, and AI reply signatures.
@@ -130,7 +130,7 @@ export default async function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-5 md:col-span-2">
           <div className="flex items-start gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><MessageCircleMore className="size-4" /></div>
             <div>
