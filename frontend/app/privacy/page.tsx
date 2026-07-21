@@ -34,6 +34,12 @@ export default function PrivacyPage() {
             "Users can request deletion of account or business data by following the Data Deletion page instructions or contacting support.",
           ],
         },
+        {
+          heading: "Legal disclosures",
+          body: [
+            "BeoOS may disclose personal information where required by a valid law, court order, or lawful request from a competent public authority. We review requests for legality and scope, disclose only the minimum information legally required, and may challenge requests that appear unlawful or excessive where permitted by law.",
+          ],
+        },
       ]}
     />
   );

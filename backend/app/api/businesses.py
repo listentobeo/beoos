@@ -89,7 +89,7 @@ class WhatsAppEmbeddedConfig(BaseModel):
 
 
 class WhatsAppSignupAttemptPayload(BaseModel):
-    connection_mode: Literal["coexistence", "cloud_api_only"] = "coexistence"
+    connection_mode: Literal["coexistence", "cloud_api_only"] = "cloud_api_only"
     redirect_uri: str = Field(default="", max_length=2000)
 
 
@@ -517,7 +517,7 @@ async def whatsapp_embedded_config(
     business_id: UUID,
     _access: BusinessAccess = Depends(require_admin),
     settings: Settings = Depends(get_settings),
-    mode: Literal["coexistence", "cloud_api_only"] = "coexistence",
+    mode: Literal["coexistence", "cloud_api_only"] = "cloud_api_only",
 ) -> WhatsAppEmbeddedConfig:
     del business_id
     config_id = _whatsapp_config_id_for_mode(settings, mode)
@@ -533,7 +533,7 @@ async def whatsapp_embedded_config(
         ),
         connection_mode=mode,
         coexistence_enabled=settings.whatsapp_coexistence_enabled,
-        recommended=mode == "coexistence",
+        recommended=mode == "cloud_api_only",
     )
 
 
@@ -813,7 +813,7 @@ def _whatsapp_config_id_for_mode(
 ) -> str:
     if mode == "coexistence":
         return settings.meta_whatsapp_coexistence_config_id or settings.meta_whatsapp_config_id
-    return settings.meta_whatsapp_cloud_config_id or settings.meta_whatsapp_config_id
+    return settings.meta_whatsapp_config_id or settings.meta_whatsapp_cloud_config_id
 
 
 def _mark_whatsapp_attempt_failed(

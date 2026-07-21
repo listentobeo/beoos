@@ -9,6 +9,7 @@ const API_URL = "/api/beoos";
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 type WhatsAppConnectionMode = "coexistence" | "cloud_api_only";
+const REVIEW_CONNECTION_MODE: WhatsAppConnectionMode = "cloud_api_only";
 
 type WhatsAppSignupData = {
   waba_id?: string;
@@ -204,7 +205,7 @@ export function WhatsAppSettingsForm({
     const response = await fetch(`${API_URL}/businesses/${businessId}/whatsapp/signup-attempt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connection_mode: "coexistence", redirect_uri: redirectUri }),
+      body: JSON.stringify({ connection_mode: REVIEW_CONNECTION_MODE, redirect_uri: redirectUri }),
     });
     if (!response.ok) {
       const error = await response.json().catch(() => null);
@@ -222,8 +223,7 @@ export function WhatsAppSettingsForm({
       const redirectUri = window.location.href.split("#")[0];
       const attempt = await createSignupAttempt(redirectUri);
       if (!attempt.enabled) throw new Error("Meta WhatsApp signup is not enabled.");
-      if (!attempt.coexistence_enabled) throw new Error("WhatsApp coexistence is not enabled on the backend.");
-      if (!attempt.app_id || !attempt.config_id) throw new Error("Meta app ID or coexistence configuration ID is missing on Railway.");
+      if (!attempt.app_id || !attempt.config_id) throw new Error("Meta app ID or standard Embedded Signup configuration ID is missing on Railway.");
 
       await loadFacebookSdk(attempt.app_id, attempt.graph_version || "v20.0");
       window.FB?.login((response) => {
@@ -254,7 +254,7 @@ export function WhatsAppSettingsForm({
               body: JSON.stringify({
                 attempt_id: attempt.attempt_id,
                 state: attempt.state,
-                connection_mode: "coexistence",
+                connection_mode: attempt.connection_mode,
                 code,
                 access_token: accessToken ?? "",
                 waba_id: wabaId,
@@ -284,7 +284,6 @@ export function WhatsAppSettingsForm({
         state: attempt.state,
         extras: {
           setup: {},
-          featureType: "whatsapp_business_app_onboarding",
           sessionInfoVersion: "3",
         },
       });
@@ -320,7 +319,7 @@ export function WhatsAppSettingsForm({
   const modeLabel = settings.connection_mode === "coexistence"
     ? "WhatsApp Business app coexistence"
     : settings.connected_via === "embedded_signup"
-      ? "Meta tenant signup"
+      ? "Standard WhatsApp Embedded Signup"
       : "Not connected through Meta signup";
 
   return (
@@ -331,16 +330,16 @@ export function WhatsAppSettingsForm({
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ed633f]">Tenant-based WhatsApp setup</div>
             <h3 className="mt-2 text-xl font-bold text-[#111827]">Connect WhatsApp through Meta</h3>
             <p className="mt-2 text-sm leading-6 text-[#646a64]">
-              Each business authorizes its own WhatsApp Business Account. BeoOS stores an encrypted tenant token, routes messages to the correct business, and can make the API calls Meta requires for review.
+              Each business authorizes its own WhatsApp Business Account through standard WhatsApp Embedded Signup. BeoOS stores an encrypted tenant token, routes messages to the correct business, and can make the API calls Meta requires for review.
             </p>
           </div>
           <Button type="button" onClick={connectWithMeta} disabled={connecting} className="min-w-48">
-            {connecting ? "Opening Meta..." : hasTenantToken ? "Reconnect WhatsApp" : "Connect WhatsApp"}
+            {connecting ? "Opening Meta..." : hasTenantToken ? "Reconnect WhatsApp with Meta" : "Connect WhatsApp with Meta"}
           </Button>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <SetupStep title="1. Meta login" text="Choose the business portfolio, WhatsApp Business Account, and phone number inside Meta." />
+          <SetupStep title="1. Embedded Signup" text="Choose the business portfolio, WhatsApp Business Account, and phone number inside Meta." />
           <SetupStep title="2. Tenant token" text="BeoOS encrypts and stores the access token for this business only. No manual shared token is needed." />
           <SetupStep title="3. API review test" text="Run the test to trigger public profile, business management, and WhatsApp management API calls." />
         </div>
