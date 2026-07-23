@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_business_account_id: str = ""
     whatsapp_graph_base_url: str = "https://graph.facebook.com/v20.0"
+    allow_nonproduction_global_whatsapp_fallback: bool = False
 
     vapid_public_key: str = ""
     vapid_private_key: str = ""

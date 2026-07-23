@@ -9,6 +9,7 @@ node_modules/
 .next/
 coverage/
 dist/
+tmp/
 *.pyc
 *.log
 *.egg-info/

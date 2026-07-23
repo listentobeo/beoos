@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -66,12 +67,14 @@ class BusinessAccess:
     business_id: UUID
     user_id: str
     role: Role
+    correlation_id: str
 
 
 async def require_business_access(
     business_id: UUID,
     user: AuthenticatedUser = Depends(require_user),
     session: AsyncSession = Depends(get_session),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> BusinessAccess:
     member = await session.scalar(
         select(BusinessMember).where(
@@ -81,7 +84,13 @@ async def require_business_access(
     )
     if member is None:
         raise HTTPException(status_code=403, detail="You do not have access to this business")
-    return BusinessAccess(business_id=business_id, user_id=user.user_id, role=member.role)
+    correlation_id = (x_request_id or "").strip()[:160] or str(uuid.uuid4())
+    return BusinessAccess(
+        business_id=business_id,
+        user_id=user.user_id,
+        role=member.role,
+        correlation_id=correlation_id,
+    )
 
 
 def require_admin(access: BusinessAccess = Depends(require_business_access)) -> BusinessAccess:

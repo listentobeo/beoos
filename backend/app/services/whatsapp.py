@@ -19,7 +19,11 @@ class WhatsAppCloudService:
 
     def phone_number_id_for(self, business: Business) -> str:
         configured = normalized_whatsapp_settings(business.settings)
-        return configured.phone_number_id or self._settings.whatsapp_phone_number_id
+        if configured.phone_number_id:
+            return configured.phone_number_id
+        if self._global_fallback_allowed:
+            return self._settings.whatsapp_phone_number_id
+        return ""
 
     def access_token_for(self, business: Business) -> str:
         raw_settings = business.settings or {}
@@ -28,7 +32,16 @@ class WhatsAppCloudService:
             return SecretCipher(self._settings.secret_encryption_key).decrypt(
                 str(raw_whatsapp["access_token_encrypted"])
             )
-        return self._settings.whatsapp_access_token
+        if self._global_fallback_allowed:
+            return self._settings.whatsapp_access_token
+        return ""
+
+    @property
+    def _global_fallback_allowed(self) -> bool:
+        return (
+            self._settings.app_env in {"development", "test"}
+            and self._settings.allow_nonproduction_global_whatsapp_fallback
+        )
 
     def is_configured_for(self, business: Business) -> bool:
         return bool(self.access_token_for(business) and self.phone_number_id_for(business))
