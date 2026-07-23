@@ -27,8 +27,8 @@ from app.infrastructure.models import (
     ThreadStatus,
 )
 from app.services.alerts import AlertService
-from app.services.approval_notifications import ApprovalNotificationService
 from app.services.contact_identity import normalize_email_identity
+from app.services.durable_jobs import WEBSITE_AI_JOB, enqueue_job
 from app.services.inbox_hygiene import should_skip_ai_draft
 from app.services.openai_email import OpenAIEmailService
 from app.services.policy import EmailPolicyEngine
@@ -120,7 +120,17 @@ async def submit_website_lead(
     session.add(message)
     await session.flush()
 
-    await _run_ai_intake(session, settings, business, contact, thread, message)
+    await enqueue_job(
+        session,
+        business_id=business.id,
+        job_type=WEBSITE_AI_JOB,
+        payload={
+            "contact_id": str(contact.id),
+            "thread_id": str(thread.id),
+            "message_id": str(message.id),
+        },
+        idempotency_key=f"website-ai:{message.id}",
+    )
     await session.commit()
 
     await PushNotificationService(settings).send_new_inbox_message(
@@ -132,15 +142,6 @@ async def submit_website_lead(
         channel="website_form",
     )
     await session.commit()
-    if thread.status == ThreadStatus.needs_approval:
-        await ApprovalNotificationService(settings).notify_needs_approval(
-            session,
-            business_id=business.id,
-            thread_id=thread.id,
-            reason="Website enquiry draft is waiting for review",
-        )
-        await session.commit()
-
     try:
         await AlertService(settings).send_website_lead_email(
             recipient=business.primary_email,

@@ -8,6 +8,7 @@ from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.services.daily_report_scheduler import DailyReportScheduler
+from app.services.durable_jobs import DurableJobWorker
 from app.services.follow_up_scheduler import FollowUpScheduler
 from app.services.mailbox_scheduler import MailboxAutoSyncScheduler
 
@@ -20,6 +21,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     scheduler: MailboxAutoSyncScheduler | None = None
     follow_up_scheduler: FollowUpScheduler | None = None
     daily_report_scheduler: DailyReportScheduler | None = None
+    durable_job_worker: DurableJobWorker | None = None
     if settings.app_env != "test":
         scheduler = MailboxAutoSyncScheduler(settings)
         scheduler.start()
@@ -27,9 +29,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         follow_up_scheduler.start()
         daily_report_scheduler = DailyReportScheduler(settings)
         daily_report_scheduler.start()
+        durable_job_worker = DurableJobWorker(settings)
+        durable_job_worker.start()
     try:
         yield
     finally:
+        if durable_job_worker is not None:
+            await durable_job_worker.stop()
         if daily_report_scheduler is not None:
             await daily_report_scheduler.stop()
         if follow_up_scheduler is not None:
