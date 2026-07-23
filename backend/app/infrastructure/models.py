@@ -617,3 +617,322 @@ class AuditLog(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+
+class WorkflowDefinition(Base, TimestampMixin):
+    __tablename__ = "workflow_definitions"
+    __table_args__ = (
+        Index(
+            "uq_workflow_definitions_tenant_key_version",
+            "business_id",
+            "key",
+            "version",
+            unique=True,
+        ),
+        Index("ix_workflow_definitions_business_status", "business_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("businesses.id"))
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    business_objective: Mapped[str] = mapped_column(Text, nullable=False)
+    workflow_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="draft", nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    output_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(80), default="1", nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(80), default="1", nullable=False)
+    deployment_mode: Mapped[str] = mapped_column(
+        String(40), default="experimental", nullable=False
+    )
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class WorkflowRun(Base, TimestampMixin):
+    __tablename__ = "workflow_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id",
+            "workflow_definition_id",
+            "idempotency_key",
+            name="uq_workflow_run_tenant_definition_idempotency",
+        ),
+        Index("ix_workflow_runs_business_status", "business_id", "status"),
+        Index("ix_workflow_runs_business_created", "business_id", "created_at"),
+        Index("ix_workflow_runs_correlation", "business_id", "correlation_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_definition_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_definitions.id"), nullable=False
+    )
+    workflow_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    trigger_reference_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    trigger_reference_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="queued", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_step_key: Mapped[str | None] = mapped_column(String(120))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+    last_error_message_sanitized: Mapped[str | None] = mapped_column(Text)
+    run_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
+    initiated_by_user_id: Mapped[str | None] = mapped_column(String(255))
+
+
+class WorkflowStep(Base, TimestampMixin):
+    __tablename__ = "workflow_steps"
+    __table_args__ = (
+        UniqueConstraint("workflow_run_id", "step_key", "sequence"),
+        Index("ix_workflow_steps_business_status", "business_id", "status"),
+        Index("ix_workflow_steps_run_sequence", "workflow_run_id", "sequence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    step_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    step_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="queued", nullable=False)
+    input_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    output_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_message_sanitized: Mapped[str | None] = mapped_column(Text)
+    step_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
+
+
+class AIExecution(Base, TimestampMixin):
+    __tablename__ = "ai_executions"
+    __table_args__ = (
+        Index("ix_ai_executions_business_created", "business_id", "created_at"),
+        Index("ix_ai_executions_run", "workflow_run_id"),
+        Index("ix_ai_executions_agent_version", "agent_key", "agent_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    agent_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    agent_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    output_schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    context_references: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    structured_input: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    structured_output: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    provider_response_id: Mapped[str | None] = mapped_column(String(255))
+    token_input: Mapped[int | None] = mapped_column(Integer)
+    token_output: Mapped[int | None] = mapped_column(Integer)
+    estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(14, 6))
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    parse_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    safety_flags: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+
+
+class ToolDefinition(Base, TimestampMixin):
+    __tablename__ = "tool_definitions"
+    __table_args__ = (UniqueConstraint("key", "version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    input_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    output_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    is_external: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_reversible: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    requires_approval_by_default: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+
+class ToolPermission(Base, TimestampMixin):
+    __tablename__ = "tool_permissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id",
+            "tool_definition_id",
+            "workflow_definition_id",
+            "role",
+            name="uq_tool_permission_scope",
+        ),
+        Index("ix_tool_permissions_business", "business_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    tool_definition_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tool_definitions.id"), nullable=False
+    )
+    workflow_definition_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("workflow_definitions.id")
+    )
+    role: Mapped[str] = mapped_column(String(40), nullable=False)
+    permission: Mapped[str] = mapped_column(String(40), nullable=False)
+    constraints: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    approved_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class ToolCall(Base, TimestampMixin):
+    __tablename__ = "tool_calls"
+    __table_args__ = (
+        UniqueConstraint("business_id", "idempotency_key", name="uq_tool_call_idempotency"),
+        Index("ix_tool_calls_business_status", "business_id", "status"),
+        Index("ix_tool_calls_run", "workflow_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    tool_definition_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tool_definitions.id"), nullable=False
+    )
+    permission_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    request_payload_sanitized: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    request_hash: Mapped[str] = mapped_column(String(96), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    response_payload_sanitized: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    external_reference: Mapped[str | None] = mapped_column(String(255))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_message_sanitized: Mapped[str | None] = mapped_column(Text)
+
+
+class ApprovalRequest(Base, TimestampMixin):
+    __tablename__ = "approval_requests"
+    __table_args__ = (
+        Index("ix_approval_requests_business_status", "business_id", "status"),
+        Index("ix_approval_requests_run", "workflow_run_id"),
+        Index("ix_approval_requests_expiry", "status", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_step_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_steps.id", ondelete="CASCADE"), nullable=False
+    )
+    proposed_action_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    proposed_action_payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    decision_summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    context_references: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    risk_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    affected_customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id"))
+    financial_impact: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    requested_tool_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tool_definitions.id"))
+    required_role: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[str | None] = mapped_column(String(255))
+    decision_reason: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    original_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    final_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    execution_status: Mapped[str | None] = mapped_column(String(40))
+    execution_reference: Mapped[str | None] = mapped_column(String(255))
+
+
+class HumanCorrection(Base, TimestampMixin):
+    __tablename__ = "human_corrections"
+    __table_args__ = (
+        Index("ix_human_corrections_business_created", "business_id", "created_at"),
+        Index("ix_human_corrections_run", "workflow_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    ai_execution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("ai_executions.id"))
+    approval_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("approval_requests.id")
+    )
+    correction_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    original_value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    corrected_value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    approved_for_dataset: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class Outcome(Base, TimestampMixin):
+    __tablename__ = "outcomes"
+    __table_args__ = (
+        Index("ix_outcomes_business_type", "business_id", "outcome_type"),
+        Index("ix_outcomes_business_observed", "business_id", "observed_at"),
+        Index("ix_outcomes_run", "workflow_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    outcome_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    value_numeric: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    value_currency: Mapped[str | None] = mapped_column(String(3))
+    value_text: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    outcome_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
+
