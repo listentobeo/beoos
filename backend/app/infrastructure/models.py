@@ -750,6 +750,71 @@ class BusinessStaffAuthority(Base, TimestampMixin):
     approved_by: Mapped[str | None] = mapped_column(String(255))
 
 
+class OnboardingSession(Base, TimestampMixin):
+    __tablename__ = "onboarding_sessions"
+    __table_args__ = (
+        Index("ix_onboarding_sessions_business_status", "business_id", "status"),
+        Index("ix_onboarding_sessions_business_activity", "business_id", "last_activity_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    onboarding_stage: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="in_progress", nullable=False)
+    completion_percentage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    selected_first_problem: Mapped[str | None] = mapped_column(String(120))
+    current_question_key: Mapped[str | None] = mapped_column(String(160))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    draft_specification: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    activation_confirmed_by: Mapped[str | None] = mapped_column(String(255))
+    activation_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deployment_mode: Mapped[str] = mapped_column(
+        String(40), default="experimental", nullable=False
+    )
+
+
+class OnboardingResponse(Base, TimestampMixin):
+    __tablename__ = "onboarding_responses"
+    __table_args__ = (
+        UniqueConstraint(
+            "onboarding_session_id",
+            "question_key",
+            name="uq_onboarding_response_question",
+        ),
+        Index("ix_onboarding_responses_business_session", "business_id", "onboarding_session_id"),
+        Index(
+            "ix_onboarding_responses_confirmation",
+            "business_id",
+            "requires_confirmation",
+            "confirmed_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    onboarding_session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("onboarding_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    question_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    workflow_key: Mapped[str | None] = mapped_column(String(160))
+    response_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    response_value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    source: Mapped[str] = mapped_column(String(40), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    requires_confirmation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    confirmed_by: Mapped[str | None] = mapped_column(String(255))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    skip_explanation: Mapped[str | None] = mapped_column(Text)
+
+
 class WorkflowDefinition(Base, TimestampMixin):
     __tablename__ = "workflow_definitions"
     __table_args__ = (

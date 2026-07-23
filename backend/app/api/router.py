@@ -15,6 +15,7 @@ from app.api import (
     marketing,
     mcp,
     notifications,
+    onboarding,
     operator,
     prices,
     quotes,
@@ -36,6 +37,7 @@ api_router.include_router(integrations.router)
 api_router.include_router(marketing.router)
 api_router.include_router(mcp.router)
 api_router.include_router(notifications.router)
+api_router.include_router(onboarding.router)
 api_router.include_router(operator.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)
