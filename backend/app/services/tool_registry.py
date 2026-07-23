@@ -15,6 +15,8 @@ from app.infrastructure.models import (
     ApprovalRequest,
     AuditLog,
     Business,
+    BusinessPolicy,
+    BusinessProfile,
     Contact,
     CRMLead,
     DraftStatus,
@@ -553,6 +555,40 @@ class ToolRegistry:
         business = await session.get(Business, business_id)
         if business is None:
             raise ValueError("Business not found")
+        profile = await session.scalar(
+            select(BusinessProfile)
+            .where(
+                BusinessProfile.business_id == business_id,
+                BusinessProfile.active.is_(True),
+                BusinessProfile.approval_status == "approved",
+            )
+            .order_by(BusinessProfile.version.desc())
+        )
+        if profile is not None:
+            return {
+                "id": str(profile.id),
+                "version": profile.version,
+                "legal_name": profile.legal_name,
+                "display_name": profile.display_name,
+                "description": profile.description,
+                "industry": profile.industry,
+                "business_model": profile.business_model,
+                "timezone": profile.timezone,
+                "locations": profile.locations,
+                "opening_hours": profile.opening_hours,
+                "contact_channels": profile.contact_channels,
+                "website": profile.website,
+                "target_markets": profile.target_markets,
+                "customer_types": profile.customer_types,
+                "provenance": {
+                    "source_type": profile.source_type,
+                    "source_id": profile.source_id,
+                    "authority_level": profile.authority_level,
+                    "effective_from": profile.effective_from,
+                    "expires_at": profile.expires_at,
+                    "approval_status": profile.approval_status,
+                },
+            }
         return {
             "id": str(business.id),
             "name": business.name,
@@ -567,6 +603,37 @@ class ToolRegistry:
         business = await session.get(Business, business_id)
         if business is None:
             raise ValueError("Business not found")
+        policies = (
+            await session.scalars(
+                select(BusinessPolicy)
+                .where(
+                    BusinessPolicy.business_id == business_id,
+                    BusinessPolicy.active.is_(True),
+                    BusinessPolicy.approval_status == "approved",
+                )
+                .order_by(BusinessPolicy.category, BusinessPolicy.version.desc())
+            )
+        ).all()
+        if policies:
+            return {
+                "policies": [
+                    {
+                        "id": str(item.id),
+                        "key": item.policy_key,
+                        "category": item.category,
+                        "name": item.name,
+                        "rules": item.rules,
+                        "version": item.version,
+                        "source_type": item.source_type,
+                        "source_id": item.source_id,
+                        "authority_level": item.authority_level,
+                        "effective_from": item.effective_from,
+                        "expires_at": item.expires_at,
+                        "approval_status": item.approval_status,
+                    }
+                    for item in policies
+                ]
+            }
         policy = (business.settings or {}).get("ai_policy", {})
         return policy if isinstance(policy, dict) else {}
 

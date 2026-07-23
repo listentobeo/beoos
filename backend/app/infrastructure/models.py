@@ -618,6 +618,138 @@ class AuditLog(Base):
     )
 
 
+class BusinessProfile(Base, TimestampMixin):
+    __tablename__ = "business_profiles"
+    __table_args__ = (
+        UniqueConstraint("business_id", "version", name="uq_business_profile_version"),
+        Index("ix_business_profiles_business_active", "business_id", "active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    legal_name: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    display_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    industry: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    business_model: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False)
+    locations: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+    opening_hours: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    contact_channels: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    website: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    target_markets: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    customer_types: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    authority_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("business_profiles.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class BusinessService(Base, TimestampMixin):
+    __tablename__ = "business_services"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "service_key", "version", name="uq_business_service_version"
+        ),
+        Index("ix_business_services_business_active", "business_id", "active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    service_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    base_pricing_reference: Mapped[str | None] = mapped_column(String(255))
+    required_enquiry_information: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    typical_timeline: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    delivery_method: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    exclusions: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    authority_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("business_services.id"))
+
+
+class BusinessPolicy(Base, TimestampMixin):
+    __tablename__ = "business_policies"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "policy_key", "version", name="uq_business_policy_version"
+        ),
+        Index("ix_business_policies_business_active", "business_id", "active"),
+        Index("ix_business_policies_business_category", "business_id", "category"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    policy_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    rules: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    authority_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("business_policies.id"))
+
+
+class BusinessStaffAuthority(Base, TimestampMixin):
+    __tablename__ = "business_staff_authorities"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "clerk_user_id", name="uq_business_staff_authority_user"
+        ),
+        Index("ix_business_staff_authorities_business", "business_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    clerk_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[Role] = mapped_column(Enum(Role), nullable=False)
+    approval_authority: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    financial_limit: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    channel_access: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    escalation_responsibility: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    authority_level: Mapped[str] = mapped_column(String(40), nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+
+
 class WorkflowDefinition(Base, TimestampMixin):
     __tablename__ = "workflow_definitions"
     __table_args__ = (

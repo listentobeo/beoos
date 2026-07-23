@@ -29,3 +29,15 @@ Every tenant-owned row has a non-null `business_id`. Global template rows are im
 tenants and explicitly identified. Context and evaluation references must preserve provenance
 instead of copying undocumented prompt text.
 
+## Versioned business context
+
+`business_profiles`, `business_services`, and `business_policies` are append-versioned. A new
+version points to the record it supersedes; previous versions remain available for trace and
+evaluation replay. `business_staff_authorities` adds approval, financial, channel, and escalation
+limits without replacing Clerk membership.
+
+Each context record carries source type/ID, authority, effective and expiry timestamps, approval
+status, and approver. The context builder only promotes effective approved records to official
+facts. Legacy `businesses` fields and `Business.settings.ai_policy` remain non-destructive fallback
+inputs and are labelled temporary/unversioned until onboarding creates approved typed records.
+Approved price-catalog rows remain the authoritative pricing source.
