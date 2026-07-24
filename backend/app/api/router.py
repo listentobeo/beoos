@@ -22,6 +22,7 @@ from app.api import (
     reports,
     tools,
     whatsapp,
+    workflows,
 )
 
 api_router = APIRouter()
@@ -45,6 +46,7 @@ api_router.include_router(quotes.public_router)
 api_router.include_router(reports.router)
 api_router.include_router(tools.router)
 api_router.include_router(whatsapp.router)
+api_router.include_router(workflows.router)
 
 
 @api_router.get("/health", tags=["system"])

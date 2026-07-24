@@ -39,3 +39,16 @@ external event
 The workflow runner is a bounded state-transition service, not a general planner. PostgreSQL is
 the source of durable execution state.
 
+## First reference workflow
+
+`beo_art_commission_enquiry_v1` normalizes website form, Gmail, Zoho, WhatsApp, and manual
+enquiries into the same structured input. Deterministic steps perform tenant routing,
+deduplication, customer matching, approved price lookup, business-hours/timeline checks, policy
+routing, and idempotency. The existing structured triage model is limited to classification,
+extraction, ambiguity/missing-information analysis, urgency/risk inference, summary, and a
+suggested reply.
+
+The initial deployment mode is `shadow`: proposed CRM/follow-up work is recorded with
+`execute: false`, and email auto-send is suppressed until a later evaluation-backed deployment
+permits external actions. Mandatory risk categories create structured approval requests. Outcomes
+are appended to the workflow run rather than inferred from conversation history.

@@ -29,6 +29,10 @@ from app.infrastructure.models import (
 )
 from app.services.alerts import AlertService
 from app.services.approval_notifications import ApprovalNotificationService
+from app.services.beo_enquiry_workflow import (
+    commission_workflow_allows_external_actions,
+    record_commission_enquiry_workflow,
+)
 from app.services.contact_identity import normalize_email_identity
 from app.services.crypto import SecretCipher
 from app.services.gmail import GmailClient, normalize_gmail_message
@@ -541,6 +545,16 @@ class EmailSyncService:
                 sender_email=contact_email,
                 subject=subject[:160],
             )
+            await session.flush()
+            await record_commission_enquiry_workflow(
+                session,
+                self._settings,
+                business=business,
+                contact=contact,
+                thread=thread,
+                message=message,
+                channel="gmail" if mailbox.provider == "gmail" else "zoho",
+            )
             return thread.id
 
         is_recent = sent_at >= datetime.now(UTC) - timedelta(minutes=15)
@@ -609,6 +623,18 @@ class EmailSyncService:
                 category=triage.category.value,
                 recommended_action=triage.recommended_action.value,
             )
+            await session.flush()
+            await record_commission_enquiry_workflow(
+                session,
+                self._settings,
+                business=business,
+                contact=contact,
+                thread=thread,
+                message=message,
+                channel="gmail" if mailbox.provider == "gmail" else "zoho",
+                triage=triage,
+                provider_response_id=response_id,
+            )
             return thread.id
         decision = EmailPolicyEngine(
             signature=business.reply_signature,
@@ -636,7 +662,10 @@ class EmailSyncService:
         session.add(draft)
         message.processed_at = datetime.now(UTC)
 
-        if decision.allowed and is_recent:
+        external_actions_allowed = await commission_workflow_allows_external_actions(
+            session, business.id
+        )
+        if decision.allowed and is_recent and external_actions_allowed:
             draft.status = DraftStatus.approved
             await session.commit()
             try:
@@ -687,6 +716,11 @@ class EmailSyncService:
             )
         else:
             thread.status = ThreadStatus.needs_approval
+            if decision.allowed and is_recent and not external_actions_allowed:
+                draft.policy_reasons = [
+                    *draft.policy_reasons,
+                    "Commission workflow is in shadow/approval mode; external send suppressed",
+                ]
             await self._approval_notifications.notify_needs_approval(
                 session,
                 business_id=business.id,
@@ -704,6 +738,18 @@ class EmailSyncService:
             except Exception:
                 logger.exception("urgent_alert_failed", thread_id=str(thread.id))
 
+        await session.flush()
+        await record_commission_enquiry_workflow(
+            session,
+            self._settings,
+            business=business,
+            contact=contact,
+            thread=thread,
+            message=message,
+            channel="gmail" if mailbox.provider == "gmail" else "zoho",
+            triage=triage,
+            provider_response_id=response_id,
+        )
         return thread.id
 
     async def _valid_access_token(self, mailbox: MailboxConnection) -> str:

@@ -23,7 +23,14 @@ class ExtractedClientFields(BaseModel):
     location: str | None = None
     budget: str | None = None
     service: str | None = None
+    medium: str | None = None
+    dimensions: str | None = None
+    number_of_subjects: int | None = Field(default=None, ge=0)
+    reference_image_available: bool | None = None
     deadline: str | None = None
+    framing: str | None = None
+    delivery: str | None = None
+    occasion: str | None = None
     project_details: str | None = None
 
 
@@ -35,9 +42,29 @@ class EmailTriageResult(BaseModel):
     is_deal: bool
     is_professional: bool
     risk_flags: list[
-        Literal["pricing", "payment", "refund", "complaint", "legal", "discount", "contract"]
+        Literal[
+            "pricing",
+            "payment",
+            "refund",
+            "complaint",
+            "legal",
+            "privacy",
+            "discount",
+            "contract",
+            "rush",
+            "international_delivery",
+            "unusual_materials",
+            "uncertain_reference_quality",
+            "angry_customer",
+            "mass_message",
+            "outside_policy_promise",
+        ]
     ]
     extracted_fields: ExtractedClientFields
+    ambiguity_flags: list[str] = Field(default_factory=list)
+    missing_information: list[str] = Field(default_factory=list)
+    sentiment: Literal["positive", "neutral", "concerned", "angry", "hostile"] = "neutral"
+    operational_summary: str = Field(default="", max_length=600)
     recommended_action: RecommendedAction
     acknowledgement_subject: str = Field(min_length=1, max_length=200)
     acknowledgement_body: str = Field(min_length=1, max_length=1800)

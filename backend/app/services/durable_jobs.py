@@ -20,11 +20,13 @@ from app.infrastructure.models import (
     EmailThread,
 )
 from app.services.approval_notifications import ApprovalNotificationService
+from app.services.beo_enquiry_workflow import record_commission_enquiry_workflow
 
 logger = structlog.get_logger()
 
 WEBSITE_AI_JOB = "website_form.ai_intake"
 WHATSAPP_AI_JOB = "whatsapp.ai_intake"
+MANUAL_AI_JOB = "manual.ai_intake"
 
 
 async def enqueue_job(
@@ -197,6 +199,9 @@ class DurableJobWorker:
         if job.job_type == WHATSAPP_AI_JOB:
             await self._whatsapp_ai(session, job)
             return
+        if job.job_type == MANUAL_AI_JOB:
+            await self._manual_ai(session, job)
+            return
         raise ValueError(f"Unsupported durable job type: {job.job_type}")
 
     async def _website_ai(self, session: AsyncSession, job: DurableJob) -> None:
@@ -205,6 +210,16 @@ class DurableJobWorker:
         business, contact, thread, message = await _load_intake_records(session, job)
         await _run_ai_intake(
             session, self._settings, business, contact, thread, message
+        )
+        await session.flush()
+        await record_commission_enquiry_workflow(
+            session,
+            self._settings,
+            business=business,
+            contact=contact,
+            thread=thread,
+            message=message,
+            channel="website_form",
         )
         if thread.status.value == "needs_approval":
             await ApprovalNotificationService(self._settings).notify_needs_approval(
@@ -221,12 +236,45 @@ class DurableJobWorker:
         await _run_whatsapp_ai_intake(
             session, self._settings, business, contact, thread, message
         )
+        await session.flush()
+        await record_commission_enquiry_workflow(
+            session,
+            self._settings,
+            business=business,
+            contact=contact,
+            thread=thread,
+            message=message,
+            channel="whatsapp",
+        )
         if thread.status.value == "needs_approval":
             await ApprovalNotificationService(self._settings).notify_needs_approval(
                 session,
                 business_id=business.id,
                 thread_id=thread.id,
                 reason="WhatsApp reply draft is waiting for review",
+            )
+
+    async def _manual_ai(self, session: AsyncSession, job: DurableJob) -> None:
+        from app.api.forms import _run_ai_intake
+
+        business, contact, thread, message = await _load_intake_records(session, job)
+        await _run_ai_intake(session, self._settings, business, contact, thread, message)
+        await session.flush()
+        await record_commission_enquiry_workflow(
+            session,
+            self._settings,
+            business=business,
+            contact=contact,
+            thread=thread,
+            message=message,
+            channel="manual",
+        )
+        if thread.status.value == "needs_approval":
+            await ApprovalNotificationService(self._settings).notify_needs_approval(
+                session,
+                business_id=business.id,
+                thread_id=thread.id,
+                reason="Manual enquiry draft is waiting for review",
             )
 
 
