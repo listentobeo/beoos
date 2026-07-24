@@ -2,6 +2,7 @@
 
 import { SignOutButton, UserButton, useUser } from "@clerk/nextjs";
 import {
+  Activity,
   BarChart3,
   Building2,
   ChevronRight,
@@ -41,6 +42,7 @@ const manage = [
   ["Quotations", "/dashboard/quotes", FileText],
   ["Price catalogue", "/dashboard/prices", Tags],
   ["Analytics", "/dashboard/analytics", BarChart3],
+  ["Workflow traces", "/dashboard/traces", Activity],
   ["Marketing", "/dashboard/marketing", Megaphone],
   ["Business settings", "/dashboard/settings", Settings],
 ] as const;

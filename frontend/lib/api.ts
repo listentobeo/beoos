@@ -121,6 +121,46 @@ export type StructuredApproval = {
   execution_reference: string | null;
   created_at: string;
 };
+export type WorkflowTraceSummary = {
+  run_id: string;
+  workflow_key: string;
+  workflow_name: string;
+  workflow_version: number;
+  status: string;
+  channel: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  approval_state: string | null;
+  outcome_types: string[];
+  model: string | null;
+  failure_type: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+export type WorkflowTraceDetail = {
+  run_id: string;
+  trigger: Record<string, unknown>;
+  customer_and_channel: Record<string, unknown>;
+  workflow: Record<string, unknown>;
+  business_context_sources: Array<Record<string, unknown>>;
+  extracted_information: Record<string, unknown>;
+  missing_information: string[];
+  ai_operational_summary: string;
+  policy_checks: Record<string, unknown>;
+  deterministic_calculations: Array<Record<string, unknown>>;
+  tool_calls: Array<Record<string, unknown>>;
+  approval_decisions: Array<Record<string, unknown>>;
+  human_edits: Array<Record<string, unknown>>;
+  external_actions: Array<Record<string, unknown>>;
+  result: Record<string, unknown>;
+  outcomes: Array<Record<string, unknown>>;
+  estimated_cost: string;
+  latency_ms: number;
+  retry_history: Array<Record<string, unknown>>;
+  errors_and_recovery: Array<Record<string, unknown>>;
+  steps: Array<Record<string, unknown>>;
+};
 export type ThreadMessage = {
   id: string;
   direction: string;
@@ -603,6 +643,13 @@ export const beoApi = {
     apiFetch<StructuredApproval[]>(
       `/businesses/${businessId}/approvals?status=${encodeURIComponent(status)}`,
     ),
+  traces: (businessId: string, filters?: Record<string, string>) => {
+    const params = new URLSearchParams(filters);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return apiFetch<WorkflowTraceSummary[]>(`/businesses/${businessId}/traces${suffix}`);
+  },
+  trace: (businessId: string, runId: string) =>
+    apiFetch<WorkflowTraceDetail>(`/businesses/${businessId}/traces/${runId}`),
   dashboard: (businessId: string, search?: string) => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);

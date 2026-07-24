@@ -154,6 +154,7 @@ async def record_commission_enquiry_workflow(
         "urgency": enquiry.urgency,
         "sentiment": enquiry.sentiment,
         "risk_flags": triage_data.get("risk_flags", []),
+        "missing_information": missing,
         "operational_summary": triage_data.get("operational_summary")
         or str(triage_data.get("intent") or "Enquiry requires review"),
     }
