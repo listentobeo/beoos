@@ -38,6 +38,7 @@ class TimestampMixin:
 class Role(enum.StrEnum):
     owner = "owner"
     admin = "admin"
+    manager = "manager"
     agent = "agent"
     viewer = "viewer"
 
@@ -1102,8 +1103,11 @@ class HumanCorrection(Base, TimestampMixin):
     correction_type: Mapped[str] = mapped_column(String(60), nullable=False)
     original_value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     corrected_value: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    changed_fields: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     corrected_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    final_action: Mapped[str] = mapped_column(String(80), nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     approved_for_dataset: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 

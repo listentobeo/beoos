@@ -43,7 +43,12 @@ def test_unimplemented_external_actions_are_registered_but_disabled() -> None:
 
 
 def test_role_order_and_failure_mapping_are_explicit() -> None:
-    assert ROLE_RANK[Role.owner] > ROLE_RANK[Role.admin] > ROLE_RANK[Role.agent]
+    assert (
+        ROLE_RANK[Role.owner]
+        > ROLE_RANK[Role.admin]
+        > ROLE_RANK[Role.manager]
+        > ROLE_RANK[Role.agent]
+    )
     assert _failure_code(PermissionError()) == "authorization"
     assert _failure_code(ValueError()) == "validation"
 

@@ -91,6 +91,36 @@ export type DraftQueueItem = {
   contact_email: string | null;
   created_at: string;
 };
+export type StructuredApproval = {
+  id: string;
+  business_id: string;
+  business_name: string;
+  customer: { id: string; name: string | null; email: string; phone: string | null } | null;
+  workflow: {
+    id: string;
+    run_id: string;
+    key: string;
+    name: string;
+    version: number;
+    status: string;
+  };
+  proposed_action: { type: string; payload: Record<string, unknown> };
+  ai_summary: string;
+  confidence: string | null;
+  risk: string;
+  policy_checks: Record<string, unknown>;
+  context_sources: Array<Record<string, unknown>>;
+  financial_impact: string | null;
+  expires_at: string | null;
+  tool: { id: string; key: string; name: string; risk_level: string } | null;
+  required_role: string;
+  status: string;
+  original_payload: Record<string, unknown>;
+  final_payload: Record<string, unknown>;
+  execution_status: string | null;
+  execution_reference: string | null;
+  created_at: string;
+};
 export type ThreadMessage = {
   id: string;
   direction: string;
@@ -569,6 +599,10 @@ export const beoApi = {
     }),
   drafts: (businessId: string) =>
     apiFetch<DraftQueueItem[]>(`/businesses/${businessId}/email/drafts`),
+  approvals: (businessId: string, status = "pending") =>
+    apiFetch<StructuredApproval[]>(
+      `/businesses/${businessId}/approvals?status=${encodeURIComponent(status)}`,
+    ),
   dashboard: (businessId: string, search?: string) => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);

@@ -286,7 +286,7 @@ async def record_commission_enquiry_workflow(
                 else "medium",
                 affected_customer_id=contact.id if contact else None,
                 requested_tool_id=draft_tool.id if draft_tool else None,
-                required_role="admin",
+                required_role="manager",
                 expires_at=datetime.now(UTC) + timedelta(hours=24),
                 original_payload=output.model_dump(mode="json"),
                 final_payload=output.model_dump(mode="json"),

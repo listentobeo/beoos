@@ -352,8 +352,9 @@ PERMISSION_RANK = {"read": 1, "propose": 2, "execute": 3}
 ROLE_RANK = {
     Role.viewer: 1,
     Role.agent: 2,
-    Role.admin: 3,
-    Role.owner: 4,
+    Role.manager: 3,
+    Role.admin: 4,
+    Role.owner: 5,
 }
 
 

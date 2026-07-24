@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class ToolPermissionUpdate(BaseModel):
     tool_key: str = Field(min_length=2, max_length=120)
     workflow_definition_id: UUID | None = None
-    role: Literal["owner", "admin", "agent", "viewer"]
+    role: Literal["owner", "admin", "manager", "agent", "viewer"]
     permission: Literal["read", "propose", "execute"]
     constraints: dict[str, Any] = Field(default_factory=dict)
 
