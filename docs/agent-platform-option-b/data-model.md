@@ -41,3 +41,16 @@ status, and approver. The context builder only promotes effective approved recor
 facts. Legacy `businesses` fields and `Business.settings.ai_policy` remain non-destructive fallback
 inputs and are labelled temporary/unversioned until onboarding creates approved typed records.
 Approved price-catalog rows remain the authoritative pricing source.
+
+## Evaluation datasets
+
+`datasets` and `dataset_examples` provide versioned, reusable evaluation inputs at global,
+industry, or tenant scope. Global datasets are platform-managed and read-only to tenants.
+Every example records its provenance, privacy classification, redaction state, and human-review
+status so onboarding and production traces cannot silently become evaluation data.
+
+`evaluation_runs` pin a workflow definition/version, dataset/version, model, prompt, policy, and
+evaluator configuration. `evaluation_results` store one result per example with dimension-level
+scores and structured evidence. Deterministic checks are recorded separately from AI grading and
+run first; AI grading supplements those checks rather than replacing them. Tenant-integrity
+triggers reject cross-business workflow, dataset, example, run, and source references.

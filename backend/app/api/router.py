@@ -9,6 +9,7 @@ from app.api import (
     businesses,
     crm,
     email,
+    evaluations,
     external_access,
     forms,
     google_integrations,
@@ -34,6 +35,7 @@ api_router.include_router(business_context.router)
 api_router.include_router(businesses.router)
 api_router.include_router(crm.router)
 api_router.include_router(email.router)
+api_router.include_router(evaluations.router)
 api_router.include_router(external_access.router)
 api_router.include_router(forms.router)
 api_router.include_router(google_integrations.router)

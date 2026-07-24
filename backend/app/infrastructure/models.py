@@ -1138,6 +1138,125 @@ class Outcome(Base, TimestampMixin):
     )
 
 
+class Dataset(Base, TimestampMixin):
+    __tablename__ = "datasets"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "name", "version", name="uq_dataset_tenant_name_version"
+        ),
+        Index("ix_datasets_business_workflow", "business_id", "workflow_key"),
+        Index("ix_datasets_scope_status", "scope", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    scope: Mapped[str] = mapped_column(String(40), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class DatasetExample(Base, TimestampMixin):
+    __tablename__ = "dataset_examples"
+    __table_args__ = (
+        Index("ix_dataset_examples_dataset", "dataset_id"),
+        Index("ix_dataset_examples_business_redaction", "business_id", "redaction_status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False
+    )
+    business_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE")
+    )
+    source_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    input_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    expected_output: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    expected_policy_result: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, nullable=False
+    )
+    expected_approval_requirement: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    labels: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(40), nullable=False)
+    contains_personal_data: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    redaction_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+
+
+class EvaluationRun(Base, TimestampMixin):
+    __tablename__ = "evaluation_runs"
+    __table_args__ = (
+        Index("ix_evaluation_runs_business_status", "business_id", "status"),
+        Index("ix_evaluation_runs_workflow_version", "workflow_definition_id", "workflow_version"),
+        Index("ix_evaluation_runs_dataset_version", "dataset_id", "dataset_version"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_definition_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_definitions.id"), nullable=False
+    )
+    workflow_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.id"), nullable=False)
+    dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    model: Mapped[str] = mapped_column(String(160), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    total_examples: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    passed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    estimated_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 6), default=0, nullable=False
+    )
+    average_latency: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+class EvaluationResult(Base, TimestampMixin):
+    __tablename__ = "evaluation_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "evaluation_run_id",
+            "dataset_example_id",
+            name="uq_evaluation_result_run_example",
+        ),
+        Index("ix_evaluation_results_business_pass", "business_id", "pass_fail"),
+        Index("ix_evaluation_results_run", "evaluation_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    evaluation_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evaluation_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    dataset_example_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("dataset_examples.id"), nullable=False
+    )
+    actual_output: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    pass_fail: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    scores: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    failure_type: Mapped[str | None] = mapped_column(String(80))
+    evaluator_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    evaluator_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    human_reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
 class DurableJob(Base, TimestampMixin):
     __tablename__ = "durable_jobs"
     __table_args__ = (
