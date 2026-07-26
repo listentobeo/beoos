@@ -585,6 +585,34 @@ export type QuoteAIDraft = {
   warnings: string[];
 };
 
+export type ValueMetric = {
+  key: string;
+  value: string | null;
+  unit: string;
+  source: "measured" | "user_estimate";
+  baseline: string | null;
+  improvement: string | null;
+};
+
+export type ValueDashboard = {
+  business_id: string;
+  workflow_key: string;
+  baseline: {
+    source: "user_estimate";
+    prior_response_time_minutes: string | null;
+    manual_handling_time_minutes: string | null;
+    prior_conversion_rate: string | null;
+    missed_lead_frequency_monthly: string | null;
+    common_mistake_cost: string | null;
+    currency: string;
+  } | null;
+  categories: Record<
+    "revenue" | "cost" | "speed" | "quality" | "risk" | "adoption",
+    ValueMetric[]
+  >;
+  evidence: Record<string, number>;
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -664,6 +692,8 @@ export const beoApi = {
     apiFetch<AnalyticsSummary>(
       `/businesses/${businessId}/analytics/summary?window_days=${windowDays}`,
     ),
+  valueDashboard: (businessId: string) =>
+    apiFetch<ValueDashboard>(`/businesses/${businessId}/value/dashboard`),
   marketing: (businessId: string, windowDays = 90) =>
     apiFetch<MarketingSummary>(
       `/businesses/${businessId}/marketing/summary?window_days=${windowDays}`,

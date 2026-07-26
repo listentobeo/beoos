@@ -25,6 +25,7 @@ from app.api import (
     reports,
     tools,
     traces,
+    value_metrics,
     whatsapp,
     workflows,
 )
@@ -53,6 +54,7 @@ api_router.include_router(quotes.public_router)
 api_router.include_router(reports.router)
 api_router.include_router(tools.router)
 api_router.include_router(traces.router)
+api_router.include_router(value_metrics.router)
 api_router.include_router(whatsapp.router)
 api_router.include_router(workflows.router)
 

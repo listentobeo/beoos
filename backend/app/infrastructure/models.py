@@ -1371,6 +1371,30 @@ class ImprovementSuggestion(Base, TimestampMixin):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class WorkflowValueBaseline(Base, TimestampMixin):
+    __tablename__ = "workflow_value_baselines"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "workflow_key", name="uq_workflow_value_baseline_tenant_workflow"
+        ),
+        Index("ix_workflow_value_baselines_business", "business_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    prior_response_time_minutes: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    manual_handling_time_minutes: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    prior_conversion_rate: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    missed_lead_frequency_monthly: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    common_mistake_cost: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="NGN", nullable=False)
+    source: Mapped[str] = mapped_column(String(40), default="user_estimate", nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
 class DurableJob(Base, TimestampMixin):
     __tablename__ = "durable_jobs"
     __table_args__ = (
