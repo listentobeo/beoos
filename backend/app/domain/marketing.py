@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 MarketingSource = Literal["search_console", "blogger", "clarity", "website", "manual"]
 
@@ -137,3 +137,51 @@ class MarketingSummary(BaseModel):
     content_clusters: list[MarketingContentCluster]
     action_items: list[MarketingActionItem]
     recent_metrics: list[MarketingMetricView]
+
+
+class MarketingOpportunityCreate(BaseModel):
+    source: str = Field(min_length=2, max_length=80)
+    evidence: dict[str, Any]
+    page_or_query: str = Field(min_length=1, max_length=2_000)
+    baseline_metrics: dict[str, Any]
+    recommendation: str = Field(min_length=5, max_length=10_000)
+    expected_outcome: str = Field(min_length=3, max_length=2_000)
+    confidence: Decimal | None = Field(default=None, ge=0, le=1)
+
+
+class MarketingOpportunityDecision(BaseModel):
+    approve: bool
+    reason: str = Field(min_length=2, max_length=2_000)
+
+
+class MarketingExperimentCreate(BaseModel):
+    opportunity_id: UUID
+    approved_change: str = Field(min_length=5, max_length=10_000)
+    target_page: str = Field(min_length=1, max_length=2_000)
+    baseline_period_start: datetime
+    baseline_period_end: datetime
+    comparison_period_start: datetime
+    comparison_period_end: datetime
+    execution_method: Literal["manual", "approved_tool"] = "manual"
+    approved_tool_call_id: UUID | None = None
+    publish_automatically: bool = False
+
+    @model_validator(mode="after")
+    def prohibit_autonomous_publishing(self) -> "MarketingExperimentCreate":
+        if self.publish_automatically:
+            raise ValueError("Marketing publishing always requires explicit approval")
+        if self.execution_method == "approved_tool" and self.approved_tool_call_id is None:
+            raise ValueError("Approved-tool experiments require a completed tool call")
+        if not (
+            self.baseline_period_start
+            < self.baseline_period_end
+            <= self.comparison_period_start
+            < self.comparison_period_end
+        ):
+            raise ValueError("Experiment periods must be ordered and non-overlapping")
+        return self
+
+
+class MarketingExperimentComplete(BaseModel):
+    comparison_metrics: dict[str, Decimal | int | float]
+    lesson: str = Field(min_length=3, max_length=10_000)

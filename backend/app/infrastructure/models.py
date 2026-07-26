@@ -178,6 +178,60 @@ class MarketingMetric(Base, TimestampMixin):
     raw_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
 
+class MarketingOpportunity(Base, TimestampMixin):
+    __tablename__ = "marketing_opportunities"
+    __table_args__ = (
+        Index("ix_marketing_opportunities_business_status", "business_id", "status"),
+        Index("ix_marketing_opportunities_business_source", "business_id", "source"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    page_or_query: Mapped[str] = mapped_column(Text, nullable=False)
+    baseline_metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_outcome: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
+    status: Mapped[str] = mapped_column(String(40), default="pending_approval", nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MarketingExperiment(Base, TimestampMixin):
+    __tablename__ = "marketing_experiments"
+    __table_args__ = (
+        Index("ix_marketing_experiments_business_status", "business_id", "status"),
+        Index("ix_marketing_experiments_opportunity", "opportunity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    opportunity_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("marketing_opportunities.id", ondelete="CASCADE"), nullable=False
+    )
+    approved_change: Mapped[str] = mapped_column(Text, nullable=False)
+    target_page: Mapped[str] = mapped_column(Text, nullable=False)
+    baseline_period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    baseline_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    comparison_period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    comparison_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    implementation_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    owner: Mapped[str] = mapped_column(String(255), nullable=False)
+    execution_method: Mapped[str] = mapped_column(String(40), nullable=False)
+    approved_tool_call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tool_calls.id"))
+    status: Mapped[str] = mapped_column(String(40), default="approved", nullable=False)
+    result: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    lesson: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+
 class Business(Base, TimestampMixin):
     __tablename__ = "businesses"
 

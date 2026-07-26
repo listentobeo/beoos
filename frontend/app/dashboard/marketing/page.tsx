@@ -20,6 +20,8 @@ import {
   type MarketingActionItem,
   type MarketingConnectionStatus,
   type MarketingContentCluster,
+  type MarketingExperimentRecord,
+  type MarketingOpportunityRecord,
   type MarketingPageOpportunity,
   type MarketingQueryOpportunity,
   type MarketingSummary,
@@ -242,16 +244,86 @@ function PagePanel({ pages }: { pages: MarketingPageOpportunity[] }) {
   );
 }
 
+function ExperimentLoop({
+  opportunities,
+  experiments,
+}: {
+  opportunities: MarketingOpportunityRecord[];
+  experiments: MarketingExperimentRecord[];
+}) {
+  return (
+    <section className="mt-5 grid gap-5 xl:grid-cols-2">
+      <Card className="p-5">
+        <h2 className="font-bold">Tracked opportunities</h2>
+        <p className="mt-1 text-sm text-[#747973]">
+          Evidence-backed recommendations waiting for, or carrying, explicit approval.
+        </p>
+        <div className="mt-4 space-y-3">
+          {opportunities.length ? (
+            opportunities.slice(0, 8).map((item) => (
+              <div key={item.id} className="rounded-2xl border p-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="bg-[#f7f4ef] text-[#6c6259]">
+                    {sourceLabel(item.source)}
+                  </Badge>
+                  <Badge className="bg-orange-50 text-orange-800">{item.status}</Badge>
+                </div>
+                <p className="mt-3 font-bold">{item.page_or_query}</p>
+                <p className="mt-1 text-sm leading-6 text-[#5f655f]">{item.recommendation}</p>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-xl bg-[#f7f6f2] p-4 text-sm text-[#747973]">
+              No durable opportunities yet. Detection never publishes changes.
+            </p>
+          )}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <h2 className="font-bold">Measured experiments</h2>
+        <p className="mt-1 text-sm text-[#747973]">
+          Approved changes with baseline, comparison period, result, and retained lesson.
+        </p>
+        <div className="mt-4 space-y-3">
+          {experiments.length ? (
+            experiments.slice(0, 8).map((item) => (
+              <div key={item.id} className="rounded-2xl border p-4">
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="bg-blue-50 text-blue-800">{item.execution_method}</Badge>
+                  <Badge className="bg-emerald-50 text-emerald-800">{item.status}</Badge>
+                </div>
+                <p className="mt-3 font-bold">{item.target_page}</p>
+                <p className="mt-1 text-sm leading-6 text-[#5f655f]">{item.approved_change}</p>
+                {item.lesson && (
+                  <p className="mt-3 rounded-xl bg-[#fff8f4] p-3 text-sm">{item.lesson}</p>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="rounded-xl bg-[#f7f6f2] p-4 text-sm text-[#747973]">
+              No experiments have completed the approval and measurement loop.
+            </p>
+          )}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function MarketingContent({
   businessName,
   summary,
   businessId,
   connections,
+  opportunities,
+  experiments,
 }: {
   businessName: string;
   summary: MarketingSummary;
   businessId: string;
   connections: MarketingConnectionStatus;
+  opportunities: MarketingOpportunityRecord[];
+  experiments: MarketingExperimentRecord[];
 }) {
   const hasData = total(summary, "rows") > 0;
   return (
@@ -309,6 +381,8 @@ function MarketingContent({
         <PagePanel pages={summary.top_pages} />
       </section>
 
+      <ExperimentLoop opportunities={opportunities} experiments={experiments} />
+
       <section className="mt-5">
         <MarketingImportForm businessId={businessId} />
       </section>
@@ -337,9 +411,11 @@ export default async function MarketingPage() {
         </div>
       );
     }
-    const [summary, connections] = await Promise.all([
+    const [summary, connections, opportunities, experiments] = await Promise.all([
       beoApi.marketing(business.id),
       beoApi.marketingConnections(business.id),
+      beoApi.marketingOpportunities(business.id),
+      beoApi.marketingExperiments(business.id),
     ]);
     return (
       <MarketingContent
@@ -347,6 +423,8 @@ export default async function MarketingPage() {
         summary={summary}
         businessId={business.id}
         connections={connections}
+        opportunities={opportunities}
+        experiments={experiments}
       />
     );
   } catch {

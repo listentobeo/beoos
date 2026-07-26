@@ -5,7 +5,8 @@
 import re
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,9 +20,13 @@ from app.domain.marketing import (
     MarketingConnectionStatus,
     MarketingConnectionUpdate,
     MarketingContentCluster,
+    MarketingExperimentComplete,
+    MarketingExperimentCreate,
     MarketingImportRequest,
     MarketingImportResponse,
     MarketingMetricView,
+    MarketingOpportunityCreate,
+    MarketingOpportunityDecision,
     MarketingPageOpportunity,
     MarketingProviderStatus,
     MarketingQueryOpportunity,
@@ -29,7 +34,14 @@ from app.domain.marketing import (
     MarketingTotal,
 )
 from app.infrastructure.database import get_session
-from app.infrastructure.models import AuditLog, Business, MarketingMetric
+from app.infrastructure.models import (
+    AuditLog,
+    Business,
+    MarketingExperiment,
+    MarketingMetric,
+    MarketingOpportunity,
+    ToolCall,
+)
 
 router = APIRouter(prefix="/businesses/{business_id}/marketing", tags=["marketing"])
 
@@ -200,6 +212,372 @@ async def import_marketing_metrics(
         rows_created=created,
         duplicates_skipped=skipped,
     )
+
+
+@router.get("/opportunities")
+async def list_marketing_opportunities(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    rows = (
+        await session.scalars(
+            select(MarketingOpportunity)
+            .where(MarketingOpportunity.business_id == business_id)
+            .order_by(MarketingOpportunity.created_at.desc())
+        )
+    ).all()
+    return [_opportunity_view(row) for row in rows]
+
+
+@router.post("/opportunities", status_code=201)
+async def create_marketing_opportunity(
+    business_id: UUID,
+    payload: MarketingOpportunityCreate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    row = MarketingOpportunity(
+        business_id=business_id,
+        source=payload.source,
+        evidence=payload.evidence,
+        page_or_query=payload.page_or_query,
+        baseline_metrics=payload.baseline_metrics,
+        recommendation=payload.recommendation,
+        expected_outcome=payload.expected_outcome,
+        confidence=payload.confidence,
+        status="pending_approval",
+    )
+    session.add(row)
+    await session.flush()
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_opportunity.created",
+        "marketing_opportunity",
+        row.id,
+        {"source": row.source, "automatic_publish": False},
+    )
+    await session.commit()
+    return _opportunity_view(row)
+
+
+@router.post("/opportunities/detect")
+async def detect_marketing_opportunities(
+    business_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    since = datetime.now(UTC) - timedelta(days=90)
+    metrics = (
+        await session.scalars(
+            select(MarketingMetric).where(
+                MarketingMetric.business_id == business_id,
+                MarketingMetric.created_at >= since,
+            )
+        )
+    ).all()
+    created: list[MarketingOpportunity] = []
+    for page in _top_pages(list(metrics))[:10]:
+        target = page.page_url or page.title
+        if not target or not page.recommendation:
+            continue
+        existing = await session.scalar(
+            select(MarketingOpportunity.id).where(
+                MarketingOpportunity.business_id == business_id,
+                MarketingOpportunity.page_or_query == target,
+                MarketingOpportunity.status.in_(["pending_approval", "approved", "in_progress"]),
+            )
+        )
+        if existing:
+            continue
+        row = MarketingOpportunity(
+            business_id=business_id,
+            source="search_console",
+            evidence={
+                "page_url": page.page_url,
+                "title": page.title,
+                "window_days": 90,
+            },
+            page_or_query=target,
+            baseline_metrics={
+                "impressions": page.impressions,
+                "clicks": page.clicks,
+                "sessions": page.sessions,
+                "leads": page.leads,
+                "ctr": page.ctr,
+                "average_position": page.average_position,
+            },
+            recommendation=page.recommendation,
+            expected_outcome="Improve qualified organic traffic or conversion evidence.",
+            confidence=Decimal("0.7000"),
+            status="pending_approval",
+        )
+        session.add(row)
+        created.append(row)
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_opportunities.detected",
+        "marketing_opportunity",
+        None,
+        {"count": len(created), "automatic_publish": False},
+    )
+    await session.commit()
+    return [_opportunity_view(row) for row in created]
+
+
+@router.post("/opportunities/{opportunity_id}/decision")
+async def decide_marketing_opportunity(
+    business_id: UUID,
+    opportunity_id: UUID,
+    payload: MarketingOpportunityDecision,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    row = await _opportunity(session, business_id, opportunity_id)
+    if row.status != "pending_approval":
+        raise HTTPException(status_code=409, detail="Opportunity is already decided")
+    row.status = "approved" if payload.approve else "dismissed"
+    row.approved_by = access.user_id
+    row.approved_at = datetime.now(UTC)
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_opportunity.approved" if payload.approve else "marketing_opportunity.dismissed",
+        "marketing_opportunity",
+        row.id,
+        {"reason": payload.reason, "automatic_publish": False},
+    )
+    await session.commit()
+    return _opportunity_view(row)
+
+
+@router.get("/experiments")
+async def list_marketing_experiments(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    rows = (
+        await session.scalars(
+            select(MarketingExperiment)
+            .where(MarketingExperiment.business_id == business_id)
+            .order_by(MarketingExperiment.created_at.desc())
+        )
+    ).all()
+    return [_experiment_view(row) for row in rows]
+
+
+@router.post("/experiments", status_code=201)
+async def create_marketing_experiment(
+    business_id: UUID,
+    payload: MarketingExperimentCreate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    opportunity = await _opportunity(session, business_id, payload.opportunity_id)
+    if opportunity.status != "approved":
+        raise HTTPException(status_code=409, detail="Opportunity requires explicit approval")
+    if payload.execution_method == "approved_tool":
+        tool_call = await session.scalar(
+            select(ToolCall).where(
+                ToolCall.id == payload.approved_tool_call_id,
+                ToolCall.business_id == business_id,
+                ToolCall.status == "completed",
+            )
+        )
+        if tool_call is None:
+            raise HTTPException(status_code=409, detail="Completed approved tool call not found")
+    experiment = MarketingExperiment(
+        business_id=business_id,
+        opportunity_id=opportunity.id,
+        approved_change=payload.approved_change,
+        target_page=payload.target_page,
+        baseline_period_start=payload.baseline_period_start,
+        baseline_period_end=payload.baseline_period_end,
+        comparison_period_start=payload.comparison_period_start,
+        comparison_period_end=payload.comparison_period_end,
+        owner=access.user_id,
+        execution_method=payload.execution_method,
+        approved_tool_call_id=payload.approved_tool_call_id,
+        status="approved",
+    )
+    opportunity.status = "in_progress"
+    session.add(experiment)
+    await session.flush()
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_experiment.created",
+        "marketing_experiment",
+        experiment.id,
+        {"execution_method": experiment.execution_method, "automatic_publish": False},
+    )
+    await session.commit()
+    return _experiment_view(experiment)
+
+
+@router.post("/experiments/{experiment_id}/implemented")
+async def mark_marketing_experiment_implemented(
+    business_id: UUID,
+    experiment_id: UUID,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    experiment = await _experiment(session, business_id, experiment_id)
+    if experiment.status != "approved":
+        raise HTTPException(status_code=409, detail="Experiment cannot be implemented")
+    experiment.implementation_date = datetime.now(UTC)
+    experiment.status = "measurement_pending"
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_experiment.implemented",
+        "marketing_experiment",
+        experiment.id,
+        {"execution_method": experiment.execution_method},
+    )
+    await session.commit()
+    return _experiment_view(experiment)
+
+
+@router.post("/experiments/{experiment_id}/complete")
+async def complete_marketing_experiment(
+    business_id: UUID,
+    experiment_id: UUID,
+    payload: MarketingExperimentComplete,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    experiment = await _experiment(session, business_id, experiment_id)
+    if experiment.status != "measurement_pending":
+        raise HTTPException(status_code=409, detail="Experiment is not awaiting measurement")
+    if datetime.now(UTC) < experiment.comparison_period_end:
+        raise HTTPException(status_code=409, detail="Comparison period has not completed")
+    opportunity = await _opportunity(session, business_id, experiment.opportunity_id)
+    deltas = _metric_deltas(opportunity.baseline_metrics, payload.comparison_metrics)
+    experiment.result = {
+        "baseline": opportunity.baseline_metrics,
+        "comparison": {
+            key: str(value) for key, value in payload.comparison_metrics.items()
+        },
+        "deltas": deltas,
+    }
+    experiment.lesson = payload.lesson
+    experiment.status = "completed"
+    opportunity.status = "completed"
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_experiment.completed",
+        "marketing_experiment",
+        experiment.id,
+        {"lesson_recorded": True, "deltas": deltas},
+    )
+    await session.commit()
+    return _experiment_view(experiment)
+
+
+async def _opportunity(
+    session: AsyncSession, business_id: UUID, opportunity_id: UUID
+) -> MarketingOpportunity:
+    row = await session.scalar(
+        select(MarketingOpportunity).where(
+            MarketingOpportunity.id == opportunity_id,
+            MarketingOpportunity.business_id == business_id,
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Marketing opportunity not found")
+    return row
+
+
+async def _experiment(
+    session: AsyncSession, business_id: UUID, experiment_id: UUID
+) -> MarketingExperiment:
+    row = await session.scalar(
+        select(MarketingExperiment).where(
+            MarketingExperiment.id == experiment_id,
+            MarketingExperiment.business_id == business_id,
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Marketing experiment not found")
+    return row
+
+
+async def _marketing_audit(
+    session: AsyncSession,
+    business_id: UUID,
+    actor_id: str,
+    action: str,
+    resource_type: str,
+    resource_id: UUID | None,
+    details: dict[str, Any],
+) -> None:
+    session.add(
+        AuditLog(
+            business_id=business_id,
+            actor_id=actor_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id else "batch",
+            details=details,
+        )
+    )
+
+
+def _metric_deltas(
+    baseline: dict[str, Any], comparison: dict[str, Decimal | int | float]
+) -> dict[str, str | None]:
+    result: dict[str, str | None] = {}
+    for key, comparison_value in comparison.items():
+        baseline_value = baseline.get(key)
+        try:
+            result[key] = str(Decimal(str(comparison_value)) - Decimal(str(baseline_value)))
+        except (InvalidOperation, ValueError, TypeError):
+            result[key] = None
+    return result
+
+
+def _opportunity_view(row: MarketingOpportunity) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "source": row.source,
+        "evidence": row.evidence,
+        "page_or_query": row.page_or_query,
+        "baseline_metrics": row.baseline_metrics,
+        "recommendation": row.recommendation,
+        "expected_outcome": row.expected_outcome,
+        "confidence": str(row.confidence) if row.confidence is not None else None,
+        "status": row.status,
+        "approved_by": row.approved_by,
+        "approved_at": row.approved_at,
+    }
+
+
+def _experiment_view(row: MarketingExperiment) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "opportunity_id": str(row.opportunity_id),
+        "approved_change": row.approved_change,
+        "target_page": row.target_page,
+        "baseline_period": [row.baseline_period_start, row.baseline_period_end],
+        "comparison_period": [row.comparison_period_start, row.comparison_period_end],
+        "implementation_date": row.implementation_date,
+        "owner": row.owner,
+        "execution_method": row.execution_method,
+        "status": row.status,
+        "result": row.result,
+        "lesson": row.lesson,
+    }
 
 
 async def _business(session: AsyncSession, business_id: UUID) -> Business:

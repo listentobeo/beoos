@@ -413,6 +413,28 @@ export type MarketingMetricView = {
   created_at: string;
 };
 
+export type MarketingOpportunityRecord = {
+  id: string;
+  source: string;
+  page_or_query: string;
+  baseline_metrics: Record<string, unknown>;
+  recommendation: string;
+  expected_outcome: string;
+  confidence: string | null;
+  status: string;
+};
+
+export type MarketingExperimentRecord = {
+  id: string;
+  opportunity_id: string;
+  approved_change: string;
+  target_page: string;
+  execution_method: "manual" | "approved_tool";
+  status: string;
+  result: Record<string, unknown>;
+  lesson: string;
+};
+
 export type MarketingSummary = {
   window_days: number;
   totals: MarketingTotal[];
@@ -700,6 +722,10 @@ export const beoApi = {
     ),
   marketingConnections: (businessId: string) =>
     apiFetch<MarketingConnectionStatus>(`/businesses/${businessId}/marketing/connections`),
+  marketingOpportunities: (businessId: string) =>
+    apiFetch<MarketingOpportunityRecord[]>(`/businesses/${businessId}/marketing/opportunities`),
+  marketingExperiments: (businessId: string) =>
+    apiFetch<MarketingExperimentRecord[]>(`/businesses/${businessId}/marketing/experiments`),
   dailyReportSettings: (businessId: string) =>
     apiFetch<DailyReportSettings>(`/businesses/${businessId}/reports/daily/settings`),
   dailyReportPreview: (businessId: string) =>
