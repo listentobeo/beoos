@@ -1094,6 +1094,13 @@ class ToolCall(Base, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(80))
     error_message_sanitized: Mapped[str | None] = mapped_column(Text)
+    failure_category: Mapped[str | None] = mapped_column(String(60))
+    external_state: Mapped[str] = mapped_column(
+        String(40), default="not_started", nullable=False
+    )
+    reconciliation_status: Mapped[str] = mapped_column(
+        String(40), default="not_required", nullable=False
+    )
 
 
 class ApprovalRequest(Base, TimestampMixin):
@@ -1562,4 +1569,44 @@ class DurableJob(Base, TimestampMixin):
     last_error: Mapped[str | None] = mapped_column(Text)
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ExternalActionReconciliation(Base, TimestampMixin):
+    __tablename__ = "external_action_reconciliations"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id",
+            "action_type",
+            "idempotency_key",
+            name="uq_external_reconciliation_idempotency",
+        ),
+        Index("ix_external_reconciliations_business_status", "business_id", "status"),
+        Index("ix_external_reconciliations_tool_call", "tool_call_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="SET NULL")
+    )
+    tool_call_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tool_calls.id", ondelete="SET NULL")
+    )
+    durable_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("durable_jobs.id", ondelete="SET NULL")
+    )
+    action_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(96), nullable=False)
+    failure_category: Mapped[str] = mapped_column(String(60), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_reference: Mapped[str | None] = mapped_column(String(255))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    resolution: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    resolved_by: Mapped[str | None] = mapped_column(String(255))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

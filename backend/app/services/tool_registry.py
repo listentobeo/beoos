@@ -40,6 +40,7 @@ from app.infrastructure.models import (
     WorkflowRun,
     WorkflowStep,
 )
+from app.services.failure_recovery import classify_failure
 from app.services.follow_up_scheduler import standard_follow_up_offsets
 from app.services.quote_engine import calculate_quote
 
@@ -491,6 +492,7 @@ class ToolRegistry:
             request_hash=_request_hash(payload),
             idempotency_key=idempotency_key,
             status="running",
+            external_state="in_flight" if spec.is_external else "not_applicable",
             attempt_count=1,
             started_at=datetime.now(UTC),
         )
@@ -510,6 +512,7 @@ class ToolRegistry:
             _validate_schema(result, spec.output_schema, "tool output")
             call.response_payload_sanitized = _sanitize(result)
             call.status = "completed"
+            call.external_state = "confirmed" if spec.is_external else "not_applicable"
             call.completed_at = datetime.now(UTC)
             session.add(
                 AuditLog(
@@ -524,6 +527,12 @@ class ToolRegistry:
         except Exception as exc:
             call.status = "failed"
             call.error_code = _failure_code(exc)
+            uncertain = spec.is_external and isinstance(exc, (TimeoutError, ConnectionError))
+            call.failure_category = classify_failure(
+                exc, external_state_uncertain=uncertain
+            )
+            call.external_state = "unknown" if uncertain else "not_completed"
+            call.reconciliation_status = "required" if uncertain else "not_required"
             call.error_message_sanitized = f"{exc.__class__.__name__}: {str(exc)[:500]}"
             call.completed_at = datetime.now(UTC)
             raise

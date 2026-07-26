@@ -15,6 +15,7 @@ import {
   LogOut,
   Megaphone,
   MessageCircleMore,
+  RotateCcw,
   ShieldX,
   Search,
   Settings,
@@ -45,6 +46,7 @@ const manage = [
   ["Analytics", "/dashboard/analytics", BarChart3],
   ["Business value", "/dashboard/value", Gauge],
   ["Workflow traces", "/dashboard/traces", Activity],
+  ["Recovery", "/dashboard/recovery", RotateCcw],
   ["Marketing", "/dashboard/marketing", Megaphone],
   ["Business settings", "/dashboard/settings", Settings],
 ] as const;

@@ -635,6 +635,12 @@ export type ValueDashboard = {
   evidence: Record<string, number>;
 };
 
+export type RecoveryQueue = {
+  durable_jobs: Array<Record<string, unknown>>;
+  tool_calls: Array<Record<string, unknown>>;
+  reconciliations: Array<Record<string, unknown>>;
+};
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -716,6 +722,8 @@ export const beoApi = {
     ),
   valueDashboard: (businessId: string) =>
     apiFetch<ValueDashboard>(`/businesses/${businessId}/value/dashboard`),
+  recoveryQueue: (businessId: string) =>
+    apiFetch<RecoveryQueue>(`/businesses/${businessId}/recovery`),
   marketing: (businessId: string, windowDays = 90) =>
     apiFetch<MarketingSummary>(
       `/businesses/${businessId}/marketing/summary?window_days=${windowDays}`,

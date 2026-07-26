@@ -22,6 +22,7 @@ from app.api import (
     operator,
     prices,
     quotes,
+    recovery,
     reports,
     tools,
     traces,
@@ -51,6 +52,7 @@ api_router.include_router(operator.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)
 api_router.include_router(quotes.public_router)
+api_router.include_router(recovery.router)
 api_router.include_router(reports.router)
 api_router.include_router(tools.router)
 api_router.include_router(traces.router)
