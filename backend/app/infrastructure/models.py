@@ -1257,6 +1257,60 @@ class EvaluationResult(Base, TimestampMixin):
     human_reviewed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class EvaluationThreshold(Base, TimestampMixin):
+    __tablename__ = "evaluation_thresholds"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id",
+            "workflow_key",
+            "metric_key",
+            name="uq_evaluation_threshold_tenant_workflow_metric",
+        ),
+        Index("ix_evaluation_thresholds_business_workflow", "business_id", "workflow_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    metric_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    operator: Mapped[str] = mapped_column(String(8), nullable=False)
+    threshold: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), default="blocking", nullable=False)
+    configured_by: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class WorkflowDeployment(Base, TimestampMixin):
+    __tablename__ = "workflow_deployments"
+    __table_args__ = (
+        Index("ix_workflow_deployments_business_workflow", "business_id", "workflow_key"),
+        Index("ix_workflow_deployments_business_status", "business_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_definition_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_definitions.id"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    deployed_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    deployment_mode: Mapped[str] = mapped_column(String(40), nullable=False)
+    evaluation_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evaluation_runs.id"), nullable=False
+    )
+    evaluation_report: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    rollback_deployment_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("workflow_deployments.id")
+    )
+    status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class DurableJob(Base, TimestampMixin):
     __tablename__ = "durable_jobs"
     __table_args__ = (

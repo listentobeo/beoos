@@ -70,3 +70,29 @@ class EvaluationResultCreate(BaseModel):
         if self.evaluator_type == "human" and not self.human_reviewed:
             raise ValueError("Human evaluator results must be marked human reviewed")
         return self
+
+
+class EvaluationExecuteRequest(BaseModel):
+    outputs: dict[UUID, dict[str, Any]]
+    latencies_ms: dict[UUID, int] = Field(default_factory=dict)
+    estimated_costs: dict[UUID, Decimal] = Field(default_factory=dict)
+
+
+class EvaluationThresholdUpsert(BaseModel):
+    metric_key: str = Field(min_length=2, max_length=120)
+    operator: Literal["gte", "lte", "eq"] = "gte"
+    threshold: Decimal
+    severity: Literal["blocking", "warning"] = "blocking"
+
+
+class DeploymentCreate(BaseModel):
+    workflow_definition_id: UUID
+    evaluation_run_id: UUID
+    deployment_mode: Literal[
+        "experimental", "shadow", "approval_required", "limited_autonomy", "active"
+    ]
+
+
+class DeploymentDecision(BaseModel):
+    approve: bool
+    reason: str = Field(min_length=2, max_length=2_000)

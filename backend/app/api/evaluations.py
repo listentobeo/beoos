@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import BusinessAccess, require_admin, require_business_access
@@ -12,8 +12,12 @@ from app.domain.evaluations import (
     ENQUIRY_EVALUATION_DIMENSIONS,
     DatasetCreate,
     DatasetExampleCreate,
+    DeploymentCreate,
+    DeploymentDecision,
+    EvaluationExecuteRequest,
     EvaluationResultCreate,
     EvaluationRunCreate,
+    EvaluationThresholdUpsert,
 )
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
@@ -22,10 +26,13 @@ from app.infrastructure.models import (
     DatasetExample,
     EvaluationResult,
     EvaluationRun,
+    EvaluationThreshold,
     HumanCorrection,
     WorkflowDefinition,
+    WorkflowDeployment,
     WorkflowRun,
 )
+from app.services.evaluation_runner import aggregate_metrics, evaluate_example, gate_report
 
 router = APIRouter(prefix="/businesses/{business_id}/evaluation", tags=["evaluation"])
 
@@ -67,15 +74,18 @@ async def create_dataset(
     access: BusinessAccess = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    version = int(
-        await session.scalar(
-            select(func.coalesce(func.max(Dataset.version), 0)).where(
-                Dataset.business_id == business_id,
-                Dataset.name == payload.name,
+    version = (
+        int(
+            await session.scalar(
+                select(func.coalesce(func.max(Dataset.version), 0)).where(
+                    Dataset.business_id == business_id,
+                    Dataset.name == payload.name,
+                )
             )
+            or 0
         )
-        or 0
-    ) + 1
+        + 1
+    )
     dataset = Dataset(
         business_id=business_id,
         name=payload.name,
@@ -328,9 +338,303 @@ async def record_evaluation_result(
     }
 
 
-async def _dataset(
-    session: AsyncSession, business_id: UUID, dataset_id: UUID
-) -> Dataset:
+@router.put("/thresholds/{workflow_key}")
+async def replace_evaluation_thresholds(
+    business_id: UUID,
+    workflow_key: str,
+    payload: list[EvaluationThresholdUpsert],
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    if not payload:
+        raise HTTPException(status_code=422, detail="At least one deployment threshold is required")
+    await session.execute(
+        delete(EvaluationThreshold).where(
+            EvaluationThreshold.business_id == business_id,
+            EvaluationThreshold.workflow_key == workflow_key,
+        )
+    )
+    rows = [
+        EvaluationThreshold(
+            business_id=business_id,
+            workflow_key=workflow_key,
+            metric_key=item.metric_key,
+            operator=item.operator,
+            threshold=item.threshold,
+            severity=item.severity,
+            configured_by=access.user_id,
+        )
+        for item in payload
+    ]
+    session.add_all(rows)
+    await session.commit()
+    return [_threshold_view(row) for row in rows]
+
+
+@router.get("/thresholds/{workflow_key}")
+async def list_evaluation_thresholds(
+    business_id: UUID,
+    workflow_key: str,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    rows = (
+        await session.scalars(
+            select(EvaluationThreshold)
+            .where(
+                EvaluationThreshold.business_id == business_id,
+                EvaluationThreshold.workflow_key == workflow_key,
+            )
+            .order_by(EvaluationThreshold.metric_key)
+        )
+    ).all()
+    return [_threshold_view(row) for row in rows]
+
+
+@router.post("/runs/{run_id}/execute")
+async def execute_evaluation_run(
+    business_id: UUID,
+    run_id: UUID,
+    payload: EvaluationExecuteRequest,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    run = await session.scalar(
+        select(EvaluationRun).where(
+            EvaluationRun.id == run_id, EvaluationRun.business_id == business_id
+        )
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Evaluation run not found")
+    if run.status not in {"queued", "failed"}:
+        raise HTTPException(status_code=409, detail="Evaluation run has already been executed")
+    workflow = await session.scalar(
+        select(WorkflowDefinition).where(WorkflowDefinition.id == run.workflow_definition_id)
+    )
+    if workflow is None:
+        raise HTTPException(status_code=409, detail="Pinned workflow definition is unavailable")
+    examples = (
+        await session.scalars(
+            select(DatasetExample).where(
+                DatasetExample.dataset_id == run.dataset_id,
+                DatasetExample.approved_by.is_not(None),
+            )
+        )
+    ).all()
+    missing = [str(example.id) for example in examples if example.id not in payload.outputs]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Candidate output missing for approved examples",
+                "example_ids": missing,
+            },
+        )
+    await session.execute(
+        delete(EvaluationResult).where(EvaluationResult.evaluation_run_id == run.id)
+    )
+    run.status = "running"
+    run.started_at = datetime.now(UTC)
+    rows: list[dict[str, Any]] = []
+    total_cost = Decimal("0")
+    total_latency = 0
+    for example in examples:
+        actual = payload.outputs[example.id]
+        passed, scores, failure_type = evaluate_example(
+            example.expected_output,
+            example.expected_policy_result,
+            example.expected_approval_requirement,
+            actual,
+        )
+        result = EvaluationResult(
+            business_id=business_id,
+            evaluation_run_id=run.id,
+            dataset_example_id=example.id,
+            actual_output=actual,
+            pass_fail=passed,
+            scores={
+                key: str(value) if isinstance(value, Decimal) else value
+                for key, value in scores.items()
+            },
+            failure_type=failure_type,
+            evaluator_type="rule",
+            evaluator_notes=(
+                "Deterministic schema, exact-field, policy, pricing, "
+                "promise and escalation checks."
+            ),
+            human_reviewed=False,
+        )
+        session.add(result)
+        rows.append({"pass_fail": passed, "scores": scores})
+        total_latency += payload.latencies_ms.get(example.id, 0)
+        total_cost += payload.estimated_costs.get(example.id, Decimal("0"))
+    metrics = aggregate_metrics(rows)
+    thresholds = (
+        await session.scalars(
+            select(EvaluationThreshold).where(
+                EvaluationThreshold.business_id == business_id,
+                EvaluationThreshold.workflow_key == workflow.key,
+            )
+        )
+    ).all()
+    report = gate_report(
+        metrics,
+        [
+            {
+                "metric_key": row.metric_key,
+                "operator": row.operator,
+                "threshold": row.threshold,
+                "severity": row.severity,
+            }
+            for row in thresholds
+        ],
+    )
+    run.total_examples = len(examples)
+    run.passed = sum(1 for row in rows if row["pass_fail"])
+    run.failed = len(rows) - run.passed
+    run.estimated_cost = total_cost
+    run.average_latency = total_latency // len(examples) if examples else 0
+    run.status = "completed"
+    run.completed_at = datetime.now(UTC)
+    run.summary = {**report, "runner": "deterministic_first_v1"}
+    await _audit(
+        session,
+        business_id,
+        access.user_id,
+        "evaluation_run.completed",
+        "evaluation_run",
+        run.id,
+        {"passed": run.passed, "failed": run.failed, "gate_passed": report["passed"]},
+    )
+    await session.commit()
+    return _run_view(run)
+
+
+@router.get("/deployments")
+async def list_workflow_deployments(
+    business_id: UUID,
+    _access: BusinessAccess = Depends(require_business_access),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    rows = (
+        await session.scalars(
+            select(WorkflowDeployment)
+            .where(WorkflowDeployment.business_id == business_id)
+            .order_by(WorkflowDeployment.created_at.desc())
+        )
+    ).all()
+    return [_deployment_view(row) for row in rows]
+
+
+@router.post("/deployments", status_code=201)
+async def propose_workflow_deployment(
+    business_id: UUID,
+    payload: DeploymentCreate,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    workflow = await session.scalar(
+        select(WorkflowDefinition).where(
+            WorkflowDefinition.id == payload.workflow_definition_id,
+            or_(
+                WorkflowDefinition.business_id == business_id,
+                WorkflowDefinition.business_id.is_(None),
+            ),
+        )
+    )
+    run = await session.scalar(
+        select(EvaluationRun).where(
+            EvaluationRun.id == payload.evaluation_run_id,
+            EvaluationRun.business_id == business_id,
+            EvaluationRun.workflow_definition_id == payload.workflow_definition_id,
+        )
+    )
+    if workflow is None or run is None:
+        raise HTTPException(status_code=404, detail="Workflow or compatible evaluation not found")
+    if run.status != "completed" or not bool(run.summary.get("passed")):
+        raise HTTPException(status_code=409, detail="A completed passing evaluation is required")
+    rollback = await session.scalar(
+        select(WorkflowDeployment)
+        .where(
+            WorkflowDeployment.business_id == business_id,
+            WorkflowDeployment.workflow_key == workflow.key,
+            WorkflowDeployment.status == "deployed",
+        )
+        .order_by(WorkflowDeployment.deployed_at.desc())
+    )
+    deployment = WorkflowDeployment(
+        business_id=business_id,
+        workflow_definition_id=workflow.id,
+        workflow_key=workflow.key,
+        deployed_version=workflow.version,
+        deployment_mode=payload.deployment_mode,
+        evaluation_run_id=run.id,
+        evaluation_report=run.summary,
+        rollback_deployment_id=rollback.id if rollback else None,
+        status="pending",
+    )
+    session.add(deployment)
+    await session.flush()
+    await _audit(
+        session,
+        business_id,
+        access.user_id,
+        "workflow_deployment.proposed",
+        "workflow_deployment",
+        deployment.id,
+        {"mode": deployment.deployment_mode, "evaluation_run_id": str(run.id)},
+    )
+    await session.commit()
+    return _deployment_view(deployment)
+
+
+@router.post("/deployments/{deployment_id}/decision")
+async def decide_workflow_deployment(
+    business_id: UUID,
+    deployment_id: UUID,
+    payload: DeploymentDecision,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    deployment = await session.scalar(
+        select(WorkflowDeployment).where(
+            WorkflowDeployment.id == deployment_id,
+            WorkflowDeployment.business_id == business_id,
+        )
+    )
+    if deployment is None:
+        raise HTTPException(status_code=404, detail="Deployment proposal not found")
+    if deployment.status != "pending":
+        raise HTTPException(status_code=409, detail="Deployment proposal is already decided")
+    now = datetime.now(UTC)
+    deployment.approved_by = access.user_id
+    deployment.approved_at = now
+    deployment.status = "deployed" if payload.approve else "rejected"
+    if payload.approve:
+        deployment.deployed_at = now
+        workflow = await session.scalar(
+            select(WorkflowDefinition).where(
+                WorkflowDefinition.id == deployment.workflow_definition_id
+            )
+        )
+        if workflow is None:
+            raise HTTPException(status_code=409, detail="Workflow definition is unavailable")
+        workflow.deployment_mode = deployment.deployment_mode
+        workflow.status = "active"
+    await _audit(
+        session,
+        business_id,
+        access.user_id,
+        "workflow_deployment.approved" if payload.approve else "workflow_deployment.rejected",
+        "workflow_deployment",
+        deployment.id,
+        {"reason": payload.reason, "mode": deployment.deployment_mode},
+    )
+    await session.commit()
+    return _deployment_view(deployment)
+
+
+async def _dataset(session: AsyncSession, business_id: UUID, dataset_id: UUID) -> Dataset:
     dataset = await session.scalar(
         select(Dataset).where(
             Dataset.id == dataset_id,
@@ -446,4 +750,35 @@ def _run_view(run: EvaluationRun) -> dict[str, Any]:
         "estimated_cost": str(run.estimated_cost),
         "average_latency": run.average_latency,
         "summary": run.summary,
+    }
+
+
+def _threshold_view(row: EvaluationThreshold) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "workflow_key": row.workflow_key,
+        "metric_key": row.metric_key,
+        "operator": row.operator,
+        "threshold": str(row.threshold),
+        "severity": row.severity,
+        "configured_by": row.configured_by,
+    }
+
+
+def _deployment_view(row: WorkflowDeployment) -> dict[str, Any]:
+    return {
+        "id": str(row.id),
+        "workflow_definition_id": str(row.workflow_definition_id),
+        "workflow_key": row.workflow_key,
+        "deployed_version": row.deployed_version,
+        "deployment_mode": row.deployment_mode,
+        "evaluation_run_id": str(row.evaluation_run_id),
+        "evaluation_report": row.evaluation_report,
+        "rollback_deployment_id": (
+            str(row.rollback_deployment_id) if row.rollback_deployment_id else None
+        ),
+        "status": row.status,
+        "approved_by": row.approved_by,
+        "approved_at": row.approved_at,
+        "deployed_at": row.deployed_at,
     }
