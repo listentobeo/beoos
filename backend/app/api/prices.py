@@ -107,8 +107,11 @@ async def import_prices_from_text(
     access: BusinessAccess = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> PriceImportResult:
-    parsed_items = [_parse_price_line(line) for line in payload.text.splitlines()]
-    parsed_items = [item for item in parsed_items if item is not None]
+    parsed_items: list[PriceItemCreate] = []
+    for line in payload.text.splitlines():
+        parsed_item = _parse_price_line(line)
+        if parsed_item is not None:
+            parsed_items.append(parsed_item)
     if not parsed_items:
         raise HTTPException(
             status_code=422,
@@ -119,13 +122,13 @@ async def import_prices_from_text(
         )
     items: list[PriceCatalogItem] = []
     for item_payload in parsed_items:
-        item = PriceCatalogItem(
+        catalog_item = PriceCatalogItem(
             business_id=business_id,
             **item_payload.model_dump(),
             approved_by=access.user_id,
         )
-        session.add(item)
-        items.append(item)
+        session.add(catalog_item)
+        items.append(catalog_item)
     await session.commit()
     for item in items:
         await session.refresh(item)

@@ -158,18 +158,20 @@ class QuoteAIService:
         ).all()
         thread_messages: list[EmailMessage] = []
         if lead and lead.thread_id:
-            thread_messages = (
-                await session.scalars(
-                    select(EmailMessage)
-                    .join(EmailThread, EmailThread.id == EmailMessage.thread_id)
-                    .where(
-                        EmailThread.business_id == business_id,
-                        EmailMessage.thread_id == lead.thread_id,
+            thread_messages = list(
+                (
+                    await session.scalars(
+                        select(EmailMessage)
+                        .join(EmailThread, EmailThread.id == EmailMessage.thread_id)
+                        .where(
+                            EmailThread.business_id == business_id,
+                            EmailMessage.thread_id == lead.thread_id,
+                        )
+                        .order_by(EmailMessage.sent_at.desc())
+                        .limit(6)
                     )
-                    .order_by(EmailMessage.sent_at.desc())
-                    .limit(6)
-                )
-            ).all()
+                ).all()
+            )
 
         return {
             "business": {
@@ -346,26 +348,13 @@ class QuoteAIService:
         lead = context.get("lead") or {}
         contact = context.get("contact") or {}
         template = context.get("selected_template") or {}
-        client_name = (
-            payload.client_name
-            or contact.get("name")
-            or contact.get("email")
-            or "Client"
-        )
+        client_name = payload.client_name or contact.get("name") or contact.get("email") or "Client"
         service = (
-            payload.service
-            or lead.get("service")
-            or _infer_service(payload.prompt)
-            or "service"
+            payload.service or lead.get("service") or _infer_service(payload.prompt) or "service"
         )
-        title = (
-            payload.title
-            or f"{client_name} {service.title()} Quote"
-        )[:240]
+        title = (payload.title or f"{client_name} {service.title()} Quote")[:240]
         template_type = (
-            template.get("template_type")
-            or payload.template_type
-            or QuoteTemplateType.custom
+            template.get("template_type") or payload.template_type or QuoteTemplateType.custom
         )
         if str(template_type) == "mural":
             input_data = default_mural_input(

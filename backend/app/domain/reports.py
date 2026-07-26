@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -68,7 +69,7 @@ class DailyReportSendResult(BaseModel):
 
 
 def normalized_daily_report_settings(
-    settings: dict | None,
+    settings: dict[str, Any] | None,
     *,
     fallback_email: str,
     fallback_timezone: str,

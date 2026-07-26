@@ -166,7 +166,8 @@ class GmailClient:
 
 
 def headers_from_message(message: dict[str, Any]) -> dict[str, str]:
-    payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
+    raw_payload = message.get("payload")
+    payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
     values: dict[str, str] = {}
     for item in payload.get("headers") or []:
         if not isinstance(item, dict):
@@ -215,7 +216,8 @@ def _collect_parts(
     if not isinstance(payload, dict):
         return
     filename = str(payload.get("filename") or "")
-    body = payload.get("body") if isinstance(payload.get("body"), dict) else {}
+    raw_body = payload.get("body")
+    body: dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
     data = body.get("data")
     mime_type = str(payload.get("mimeType") or "")
     if filename:

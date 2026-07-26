@@ -227,7 +227,8 @@ async def mark_all_threads_read(
         .values(unread_count=0)
     )
     await session.commit()
-    return {"updated": int(result.rowcount or 0)}
+    rowcount = getattr(result, "rowcount", 0)
+    return {"updated": int(rowcount or 0)}
 
 
 @router.get("/threads/{thread_id}", response_model=ThreadDetail)

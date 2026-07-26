@@ -135,9 +135,9 @@ class OpenAIEmailService:
             json={
                 "input": input_payload,
                 "context": {
-                    "safety_identifier": hashlib.sha256(
-                        sender_email.lower().encode()
-                    ).hexdigest()[:64],
+                    "safety_identifier": hashlib.sha256(sender_email.lower().encode()).hexdigest()[
+                        :64
+                    ],
                 },
             },
         )
@@ -153,7 +153,10 @@ class OpenAIEmailService:
                 model=self._settings.replicate_model,
             )
             raise
-        return response.json()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Replicate returned a non-object prediction response")
+        return payload
 
     async def _wait_for_replicate_prediction(self, prediction_id: str) -> Any:
         attempts = max(1, self._settings.replicate_timeout_seconds // 3)

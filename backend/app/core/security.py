@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -98,6 +99,7 @@ def require_admin(access: BusinessAccess = Depends(require_business_access)) -> 
         raise HTTPException(status_code=403, detail="Admin access required")
     return access
 
+
 @dataclass(frozen=True)
 class ExternalTokenAccess:
     business_id: UUID
@@ -158,7 +160,9 @@ async def require_external_api_token(
     )
 
 
-def require_external_scope(required_scope: str):
+def require_external_scope(
+    required_scope: str,
+) -> Callable[..., Awaitable[ExternalTokenAccess]]:
     async def dependency(
         access: ExternalTokenAccess = Depends(require_external_api_token),
     ) -> ExternalTokenAccess:
@@ -167,5 +171,4 @@ def require_external_scope(required_scope: str):
             raise HTTPException(status_code=403, detail=f"Missing scope: {required_scope}")
         return access
 
-    return dependency
     return dependency

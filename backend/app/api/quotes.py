@@ -198,9 +198,7 @@ async def create_quote(
 ) -> QuoteView:
     business = await _business(session, business_id)
     template = (
-        await _template(session, business_id, payload.template_id)
-        if payload.template_id
-        else None
+        await _template(session, business_id, payload.template_id) if payload.template_id else None
     )
     lead = await _lead(session, business_id, payload.lead_id) if payload.lead_id else None
     contact_id = payload.contact_id or (lead.contact_id if lead else None)
@@ -544,7 +542,8 @@ async def _public_quote_row(
     ).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Quote not found")
-    return row
+    quote, business, contact = row
+    return quote, business, contact
 
 
 def _seed_input(
@@ -576,13 +575,13 @@ def _apply_template(
         return dict(input_data)
     merged = dict(template.default_input)
     merged.update(template.terms_settings)
+    raw_design_settings = input_data.get("design_settings")
+    input_design_settings: dict[str, object] = (
+        raw_design_settings if isinstance(raw_design_settings, dict) else {}
+    )
     merged["design_settings"] = {
         **template.design_settings,
-        **(
-            input_data.get("design_settings")
-            if isinstance(input_data.get("design_settings"), dict)
-            else {}
-        ),
+        **input_design_settings,
     }
     merged.update(input_data)
     return merged

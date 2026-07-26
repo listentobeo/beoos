@@ -497,13 +497,14 @@ async def _ensure_thread(session: AsyncSession, business_id: UUID, thread_id: UU
 
 
 async def _latest_analysis(session: AsyncSession, thread_id: UUID) -> EmailAnalysis | None:
-    return await session.scalar(
+    analysis: EmailAnalysis | None = await session.scalar(
         select(EmailAnalysis)
         .join(EmailMessage, EmailMessage.id == EmailAnalysis.message_id)
         .where(EmailMessage.thread_id == thread_id)
         .order_by(EmailAnalysis.created_at.desc())
         .limit(1)
     )
+    return analysis
 
 
 async def _thread_source(session: AsyncSession, thread_id: UUID) -> LeadSource:

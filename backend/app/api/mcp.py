@@ -55,6 +55,7 @@ async def mcp_rpc(
     access: ExternalTokenAccess = Depends(require_external_api_token),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    result: Any
     try:
         if request.method == "initialize":
             result = {
@@ -88,6 +89,7 @@ async def _call_tool(
         arguments = {}
     _ensure_scope(access, TOOL_SCOPES.get(name, ""))
 
+    data: Any
     if name == "get_business_profile":
         data = await _business_profile(session, access.business_id)
     elif name == "get_operating_summary":
@@ -390,8 +392,7 @@ def _tool_schema(name: str) -> dict[str, Any]:
         },
         "get_operating_summary": {
             "description": (
-                "Get a high-level operating summary for inbox, CRM, quotes, "
-                "pricing, and marketing."
+                "Get a high-level operating summary for inbox, CRM, quotes, pricing, and marketing."
             ),
             "inputSchema": {"type": "object", "properties": {}},
         },
@@ -471,8 +472,10 @@ def _limit(arguments: dict[str, Any], *, default: int, maximum: int) -> int:
 
 def _settings_summary(settings: dict[str, Any] | None) -> dict[str, Any]:
     values = settings or {}
-    whatsapp = values.get("whatsapp") if isinstance(values.get("whatsapp"), dict) else {}
-    ai_policy = values.get("ai_policy") if isinstance(values.get("ai_policy"), dict) else {}
+    raw_whatsapp = values.get("whatsapp")
+    whatsapp: dict[str, Any] = raw_whatsapp if isinstance(raw_whatsapp, dict) else {}
+    raw_ai_policy = values.get("ai_policy")
+    ai_policy: dict[str, Any] = raw_ai_policy if isinstance(raw_ai_policy, dict) else {}
     return {
         "whatsapp_enabled": bool(whatsapp.get("enabled")),
         "whatsapp_connection_mode": whatsapp.get("connection_mode", "unknown"),

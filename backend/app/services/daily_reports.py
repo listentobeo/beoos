@@ -1,11 +1,13 @@
 from datetime import UTC, datetime, time
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Executable
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import Settings
@@ -274,7 +276,7 @@ class DailyReportService:
     async def _count(
         self,
         session: AsyncSession,
-        column: object,
+        column: Any,
         *conditions: ColumnElement[bool],
     ) -> int:
         value = await session.scalar(select(func.count(column)).where(*conditions))
@@ -312,7 +314,7 @@ class DailyReportService:
         )
         return int(value or 0)
 
-    async def _sum_decimal(self, session: AsyncSession, statement: object) -> Decimal:
+    async def _sum_decimal(self, session: AsyncSession, statement: Executable) -> Decimal:
         value = await session.scalar(statement)
         return Decimal(str(value or 0))
 
@@ -379,9 +381,10 @@ def _email_text(preview: DailyReportPreview) -> str:
     totals = preview.totals
     highlights = "\n".join(f"- {item}" for item in preview.highlights)
     actions = "\n".join(f"- {item}" for item in preview.action_items)
-    activity = "\n".join(
-        f"- {item.label}: {item.detail}" for item in preview.recent_activity[:6]
-    ) or "- No recent activity yet."
+    activity = (
+        "\n".join(f"- {item.label}: {item.detail}" for item in preview.recent_activity[:6])
+        or "- No recent activity yet."
+    )
     return (
         f"{preview.subject}\n\n"
         f"Business: {preview.business_name}\n"

@@ -136,6 +136,7 @@ class WhatsAppConnectionTestResult(BaseModel):
     phone_numbers_found: int = 0
     errors: list[str] = Field(default_factory=list)
 
+
 class DashboardSummary(BaseModel):
     business: BusinessView
     inbox_stats: InboxStats
@@ -512,6 +513,7 @@ async def test_whatsapp_connection(
         errors=errors,
     )
 
+
 @router.get("/{business_id}/whatsapp/embedded-config", response_model=WhatsAppEmbeddedConfig)
 async def whatsapp_embedded_config(
     business_id: UUID,
@@ -554,10 +556,7 @@ async def create_whatsapp_signup_attempt(
         settings.meta_app_id
         and settings.meta_app_secret
         and config_id
-        and (
-            payload.connection_mode != "coexistence"
-            or settings.whatsapp_coexistence_enabled
-        )
+        and (payload.connection_mode != "coexistence" or settings.whatsapp_coexistence_enabled)
     )
     if not enabled:
         raise HTTPException(
@@ -622,7 +621,7 @@ async def complete_whatsapp_embedded_signup(
     )
 
     attempt: WhatsAppSignupAttempt | None = None
-    connection_mode = payload.connection_mode
+    connection_mode: str = payload.connection_mode
     if payload.attempt_id or payload.state:
         attempt_conditions = [WhatsAppSignupAttempt.business_id == business.id]
         if payload.attempt_id:
@@ -646,7 +645,7 @@ async def complete_whatsapp_embedded_signup(
                 status_code=409,
                 detail="WhatsApp signup attempt expired. Please try again.",
             )
-        connection_mode = attempt.connection_mode.value
+        connection_mode = WhatsAppConnectionMode(attempt.connection_mode).value
         attempt.status = WhatsAppConnectionStatus.authorization_received
         attempt.meta_payload = payload.meta_payload
 
@@ -1312,7 +1311,7 @@ async def _mailbox_for_provider(
     business_id: UUID,
     provider: str,
 ) -> MailboxConnection | None:
-    return await session.scalar(
+    mailbox: MailboxConnection | None = await session.scalar(
         select(MailboxConnection)
         .where(
             MailboxConnection.business_id == business_id,
@@ -1321,6 +1320,7 @@ async def _mailbox_for_provider(
         .order_by(MailboxConnection.updated_at.desc())
         .limit(1)
     )
+    return mailbox
 
 
 async def _mailbox_status(
@@ -1385,12 +1385,3 @@ async def _push_status(
         enabled=exists is not None,
         vapid_public_key=settings.vapid_public_key,
     )
-
-
-
-
-
-
-
-
-

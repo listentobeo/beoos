@@ -4,6 +4,7 @@
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -464,9 +465,7 @@ async def complete_marketing_experiment(
     deltas = _metric_deltas(opportunity.baseline_metrics, payload.comparison_metrics)
     experiment.result = {
         "baseline": opportunity.baseline_metrics,
-        "comparison": {
-            key: str(value) for key, value in payload.comparison_metrics.items()
-        },
+        "comparison": {key: str(value) for key, value in payload.comparison_metrics.items()},
         "deltas": deltas,
     }
     experiment.lesson = payload.lesson
@@ -612,7 +611,10 @@ def _provider_status(
                 for item, ready in [
                     ("GOOGLE_CLIENT_ID", bool(settings.google_client_id)),
                     ("GOOGLE_CLIENT_SECRET", bool(settings.google_client_secret)),
-                    ("Search Console property URL", bool(tenant_settings.search_console_property_url)),
+                    (
+                        "Search Console property URL",
+                        bool(tenant_settings.search_console_property_url),
+                    ),
                 ]
                 if not ready
             ],
@@ -660,7 +662,7 @@ def _provider_status(
     ]
 
 
-def _totals(metrics: list[MarketingMetric]) -> list[MarketingTotal]:
+def _totals(metrics: Sequence[MarketingMetric]) -> list[MarketingTotal]:
     buckets: dict[str, dict[str, int]] = defaultdict(
         lambda: {"rows": 0, "impressions": 0, "clicks": 0, "sessions": 0, "leads": 0}
     )
@@ -681,8 +683,8 @@ def _totals(metrics: list[MarketingMetric]) -> list[MarketingTotal]:
     ]
 
 
-def _top_pages(metrics: list[MarketingMetric]) -> list[MarketingPageOpportunity]:
-    buckets: dict[str, dict[str, object]] = {}
+def _top_pages(metrics: Sequence[MarketingMetric]) -> list[MarketingPageOpportunity]:
+    buckets: dict[str, dict[str, Any]] = {}
     positions: dict[str, list[float]] = defaultdict(list)
     for metric in metrics:
         key = metric.page_url or metric.title or "Unspecified page"
@@ -738,7 +740,7 @@ def _top_pages(metrics: list[MarketingMetric]) -> list[MarketingPageOpportunity]
     )[:12]
 
 
-def _query_opportunities(metrics: list[MarketingMetric]) -> list[MarketingQueryOpportunity]:
+def _query_opportunities(metrics: Sequence[MarketingMetric]) -> list[MarketingQueryOpportunity]:
     opportunities: list[MarketingQueryOpportunity] = []
     for metric in metrics:
         if not metric.query:
@@ -762,13 +764,13 @@ def _query_opportunities(metrics: list[MarketingMetric]) -> list[MarketingQueryO
         )
     return sorted(
         opportunities,
-        key=lambda item: (item.impressions * (1 - min(item.ctr, 0.2))),
+        key=lambda item: item.impressions * (1 - min(item.ctr, 0.2)),
         reverse=True,
     )[:20]
 
 
-def _content_clusters(metrics: list[MarketingMetric]) -> list[MarketingContentCluster]:
-    clusters: dict[str, dict[str, object]] = {}
+def _content_clusters(metrics: Sequence[MarketingMetric]) -> list[MarketingContentCluster]:
+    clusters: dict[str, dict[str, Any]] = {}
     for metric in metrics:
         text = " ".join(part for part in [metric.query, metric.title] if part)
         for token in _tokens(text):
@@ -799,7 +801,7 @@ def _content_clusters(metrics: list[MarketingMetric]) -> list[MarketingContentCl
     return sorted(output, key=lambda item: item.impressions, reverse=True)[:12]
 
 
-def _action_items(metrics: list[MarketingMetric]) -> list[MarketingActionItem]:
+def _action_items(metrics: Sequence[MarketingMetric]) -> list[MarketingActionItem]:
     actions: list[MarketingActionItem] = []
     for page in _top_pages(metrics):
         if page.impressions >= 100 and page.ctr < 0.025:
@@ -854,8 +856,7 @@ def _action_items(metrics: list[MarketingMetric]) -> list[MarketingActionItem]:
                 source="content_cluster",
                 label=f"Build cluster: {cluster.topic}",
                 reason=(
-                    f"{cluster.topic} is appearing across "
-                    f"{len(cluster.queries)} query signal(s)."
+                    f"{cluster.topic} is appearing across {len(cluster.queries)} query signal(s)."
                 ),
                 recommended_action=cluster.recommended_angle,
             )
