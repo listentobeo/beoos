@@ -76,14 +76,12 @@ async def apply_paystack_status(
     *,
     actor_id: str,
 ) -> bool:
-    reference = str(provider_data.get("reference") or "")
-    if reference != transaction.provider_reference:
-        raise ValueError("Paystack reference mismatch")
-    amount_minor = int(provider_data.get("amount") or 0)
-    expected_minor = int((transaction.amount * Decimal("100")).quantize(Decimal("1")))
-    currency = str(provider_data.get("currency") or "").upper()
-    if amount_minor != expected_minor or currency != transaction.currency.upper():
-        raise ValueError("Paystack amount or currency mismatch")
+    validate_paystack_evidence(
+        provider_data,
+        reference=transaction.provider_reference,
+        amount=transaction.amount,
+        currency=transaction.currency,
+    )
     provider_status = str(provider_data.get("status") or "").lower()
     transaction.verification_attempts += 1
     transaction.last_verified_at = datetime.now(UTC)
@@ -137,6 +135,22 @@ async def apply_paystack_status(
         )
     )
     return True
+
+
+def validate_paystack_evidence(
+    provider_data: dict[str, Any],
+    *,
+    reference: str,
+    amount: Decimal,
+    currency: str,
+) -> None:
+    if str(provider_data.get("reference") or "") != reference:
+        raise ValueError("Paystack reference mismatch")
+    amount_minor = int(provider_data.get("amount") or 0)
+    expected_minor = int((amount * Decimal("100")).quantize(Decimal("1")))
+    provider_currency = str(provider_data.get("currency") or "").upper()
+    if amount_minor != expected_minor or provider_currency != currency.upper():
+        raise ValueError("Paystack amount or currency mismatch")
 
 
 async def _payment_definition(
