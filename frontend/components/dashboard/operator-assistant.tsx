@@ -21,6 +21,19 @@ type OperatorResponse = {
   recommended_actions: OperatorAction[];
   read_only_tools_used: string[];
   warnings: string[];
+  conversation_id: string | null;
+  grounding_sources: Array<{
+    source_id: string;
+    source_type: string;
+    classification: string;
+    authority: string;
+  }>;
+  statement_labels: Array<{ type: string; text: string }>;
+  execution: {
+    tool_call_count?: number;
+    max_tool_calls?: number;
+    external_actions_executed?: number;
+  };
 };
 
 type ChatMessage = {
@@ -61,6 +74,7 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const disabled = !businessId;
 
   const latestWarning = useMemo(
@@ -86,6 +100,7 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
           message: clean,
           mode: inferMode(clean),
           conversation_context,
+          conversation_id: conversationId,
         }),
       });
       const result = (await response.json().catch(() => ({}))) as Partial<OperatorResponse> & {
@@ -98,6 +113,7 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
         ...items,
         { role: "operator", content: result.answer ?? "", response: result as OperatorResponse },
       ]);
+      setConversationId(result.conversation_id ?? null);
     } catch (error) {
       setMessages((items) => [
         ...items,
@@ -138,7 +154,9 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
             </div>
             <div className="min-w-0">
               <p className="font-black tracking-[-0.03em]">BeoOS Operator</p>
-              <p className="truncate text-xs text-white/55">Read, reason, and plan across this tenant</p>
+              <p className="truncate text-xs text-white/55">
+                Grounded, bounded, and approval-controlled
+              </p>
             </div>
             <button
               type="button"
@@ -166,8 +184,8 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
                     <Sparkles className="size-5 text-[#ed633f]" />
                     <h3 className="mt-3 font-black">Ask BeoOS to inspect the business.</h3>
                     <p className="mt-2 text-sm leading-6 text-[#667085]">
-                      This first operator version reads your inbox, CRM, quotes, prices, marketing,
-                      and analytics context. Write actions will be added behind approvals next.
+                      The operator retrieves tenant-authorized evidence, labels important claims,
+                      and can propose approval-controlled work without executing external actions.
                     </p>
                     <div className="mt-4 grid gap-2">
                       {quickPrompts.map((prompt) => (
@@ -213,6 +231,31 @@ export function OperatorAssistant({ businessId }: { businessId: string | null })
                             </div>
                           ))}
                         </div>
+                      ) : null}
+                      {message.response?.grounding_sources?.length ? (
+                        <div className="mt-3 border-t pt-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8a94a5]">
+                            Grounding sources
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {message.response.grounding_sources.slice(0, 6).map((source) => (
+                              <Badge
+                                key={`${source.source_type}-${source.source_id}`}
+                                className="bg-blue-50 text-[10px] text-blue-800"
+                              >
+                                {source.source_type.replaceAll("_", " ")}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {message.response?.execution?.max_tool_calls ? (
+                        <p className="mt-3 text-[10px] text-[#8a94a5]">
+                          Used {message.response.execution.tool_call_count ?? 0}/
+                          {message.response.execution.max_tool_calls} bounded tools ·{" "}
+                          {message.response.execution.external_actions_executed ?? 0} external
+                          actions
+                        </p>
                       ) : null}
                     </div>
                   ))

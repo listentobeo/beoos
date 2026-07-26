@@ -1449,6 +1449,91 @@ class WorkflowValueBaseline(Base, TimestampMixin):
     recorded_by: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
+class OperatorConversation(Base, TimestampMixin):
+    __tablename__ = "operator_conversations"
+    __table_args__ = (
+        Index("ix_operator_conversations_business_updated", "business_id", "updated_at"),
+        Index("ix_operator_conversations_user", "business_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="active", nullable=False)
+
+
+class OperatorMessage(Base):
+    __tablename__ = "operator_messages"
+    __table_args__ = (
+        Index("ix_operator_messages_conversation_created", "conversation_id", "created_at"),
+        Index("ix_operator_messages_business_created", "business_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("operator_conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    grounding_sources: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    statement_labels: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    tool_activity: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
+    authoritative: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class OperatorTurn(Base):
+    __tablename__ = "operator_turns"
+    __table_args__ = (
+        Index("ix_operator_turns_business_created", "business_id", "created_at"),
+        Index("ix_operator_turns_conversation", "conversation_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("operator_conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    user_message_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("operator_messages.id", ondelete="CASCADE"), nullable=False
+    )
+    assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("operator_messages.id", ondelete="SET NULL")
+    )
+    selected_tools: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    tool_call_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    max_tool_calls: Mapped[int] = mapped_column(Integer, nullable=False)
+    loop_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    loop_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_limit: Mapped[Decimal] = mapped_column(Numeric(14, 6), nullable=False)
+    estimated_cost: Mapped[Decimal] = mapped_column(
+        Numeric(14, 6), default=Decimal("0"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class DurableJob(Base, TimestampMixin):
     __tablename__ = "durable_jobs"
     __table_args__ = (

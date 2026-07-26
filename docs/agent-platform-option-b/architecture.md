@@ -52,3 +52,17 @@ The initial deployment mode is `shadow`: proposed CRM/follow-up work is recorded
 `execute: false`, and email auto-send is suppressed until a later evaluation-backed deployment
 permits external actions. Mandatory risk categories create structured approval requests. Outcomes
 are appended to the workflow run rather than inferred from conversation history.
+
+## Controlled operator
+
+The BeoOS Operator uses deterministic routing for obvious requests and may narrow that plan using
+model-selected tools only from the bounded operator registry. Tenant membership and role checks
+run before selection. A turn is limited to four read/propose tools, two loops, 30 seconds, and a
+preflight cost budget. Tool results remain tenant-scoped; arbitrary tools and direct external
+execution are unavailable.
+
+Important answers return structured grounding references and distinguish database facts from
+model inference, recommendations, and missing information. Operator conversations are persisted
+per tenant for continuity but carry a database constraint marking them non-authoritative.
+Starting an evaluated workflow or creating an approval proposal uses explicit validated endpoints;
+neither path bypasses deployment mode, tool permission, or later human approval.
