@@ -1610,3 +1610,59 @@ class ExternalActionReconciliation(Base, TimestampMixin):
     resolved_by: Mapped[str | None] = mapped_column(String(255))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
+class PaymentTransaction(Base, TimestampMixin):
+    __tablename__ = "payment_transactions"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_reference", name="uq_payment_provider_reference"),
+        Index("ix_payment_transactions_business_status", "business_id", "status"),
+        Index("ix_payment_transactions_quote", "quote_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    quote_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("quotes.id", ondelete="RESTRICT"), nullable=False
+    )
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    provider_transaction_id: Mapped[str | None] = mapped_column(String(160))
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_status: Mapped[str | None] = mapped_column(String(60))
+    authorization_url: Mapped[str | None] = mapped_column(Text)
+    channel: Mapped[str | None] = mapped_column(String(60))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    provider_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    outcome_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("outcomes.id"))
+
+
+class PaymentWebhookEvent(Base, TimestampMixin):
+    __tablename__ = "payment_webhook_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "event_key", name="uq_payment_webhook_event"),
+        Index("ix_payment_webhook_events_business_created", "business_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    payment_transaction_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("payment_transactions.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    event_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(96), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+

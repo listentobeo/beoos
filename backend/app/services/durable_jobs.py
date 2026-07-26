@@ -18,6 +18,7 @@ from app.infrastructure.models import (
     DurableJob,
     EmailMessage,
     EmailThread,
+    PaymentTransaction,
 )
 from app.services.approval_notifications import ApprovalNotificationService
 from app.services.beo_enquiry_workflow import record_commission_enquiry_workflow
@@ -27,6 +28,7 @@ logger = structlog.get_logger()
 WEBSITE_AI_JOB = "website_form.ai_intake"
 WHATSAPP_AI_JOB = "whatsapp.ai_intake"
 MANUAL_AI_JOB = "manual.ai_intake"
+PAYSTACK_RECONCILE_JOB = "paystack.transaction_reconcile"
 
 
 async def enqueue_job(
@@ -202,6 +204,9 @@ class DurableJobWorker:
         if job.job_type == MANUAL_AI_JOB:
             await self._manual_ai(session, job)
             return
+        if job.job_type == PAYSTACK_RECONCILE_JOB:
+            await self._paystack_reconcile(session, job)
+            return
         raise ValueError(f"Unsupported durable job type: {job.job_type}")
 
     async def _website_ai(self, session: AsyncSession, job: DurableJob) -> None:
@@ -276,6 +281,30 @@ class DurableJobWorker:
                 thread_id=thread.id,
                 reason="Manual enquiry draft is waiting for review",
             )
+
+    async def _paystack_reconcile(self, session: AsyncSession, job: DurableJob) -> None:
+        from app.services.payments import apply_paystack_status
+        from app.services.paystack import PaystackService
+
+        transaction = await session.scalar(
+            select(PaymentTransaction).where(
+                PaymentTransaction.id == _uuid(job.payload.get("payment_transaction_id")),
+                PaymentTransaction.business_id == job.business_id,
+            )
+        )
+        if transaction is None:
+            raise ValueError("Payment reconciliation references a missing transaction")
+        if transaction.status == "confirmed":
+            return
+        data = await PaystackService(self._settings).verify_transaction(
+            transaction.provider_reference
+        )
+        await apply_paystack_status(
+            session,
+            transaction,
+            data,
+            actor_id="system:paystack_reconciliation",
+        )
 
 
 async def _load_intake_records(

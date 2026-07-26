@@ -20,6 +20,7 @@ from app.api import (
     notifications,
     onboarding,
     operator,
+    payments,
     prices,
     quotes,
     recovery,
@@ -49,6 +50,7 @@ api_router.include_router(mcp.router)
 api_router.include_router(notifications.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(operator.router)
+api_router.include_router(payments.router)
 api_router.include_router(prices.router)
 api_router.include_router(quotes.router)
 api_router.include_router(quotes.public_router)

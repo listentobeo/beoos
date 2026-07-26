@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,6 +32,8 @@ from app.infrastructure.models import (
     QuoteTemplate,
     QuoteTemplateType,
 )
+from app.services.durable_jobs import PAYSTACK_RECONCILE_JOB, enqueue_job
+from app.services.payments import create_pending_payment
 from app.services.paystack import PaystackService
 from app.services.quote_ai import QuoteAIService
 from app.services.quote_engine import calculate_quote, default_mural_input
@@ -321,6 +323,24 @@ async def create_quote_payment_link(
                 "actor_id": access.user_id,
             },
         )
+        transaction = await create_pending_payment(
+            session,
+            business_id=business_id,
+            quote=quote,
+            reference=reference,
+            authorization_url=quote.payment_url,
+            actor_id=access.user_id,
+        )
+        job = await enqueue_job(
+            session,
+            business_id=business_id,
+            job_type=PAYSTACK_RECONCILE_JOB,
+            payload={"payment_transaction_id": str(transaction.id)},
+            idempotency_key=f"paystack-reconcile:{reference}",
+            workflow_run_id=transaction.workflow_run_id,
+            max_attempts=12,
+        )
+        job.available_at = datetime.now(UTC) + timedelta(minutes=15)
         session.add(
             AuditLog(
                 business_id=business_id,
