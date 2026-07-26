@@ -1311,6 +1311,66 @@ class WorkflowDeployment(Base, TimestampMixin):
     deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DatasetCandidate(Base, TimestampMixin):
+    __tablename__ = "dataset_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "human_correction_id", name="uq_dataset_candidate_correction"
+        ),
+        Index("ix_dataset_candidates_business_status", "business_id", "status"),
+        Index("ix_dataset_candidates_workflow", "business_id", "workflow_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    human_correction_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("human_corrections.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    target_dataset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("datasets.id"))
+    input_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    expected_output: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    correction_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    contains_personal_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    contains_sensitive_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    redaction_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    privacy_reviewed_by: Mapped[str | None] = mapped_column(String(255))
+    privacy_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(40), default="pending_privacy", nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dataset_example_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("dataset_examples.id")
+    )
+
+
+class ImprovementSuggestion(Base, TimestampMixin):
+    __tablename__ = "improvement_suggestions"
+    __table_args__ = (
+        Index("ix_improvement_suggestions_business_status", "business_id", "status"),
+        Index("ix_improvement_suggestions_workflow", "business_id", "workflow_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    suggestion_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+    occurrence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="proposed", nullable=False)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class DurableJob(Base, TimestampMixin):
     __tablename__ = "durable_jobs"
     __table_args__ = (

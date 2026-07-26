@@ -14,6 +14,7 @@ from app.api import (
     forms,
     google_integrations,
     integrations,
+    learning,
     marketing,
     mcp,
     notifications,
@@ -41,6 +42,7 @@ api_router.include_router(forms.router)
 api_router.include_router(google_integrations.router)
 api_router.include_router(integrations.router)
 api_router.include_router(marketing.router)
+api_router.include_router(learning.router)
 api_router.include_router(mcp.router)
 api_router.include_router(notifications.router)
 api_router.include_router(onboarding.router)
