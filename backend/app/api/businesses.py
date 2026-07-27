@@ -27,6 +27,7 @@ from app.domain.email import InboxStats, MailboxStatus, ThreadListItem
 from app.domain.notifications import PushSubscriptionStatus
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
+    AuditLog,
     Business,
     BusinessMember,
     Contact,
@@ -42,7 +43,14 @@ from app.infrastructure.models import (
     WhatsAppConnectionStatus,
     WhatsAppSignupAttempt,
 )
+from app.services.contact_identity import normalize_phone_identity
 from app.services.crypto import SecretCipher
+from app.services.durable_jobs import (
+    WHATSAPP_CONTACTS_SYNC_JOB,
+    WHATSAPP_HISTORY_SYNC_JOB,
+    enqueue_job,
+)
+from app.services.whatsapp_coexistence import MetaCoexistenceService
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 logger = structlog.get_logger()
@@ -85,6 +93,7 @@ class WhatsAppEmbeddedConfig(BaseModel):
     enabled: bool
     connection_mode: str
     coexistence_enabled: bool
+    embedded_signup_version: str = "v4"
     recommended: bool = False
 
 
@@ -102,6 +111,7 @@ class WhatsAppSignupAttemptView(BaseModel):
     connection_mode: str
     enabled: bool
     coexistence_enabled: bool
+    embedded_signup_version: str = "v4"
 
 
 class WhatsAppEmbeddedSignupPayload(BaseModel):
@@ -113,6 +123,8 @@ class WhatsAppEmbeddedSignupPayload(BaseModel):
     waba_id: str = Field(default="", max_length=120)
     phone_number_id: str = Field(default="", max_length=120)
     display_phone_number: str = Field(default="", max_length=40)
+    session_event: str = Field(default="", max_length=120)
+    session_version: int | None = Field(default=None, ge=1, le=20)
     redirect_uri: str = Field(default="", max_length=2000)
     meta_payload: dict[str, Any] = Field(default_factory=dict)
 
@@ -526,7 +538,7 @@ async def whatsapp_embedded_config(
     return WhatsAppEmbeddedConfig(
         app_id=settings.meta_app_id,
         config_id=config_id,
-        graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v20.0",
+        graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v25.0",
         enabled=bool(
             settings.meta_app_id
             and config_id
@@ -535,6 +547,7 @@ async def whatsapp_embedded_config(
         ),
         connection_mode=mode,
         coexistence_enabled=settings.whatsapp_coexistence_enabled,
+        embedded_signup_version="v4",
         recommended=mode == "cloud_api_only",
     )
 
@@ -586,7 +599,7 @@ async def create_whatsapp_signup_attempt(
         state=attempt.state,
         app_id=settings.meta_app_id,
         config_id=config_id,
-        graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v20.0",
+        graph_version=settings.whatsapp_graph_base_url.rstrip("/").split("/")[-1] or "v25.0",
         connection_mode=payload.connection_mode,
         enabled=enabled,
         coexistence_enabled=settings.whatsapp_coexistence_enabled,
@@ -647,7 +660,33 @@ async def complete_whatsapp_embedded_signup(
             )
         connection_mode = WhatsAppConnectionMode(attempt.connection_mode).value
         attempt.status = WhatsAppConnectionStatus.authorization_received
-        attempt.meta_payload = payload.meta_payload
+        attempt.meta_payload = {
+            **payload.meta_payload,
+            "session_event": payload.session_event,
+            "session_version": payload.session_version,
+        }
+
+    if connection_mode == "coexistence":
+        if payload.session_event != "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING":
+            raise HTTPException(
+                status_code=422,
+                detail="Meta did not return the WhatsApp Business app onboarding completion event",
+            )
+        if payload.session_version != 3:
+            raise HTTPException(
+                status_code=422,
+                detail="Meta returned an unsupported WhatsApp session event version",
+            )
+        if not payload.code:
+            raise HTTPException(
+                status_code=422,
+                detail="Coexistence signup must return an exchangeable authorization code",
+            )
+        if not payload.waba_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Coexistence signup did not return a WhatsApp Business Account ID",
+            )
 
     if payload.code:
         try:
@@ -662,7 +701,7 @@ async def complete_whatsapp_embedded_signup(
                 redirect_uri=payload.redirect_uri,
             )
         except HTTPException as code_error:
-            if not payload.access_token:
+            if connection_mode == "coexistence" or not payload.access_token:
                 raise
             logger.info(
                 "meta_code_exchange_failed_trying_sdk_token",
@@ -741,6 +780,31 @@ async def complete_whatsapp_embedded_signup(
             ),
         )
 
+    meta_coexistence = MetaCoexistenceService(settings)
+    try:
+        await meta_coexistence.subscribe_waba(
+            access_token,
+            resolved["business_account_id"],
+        )
+        coexistence_verified_at: datetime | None = None
+        if connection_mode == "coexistence":
+            verification = await meta_coexistence.verify_phone(
+                access_token,
+                resolved["phone_number_id"],
+            )
+            if not verification.is_on_biz_app or verification.platform_type != "CLOUD_API":
+                raise ValueError(
+                    "The selected number is not active on both WhatsApp Business app and Cloud API"
+                )
+            coexistence_verified_at = datetime.now(UTC)
+    except ValueError as exc:
+        if attempt:
+            _mark_whatsapp_attempt_failed(attempt, "coexistence_verification_failed", str(exc))
+            await session.commit()
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    now = datetime.now(UTC)
+    sync_deadline_at = now + timedelta(hours=24) if connection_mode == "coexistence" else None
     settings_blob = dict(business.settings or {})
     current_whatsapp = settings_blob.get("whatsapp")
     if not isinstance(current_whatsapp, dict):
@@ -760,10 +824,27 @@ async def complete_whatsapp_embedded_signup(
             "connected_via": "embedded_signup",
             "connection_mode": connection_mode,
             "connection_status": "connected",
-            "connected_at": datetime.now(UTC).isoformat(),
+            "connected_at": now.isoformat(),
+            "embedded_signup_version": "v4",
+            "webhook_subscribed_at": now.isoformat(),
+            "coexistence_verified_at": (
+                coexistence_verified_at.isoformat() if coexistence_verified_at else ""
+            ),
+            "sync_deadline_at": sync_deadline_at.isoformat() if sync_deadline_at else "",
+            "contacts_sync_status": (
+                "queued" if connection_mode == "coexistence" else "not_requested"
+            ),
+            "history_sync_status": (
+                "queued" if connection_mode == "coexistence" else "not_requested"
+            ),
+            "history_sync_progress": 0,
             "access_token_encrypted": cipher.encrypt(access_token),
             "token_expires_at": token_expires_at,
-            "meta_payload": payload.meta_payload,
+            "meta_payload": {
+                **payload.meta_payload,
+                "session_event": payload.session_event,
+                "session_version": payload.session_version,
+            },
         }
     )
     settings_blob["whatsapp"] = current_whatsapp
@@ -771,7 +852,7 @@ async def complete_whatsapp_embedded_signup(
     if resolved["display_phone_number"]:
         business.whatsapp_number = resolved["display_phone_number"]
 
-    await _upsert_whatsapp_connection(
+    connection = await _upsert_whatsapp_connection(
         session=session,
         business=business,
         access_token_encrypted=current_whatsapp["access_token_encrypted"],
@@ -779,12 +860,59 @@ async def complete_whatsapp_embedded_signup(
         connected_by_user_id=access.user_id,
         connection_mode=connection_mode,
         resolved=resolved,
-        meta_payload=payload.meta_payload,
+        meta_payload={
+            **payload.meta_payload,
+            "session_event": payload.session_event,
+            "session_version": payload.session_version,
+        },
+        webhook_subscribed_at=now,
+        coexistence_verified_at=coexistence_verified_at,
+        sync_deadline_at=sync_deadline_at,
     )
+    if connection_mode == "coexistence":
+        await session.flush()
+        await enqueue_job(
+            session,
+            business_id=business.id,
+            job_type=WHATSAPP_CONTACTS_SYNC_JOB,
+            payload={"connection_id": str(connection.id)},
+            idempotency_key=f"whatsapp-coexistence-contacts:{connection.id}",
+            priority=20,
+            max_attempts=5,
+        )
+        await enqueue_job(
+            session,
+            business_id=business.id,
+            job_type=WHATSAPP_HISTORY_SYNC_JOB,
+            payload={"connection_id": str(connection.id)},
+            idempotency_key=f"whatsapp-coexistence-history:{connection.id}",
+            priority=20,
+            max_attempts=5,
+        )
     if attempt:
         attempt.status = WhatsAppConnectionStatus.connected
         attempt.completed_at = datetime.now(UTC)
-        attempt.meta_payload = payload.meta_payload
+        attempt.meta_payload = {
+            **payload.meta_payload,
+            "session_event": payload.session_event,
+            "session_version": payload.session_version,
+        }
+    session.add(
+        AuditLog(
+            business_id=business.id,
+            actor_id=access.user_id,
+            action="whatsapp.embedded_signup.completed",
+            resource_type="whatsapp_connection",
+            resource_id=str(connection.id),
+            details={
+                "connection_mode": connection_mode,
+                "embedded_signup_version": "v4",
+                "waba_subscribed": True,
+                "coexistence_verified": coexistence_verified_at is not None,
+                "sync_queued": connection_mode == "coexistence",
+            },
+        )
+    )
 
     await session.commit()
     logger.info(
@@ -811,7 +939,7 @@ def _whatsapp_config_id_for_mode(
     mode: Literal["coexistence", "cloud_api_only"],
 ) -> str:
     if mode == "coexistence":
-        return settings.meta_whatsapp_coexistence_config_id or settings.meta_whatsapp_config_id
+        return settings.meta_whatsapp_coexistence_config_id
     return settings.meta_whatsapp_config_id or settings.meta_whatsapp_cloud_config_id
 
 
@@ -835,6 +963,9 @@ async def _upsert_whatsapp_connection(
     connection_mode: str,
     resolved: dict[str, str],
     meta_payload: dict[str, Any],
+    webhook_subscribed_at: datetime,
+    coexistence_verified_at: datetime | None,
+    sync_deadline_at: datetime | None,
 ) -> WhatsAppConnection:
     connection = await session.scalar(
         select(WhatsAppConnection).where(WhatsAppConnection.business_id == business.id)
@@ -864,6 +995,21 @@ async def _upsert_whatsapp_connection(
     connection.token_expires_at = expires_at
     connection.connected_by_user_id = connected_by_user_id
     connection.connected_at = datetime.now(UTC)
+    connection.embedded_signup_version = "v4"
+    connection.webhook_subscribed_at = webhook_subscribed_at
+    connection.coexistence_verified_at = coexistence_verified_at
+    connection.sync_deadline_at = sync_deadline_at
+    connection.contacts_sync_status = (
+        "queued" if connection_mode == "coexistence" else "not_requested"
+    )
+    connection.contacts_sync_request_id = None
+    connection.history_sync_status = (
+        "queued" if connection_mode == "coexistence" else "not_requested"
+    )
+    connection.history_sync_request_id = None
+    connection.history_sync_phase = None
+    connection.history_sync_progress = 0
+    connection.sync_completed_at = None
     connection.last_error_code = None
     connection.last_error_message = None
     connection.connection_metadata = {
@@ -979,7 +1125,7 @@ async def _resolve_whatsapp_assets(
                 data = response.json()
                 phone_numbers = data.get("data") if isinstance(data, dict) else None
                 if isinstance(phone_numbers, list) and phone_numbers:
-                    phone = phone_numbers[0]
+                    phone = _select_phone_number(phone_numbers, preferred_phone_number)
                     if isinstance(phone, dict):
                         resolved["phone_number_id"] = resolved["phone_number_id"] or str(
                             phone.get("id") or ""
@@ -1009,6 +1155,24 @@ async def _resolve_whatsapp_assets(
             )
 
     return resolved
+
+
+def _select_phone_number(
+    phone_numbers: list[Any],
+    preferred_phone_number: str,
+) -> dict[str, Any] | None:
+    candidates = [phone for phone in phone_numbers if isinstance(phone, dict)]
+    preferred_digits = normalize_phone_identity(preferred_phone_number)
+    if preferred_digits:
+        for phone in candidates:
+            if (
+                normalize_phone_identity(str(phone.get("display_phone_number") or ""))
+                == preferred_digits
+            ):
+                return phone
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
 
 
 async def _discover_whatsapp_assets(

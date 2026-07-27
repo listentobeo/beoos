@@ -32,7 +32,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Alembic offline upgrade failed."
         }
-        & $python -m alembic downgrade 20260726_0026:20260726_0025 --sql |
+        & $python -m alembic downgrade 20260727_0027:20260726_0026 --sql |
             Set-Content -LiteralPath $downgradeSql
         if ($LASTEXITCODE -ne 0) {
             throw "Alembic offline downgrade failed."

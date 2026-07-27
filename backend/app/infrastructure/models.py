@@ -275,6 +275,7 @@ class ExternalAPIToken(Base, TimestampMixin):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+
 class WhatsAppConnection(Base, TimestampMixin):
     __tablename__ = "whatsapp_connections"
     __table_args__ = (
@@ -304,6 +305,21 @@ class WhatsAppConnection(Base, TimestampMixin):
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_history_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    embedded_signup_version: Mapped[str] = mapped_column(String(20), default="v4", nullable=False)
+    webhook_subscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    coexistence_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    contacts_sync_status: Mapped[str] = mapped_column(
+        String(40), default="not_requested", nullable=False
+    )
+    contacts_sync_request_id: Mapped[str | None] = mapped_column(String(160))
+    history_sync_status: Mapped[str] = mapped_column(
+        String(40), default="not_requested", nullable=False
+    )
+    history_sync_request_id: Mapped[str | None] = mapped_column(String(160))
+    history_sync_phase: Mapped[int | None] = mapped_column(Integer)
+    history_sync_progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sync_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error_code: Mapped[str | None] = mapped_column(String(120))
     last_error_message: Mapped[str | None] = mapped_column(Text)
     connection_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
@@ -355,6 +371,12 @@ class WhatsAppWebhookEvent(Base, TimestampMixin):
     message_source: Mapped[WhatsAppMessageSource] = mapped_column(
         Enum(WhatsAppMessageSource), default=WhatsAppMessageSource.unknown, nullable=False
     )
+    payload_hash: Mapped[str] = mapped_column(String(96), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="queued", nullable=False)
+    phase: Mapped[int | None] = mapped_column(Integer)
+    chunk_order: Mapped[int | None] = mapped_column(Integer)
+    progress: Mapped[int | None] = mapped_column(Integer)
+    processing_error: Mapped[str | None] = mapped_column(Text)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_event: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
@@ -749,9 +771,7 @@ class BusinessService(Base, TimestampMixin):
 class BusinessPolicy(Base, TimestampMixin):
     __tablename__ = "business_policies"
     __table_args__ = (
-        UniqueConstraint(
-            "business_id", "policy_key", "version", name="uq_business_policy_version"
-        ),
+        UniqueConstraint("business_id", "policy_key", "version", name="uq_business_policy_version"),
         Index("ix_business_policies_business_active", "business_id", "active"),
         Index("ix_business_policies_business_category", "business_id", "category"),
     )
@@ -779,9 +799,7 @@ class BusinessPolicy(Base, TimestampMixin):
 class BusinessStaffAuthority(Base, TimestampMixin):
     __tablename__ = "business_staff_authorities"
     __table_args__ = (
-        UniqueConstraint(
-            "business_id", "clerk_user_id", name="uq_business_staff_authority_user"
-        ),
+        UniqueConstraint("business_id", "clerk_user_id", name="uq_business_staff_authority_user"),
         Index("ix_business_staff_authorities_business", "business_id"),
     )
 
@@ -824,14 +842,10 @@ class OnboardingSession(Base, TimestampMixin):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    draft_specification: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, default=dict, nullable=False
-    )
+    draft_specification: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     activation_confirmed_by: Mapped[str | None] = mapped_column(String(255))
     activation_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    deployment_mode: Mapped[str] = mapped_column(
-        String(40), default="experimental", nullable=False
-    )
+    deployment_mode: Mapped[str] = mapped_column(String(40), default="experimental", nullable=False)
 
 
 class OnboardingResponse(Base, TimestampMixin):
@@ -898,9 +912,7 @@ class WorkflowDefinition(Base, TimestampMixin):
     configuration: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     policy_version: Mapped[str] = mapped_column(String(80), default="1", nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(80), default="1", nullable=False)
-    deployment_mode: Mapped[str] = mapped_column(
-        String(40), default="experimental", nullable=False
-    )
+    deployment_mode: Mapped[str] = mapped_column(String(40), default="experimental", nullable=False)
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
@@ -1095,9 +1107,7 @@ class ToolCall(Base, TimestampMixin):
     error_code: Mapped[str | None] = mapped_column(String(80))
     error_message_sanitized: Mapped[str | None] = mapped_column(Text)
     failure_category: Mapped[str | None] = mapped_column(String(60))
-    external_state: Mapped[str] = mapped_column(
-        String(40), default="not_started", nullable=False
-    )
+    external_state: Mapped[str] = mapped_column(String(40), default="not_started", nullable=False)
     reconciliation_status: Mapped[str] = mapped_column(
         String(40), default="not_required", nullable=False
     )
@@ -1202,9 +1212,7 @@ class Outcome(Base, TimestampMixin):
 class Dataset(Base, TimestampMixin):
     __tablename__ = "datasets"
     __table_args__ = (
-        UniqueConstraint(
-            "business_id", "name", "version", name="uq_dataset_tenant_name_version"
-        ),
+        UniqueConstraint("business_id", "name", "version", name="uq_dataset_tenant_name_version"),
         Index("ix_datasets_business_workflow", "business_id", "workflow_key"),
         Index("ix_datasets_scope_status", "scope", "status"),
     )
@@ -1246,9 +1254,7 @@ class DatasetExample(Base, TimestampMixin):
     expected_approval_requirement: Mapped[bool] = mapped_column(Boolean, nullable=False)
     labels: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
     difficulty: Mapped[str] = mapped_column(String(40), nullable=False)
-    contains_personal_data: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    contains_personal_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     redaction_status: Mapped[str] = mapped_column(String(40), nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(255))
 
@@ -1280,9 +1286,7 @@ class EvaluationRun(Base, TimestampMixin):
     total_examples: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     passed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    estimated_cost: Mapped[Decimal] = mapped_column(
-        Numeric(14, 6), default=0, nullable=False
-    )
+    estimated_cost: Mapped[Decimal] = mapped_column(Numeric(14, 6), default=0, nullable=False)
     average_latency: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
@@ -1405,9 +1409,7 @@ class DatasetCandidate(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(40), default="pending_privacy", nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(255))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    dataset_example_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("dataset_examples.id")
-    )
+    dataset_example_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("dataset_examples.id"))
 
 
 class ImprovementSuggestion(Base, TimestampMixin):
@@ -1494,9 +1496,7 @@ class OperatorMessage(Base):
     statement_labels: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, default=list, nullable=False
     )
-    tool_activity: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, default=list, nullable=False
-    )
+    tool_activity: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
     authoritative: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -1665,4 +1665,3 @@ class PaymentWebhookEvent(Base, TimestampMixin):
     payload_hash: Mapped[str] = mapped_column(String(96), nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-

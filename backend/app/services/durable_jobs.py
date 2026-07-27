@@ -3,7 +3,7 @@ import socket
 import uuid
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import structlog
@@ -19,6 +19,9 @@ from app.infrastructure.models import (
     EmailMessage,
     EmailThread,
     PaymentTransaction,
+    WhatsAppConnection,
+    WhatsAppConnectionStatus,
+    WhatsAppWebhookEvent,
 )
 from app.services.approval_notifications import ApprovalNotificationService
 from app.services.beo_enquiry_workflow import record_commission_enquiry_workflow
@@ -29,6 +32,9 @@ WEBSITE_AI_JOB = "website_form.ai_intake"
 WHATSAPP_AI_JOB = "whatsapp.ai_intake"
 MANUAL_AI_JOB = "manual.ai_intake"
 PAYSTACK_RECONCILE_JOB = "paystack.transaction_reconcile"
+WHATSAPP_CONTACTS_SYNC_JOB = "whatsapp.coexistence.contacts_sync"
+WHATSAPP_HISTORY_SYNC_JOB = "whatsapp.coexistence.history_sync"
+WHATSAPP_WEBHOOK_JOB = "whatsapp.webhook.process"
 
 
 async def enqueue_job(
@@ -181,6 +187,40 @@ class DurableJobWorker:
                 job.locked_by = None
                 if job.attempt_count >= job.max_attempts:
                     job.status = "dead_letter"
+                    if job.job_type == WHATSAPP_WEBHOOK_JOB:
+                        event = await session.get(
+                            WhatsAppWebhookEvent,
+                            _uuid(job.payload.get("event_id")),
+                        )
+                        if event is not None:
+                            event.status = "failed"
+                            event.processing_error = job.last_error
+                    if job.job_type in {
+                        WHATSAPP_CONTACTS_SYNC_JOB,
+                        WHATSAPP_HISTORY_SYNC_JOB,
+                    }:
+                        connection = await session.get(
+                            WhatsAppConnection,
+                            _uuid(job.payload.get("connection_id")),
+                        )
+                        if connection is not None:
+                            if job.job_type == WHATSAPP_CONTACTS_SYNC_JOB:
+                                connection.contacts_sync_status = "failed"
+                            else:
+                                connection.history_sync_status = "failed"
+                            connection.connection_status = (
+                                WhatsAppConnectionStatus.action_required
+                            )
+                            connection.last_error_code = "coexistence_sync_failed"
+                            connection.last_error_message = job.last_error
+                            from app.services.whatsapp_coexistence import (
+                                update_business_whatsapp_from_connection,
+                            )
+
+                            await update_business_whatsapp_from_connection(
+                                session,
+                                connection,
+                            )
                 else:
                     job.status = "retry_scheduled"
                     job.available_at = datetime.now(UTC) + _backoff(job.attempt_count)
@@ -207,15 +247,22 @@ class DurableJobWorker:
         if job.job_type == PAYSTACK_RECONCILE_JOB:
             await self._paystack_reconcile(session, job)
             return
+        if job.job_type == WHATSAPP_CONTACTS_SYNC_JOB:
+            await self._whatsapp_coexistence_sync(session, job, "smb_app_state_sync")
+            return
+        if job.job_type == WHATSAPP_HISTORY_SYNC_JOB:
+            await self._whatsapp_coexistence_sync(session, job, "history")
+            return
+        if job.job_type == WHATSAPP_WEBHOOK_JOB:
+            await self._whatsapp_webhook(session, job)
+            return
         raise ValueError(f"Unsupported durable job type: {job.job_type}")
 
     async def _website_ai(self, session: AsyncSession, job: DurableJob) -> None:
         from app.api.forms import _run_ai_intake
 
         business, contact, thread, message = await _load_intake_records(session, job)
-        await _run_ai_intake(
-            session, self._settings, business, contact, thread, message
-        )
+        await _run_ai_intake(session, self._settings, business, contact, thread, message)
         await session.flush()
         await record_commission_enquiry_workflow(
             session,
@@ -238,9 +285,7 @@ class DurableJobWorker:
         from app.api.whatsapp import _run_whatsapp_ai_intake
 
         business, contact, thread, message = await _load_intake_records(session, job)
-        await _run_whatsapp_ai_intake(
-            session, self._settings, business, contact, thread, message
-        )
+        await _run_whatsapp_ai_intake(session, self._settings, business, contact, thread, message)
         await session.flush()
         await record_commission_enquiry_workflow(
             session,
@@ -304,6 +349,33 @@ class DurableJobWorker:
             transaction,
             data,
             actor_id="system:paystack_reconciliation",
+        )
+
+    async def _whatsapp_coexistence_sync(
+        self,
+        session: AsyncSession,
+        job: DurableJob,
+        sync_type: Literal["smb_app_state_sync", "history"],
+    ) -> None:
+        from app.services.whatsapp_coexistence import execute_coexistence_sync_job
+
+        if sync_type not in {"smb_app_state_sync", "history"}:
+            raise ValueError("Unsupported WhatsApp coexistence synchronization type")
+        await execute_coexistence_sync_job(
+            session,
+            self._settings,
+            job,
+            sync_type=sync_type,
+        )
+
+    async def _whatsapp_webhook(self, session: AsyncSession, job: DurableJob) -> None:
+        from app.api.whatsapp import process_whatsapp_webhook_event
+
+        await process_whatsapp_webhook_event(
+            session,
+            self._settings,
+            event_id=_uuid(job.payload.get("event_id")),
+            business_id=job.business_id,
         )
 
 

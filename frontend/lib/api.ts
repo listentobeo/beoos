@@ -25,6 +25,17 @@ export type BusinessWhatsAppSettings = {
   connection_mode: string;
   connection_status: string;
   connected_at: string;
+  embedded_signup_version: string;
+  webhook_subscribed_at: string;
+  coexistence_verified_at: string;
+  sync_deadline_at: string;
+  contacts_sync_status: string;
+  contacts_sync_request_id: string;
+  history_sync_status: string;
+  history_sync_request_id: string;
+  history_sync_phase: number | null;
+  history_sync_progress: number;
+  sync_completed_at: string;
   last_error_code: string;
   last_error_message: string;
   token_configured: boolean;
