@@ -1,22 +1,27 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Header, Response
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.security import ExternalTokenAccess, require_external_api_token
 from app.infrastructure.database import get_session
 from app.infrastructure.models import (
     Business,
     CRMLead,
     EmailThread,
+    ExternalAPIRequestLog,
     LeadStage,
     MarketingMetric,
     PriceCatalogItem,
@@ -24,6 +29,11 @@ from app.infrastructure.models import (
     QuoteStatus,
     ThreadCategory,
     ThreadStatus,
+)
+from app.services.mcp_marketing import (
+    MARKETING_TOOL_SCOPES,
+    call_marketing_tool,
+    marketing_tool_manifest,
 )
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
@@ -39,6 +49,7 @@ TOOL_SCOPES = {
     "list_price_catalogue": "pricing:read",
     "list_quotes": "quotes:read",
     "list_marketing_metrics": "marketing:read",
+    **MARKETING_TOOL_SCOPES,
 }
 
 
@@ -49,16 +60,32 @@ class MCPRequest(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
-@router.post("")
+class MCPRateLimitError(Exception):
+    pass
+
+
+@router.post("", response_model=None)
 async def mcp_rpc(
     request: MCPRequest,
     access: ExternalTokenAccess = Depends(require_external_api_token),
     session: AsyncSession = Depends(get_session),
-) -> dict[str, Any]:
-    result: Any
+    settings: Settings = Depends(get_settings),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+    mcp_protocol_version: str | None = Header(default=None, alias="MCP-Protocol-Version"),
+) -> dict[str, Any] | Response:
+    correlation_id = (x_request_id or "").strip()[:160] or str(uuid.uuid4())
+    tool_name = _request_tool_name(request)
+    started = time.perf_counter()
+    status_value = "success"
+    error_code: str | None = None
+    error_message: str | None = None
+    response: dict[str, Any]
     try:
+        await _enforce_rate_limit(session, access, settings)
+        if mcp_protocol_version and mcp_protocol_version != PROTOCOL_VERSION:
+            raise ValueError(f"Unsupported MCP protocol version: {mcp_protocol_version}")
         if request.method == "initialize":
-            result = {
+            result: Any = {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
                 "serverInfo": SERVER_INFO,
@@ -68,14 +95,58 @@ async def mcp_rpc(
         elif request.method == "tools/list":
             result = {"tools": _tool_manifest(access.scopes)}
         elif request.method == "tools/call":
-            result = await _call_tool(session, access, request.params)
+            async with asyncio.timeout(settings.mcp_tool_timeout_seconds):
+                result = await _call_tool(session, access, request.params)
         else:
-            return _error(request.id, -32601, f"Unsupported MCP method: {request.method}")
-        return {"jsonrpc": "2.0", "id": request.id, "result": result}
+            raise LookupError(f"Unsupported MCP method: {request.method}")
+        response = {"jsonrpc": "2.0", "id": request.id, "result": result}
+    except MCPRateLimitError as exc:
+        await session.rollback()
+        status_value, error_code, error_message = "rate_limited", "rate_limit", str(exc)
+        response = _error(request.id, -32029, error_message)
     except PermissionError as exc:
-        return _error(request.id, -32003, str(exc))
+        await session.rollback()
+        status_value, error_code, error_message = "denied", "scope_denied", str(exc)
+        response = _error(request.id, -32003, error_message)
+    except ValidationError:
+        await session.rollback()
+        status_value = "error"
+        error_code = "invalid_request"
+        error_message = "Invalid tool arguments"
+        response = _error(request.id, -32602, error_message)
     except ValueError as exc:
-        return _error(request.id, -32602, str(exc))
+        await session.rollback()
+        status_value, error_code, error_message = "error", "invalid_request", str(exc)
+        response = _error(request.id, -32602, _safe_error(error_message))
+    except LookupError as exc:
+        await session.rollback()
+        status_value, error_code, error_message = "error", "method_not_found", str(exc)
+        response = _error(request.id, -32601, _safe_error(error_message))
+    except TimeoutError:
+        await session.rollback()
+        status_value, error_code, error_message = "timeout", "tool_timeout", "Tool timed out"
+        response = _error(request.id, -32008, error_message)
+    except Exception:
+        await session.rollback()
+        status_value = "error"
+        error_code = "internal_error"
+        error_message = "Internal MCP error"
+        response = _error(request.id, -32603, error_message)
+    finally:
+        await _record_request(
+            session,
+            access=access,
+            correlation_id=correlation_id,
+            method=request.method,
+            tool_name=tool_name,
+            status_value=status_value,
+            latency_ms=max(0, round((time.perf_counter() - started) * 1000)),
+            error_code=error_code,
+            error_message=error_message,
+        )
+    if request.id is None:
+        return Response(status_code=202)
+    return response
 
 
 async def _call_tool(
@@ -90,7 +161,15 @@ async def _call_tool(
     _ensure_scope(access, TOOL_SCOPES.get(name, ""))
 
     data: Any
-    if name == "get_business_profile":
+    if name.startswith("marketing."):
+        data = await call_marketing_tool(
+            session,
+            business_id=access.business_id,
+            owner_user_id=access.owner_user_id,
+            name=name,
+            arguments=arguments,
+        )
+    elif name == "get_business_profile":
         data = await _business_profile(session, access.business_id)
     elif name == "get_operating_summary":
         data = await _operating_summary(session, access.business_id)
@@ -114,6 +193,7 @@ async def _call_tool(
                 "text": json.dumps(data, ensure_ascii=False, default=_json_default),
             }
         ],
+        "structuredContent": data,
         "isError": False,
     }
 
@@ -378,10 +458,12 @@ def _tool_manifest(scopes: tuple[str, ...]) -> list[dict[str, Any]]:
     allowed_scopes = set(scopes)
     tools = []
     for name, scope in TOOL_SCOPES.items():
+        if name.startswith("marketing."):
+            continue
         if "*" not in allowed_scopes and scope not in allowed_scopes:
             continue
         tools.append(_tool_schema(name))
-    return tools
+    return [*tools, *marketing_tool_manifest(scopes)]
 
 
 def _tool_schema(name: str) -> dict[str, Any]:
@@ -497,3 +579,64 @@ def _json_default(value: Any) -> str | int | float | bool | None:
 
 def _error(request_id: str | int | None, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+
+
+def _request_tool_name(request: MCPRequest) -> str:
+    if request.method != "tools/call":
+        return request.method
+    return str(request.params.get("name") or "unknown")
+
+
+async def _enforce_rate_limit(
+    session: AsyncSession,
+    access: ExternalTokenAccess,
+    settings: Settings,
+) -> None:
+    since = datetime.now(UTC) - timedelta(minutes=1)
+    count = int(
+        await session.scalar(
+            select(func.count(ExternalAPIRequestLog.id)).where(
+                ExternalAPIRequestLog.token_id == access.token_id,
+                ExternalAPIRequestLog.created_at >= since,
+            )
+        )
+        or 0
+    )
+    if count >= settings.mcp_rate_limit_per_minute:
+        raise MCPRateLimitError("MCP token rate limit exceeded")
+
+
+async def _record_request(
+    session: AsyncSession,
+    *,
+    access: ExternalTokenAccess,
+    correlation_id: str,
+    method: str,
+    tool_name: str,
+    status_value: str,
+    latency_ms: int,
+    error_code: str | None,
+    error_message: str | None,
+) -> None:
+    try:
+        session.add(
+            ExternalAPIRequestLog(
+                business_id=access.business_id,
+                token_id=access.token_id,
+                correlation_id=correlation_id,
+                method=method[:120],
+                tool_name=tool_name[:160],
+                status=status_value,
+                latency_ms=latency_ms,
+                error_code=error_code,
+                error_message_safe=_safe_error(error_message) if error_message else None,
+            )
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+
+
+def _safe_error(message: str) -> str:
+    sanitized = message.replace("beoos_", "[REDACTED]_")
+    return sanitized[:500]

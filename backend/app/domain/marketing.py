@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 MarketingSource = Literal["search_console", "blogger", "clarity", "website", "manual"]
 
@@ -141,12 +141,25 @@ class MarketingSummary(BaseModel):
 
 class MarketingOpportunityCreate(BaseModel):
     source: str = Field(min_length=2, max_length=80)
+    property: str = Field(default="", max_length=2_000)
     evidence: dict[str, Any]
+    evidence_period_start: datetime = Field(
+        default_factory=lambda: datetime.now(UTC) - timedelta(days=90)
+    )
+    evidence_period_end: datetime = Field(default_factory=lambda: datetime.now(UTC))
     page_or_query: str = Field(min_length=1, max_length=2_000)
     baseline_metrics: dict[str, Any]
+    detected_issue: str = Field(default="", max_length=5_000)
     recommendation: str = Field(min_length=5, max_length=10_000)
     expected_outcome: str = Field(min_length=3, max_length=2_000)
+    limitations: str = Field(default="", max_length=5_000)
     confidence: Decimal | None = Field(default=None, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_evidence_period(self) -> "MarketingOpportunityCreate":
+        if self.evidence_period_start >= self.evidence_period_end:
+            raise ValueError("Evidence period must be ordered")
+        return self
 
 
 class MarketingOpportunityDecision(BaseModel):
@@ -184,4 +197,15 @@ class MarketingExperimentCreate(BaseModel):
 
 class MarketingExperimentComplete(BaseModel):
     comparison_metrics: dict[str, Decimal | int | float]
-    lesson: str = Field(min_length=3, max_length=10_000)
+    interpretation: str = Field(default="See reviewed lesson.", min_length=3, max_length=10_000)
+    confounding_factors: str = Field(default="", max_length=10_000)
+    reviewed_lesson: str = Field(
+        min_length=3,
+        max_length=10_000,
+        validation_alias=AliasChoices("reviewed_lesson", "lesson"),
+    )
+
+
+class MarketingExperimentDecision(BaseModel):
+    approve: bool
+    reason: str = Field(min_length=2, max_length=2_000)

@@ -56,7 +56,14 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=[
+        "Accept",
+        "Authorization",
+        "Content-Type",
+        "MCP-Protocol-Version",
+        "X-BeoOS-API-Key",
+        "X-Request-ID",
+    ],
 )
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 

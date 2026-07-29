@@ -23,6 +23,7 @@ from app.domain.marketing import (
     MarketingContentCluster,
     MarketingExperimentComplete,
     MarketingExperimentCreate,
+    MarketingExperimentDecision,
     MarketingImportRequest,
     MarketingImportResponse,
     MarketingMetricView,
@@ -241,11 +242,16 @@ async def create_marketing_opportunity(
     row = MarketingOpportunity(
         business_id=business_id,
         source=payload.source,
+        property=payload.property,
         evidence=payload.evidence,
+        evidence_period_start=payload.evidence_period_start,
+        evidence_period_end=payload.evidence_period_end,
         page_or_query=payload.page_or_query,
         baseline_metrics=payload.baseline_metrics,
+        detected_issue=payload.detected_issue,
         recommendation=payload.recommendation,
         expected_outcome=payload.expected_outcome,
+        limitations=payload.limitations,
         confidence=payload.confidence,
         status="pending_approval",
     )
@@ -296,11 +302,14 @@ async def detect_marketing_opportunities(
         row = MarketingOpportunity(
             business_id=business_id,
             source="search_console",
+            property="",
             evidence={
                 "page_url": page.page_url,
                 "title": page.title,
                 "window_days": 90,
             },
+            evidence_period_start=since,
+            evidence_period_end=datetime.now(UTC),
             page_or_query=target,
             baseline_metrics={
                 "impressions": page.impressions,
@@ -310,8 +319,10 @@ async def detect_marketing_opportunities(
                 "ctr": page.ctr,
                 "average_position": page.average_position,
             },
+            detected_issue=page.recommendation,
             recommendation=page.recommendation,
             expected_outcome="Improve qualified organic traffic or conversion evidence.",
+            limitations="Detection uses imported data and requires human validation.",
             confidence=Decimal("0.7000"),
             status="pending_approval",
         )
@@ -406,6 +417,8 @@ async def create_marketing_experiment(
         execution_method=payload.execution_method,
         approved_tool_call_id=payload.approved_tool_call_id,
         status="approved",
+        approved_by=access.user_id,
+        approved_at=datetime.now(UTC),
     )
     opportunity.status = "in_progress"
     session.add(experiment)
@@ -418,6 +431,36 @@ async def create_marketing_experiment(
         "marketing_experiment",
         experiment.id,
         {"execution_method": experiment.execution_method, "automatic_publish": False},
+    )
+    await session.commit()
+    return _experiment_view(experiment)
+
+
+@router.post("/experiments/{experiment_id}/decision")
+async def decide_marketing_experiment(
+    business_id: UUID,
+    experiment_id: UUID,
+    payload: MarketingExperimentDecision,
+    access: BusinessAccess = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    experiment = await _experiment(session, business_id, experiment_id)
+    if experiment.status != "pending_approval":
+        raise HTTPException(status_code=409, detail="Experiment is not awaiting approval")
+    experiment.status = "approved" if payload.approve else "cancelled"
+    experiment.approved_by = access.user_id
+    experiment.approved_at = datetime.now(UTC)
+    if payload.approve:
+        opportunity = await _opportunity(session, business_id, experiment.opportunity_id)
+        opportunity.status = "in_progress"
+    await _marketing_audit(
+        session,
+        business_id,
+        access.user_id,
+        "marketing_experiment.approved" if payload.approve else "marketing_experiment.rejected",
+        "marketing_experiment",
+        experiment.id,
+        {"reason": payload.reason, "automatic_publish": False},
     )
     await session.commit()
     return _experiment_view(experiment)
@@ -468,7 +511,9 @@ async def complete_marketing_experiment(
         "comparison": {key: str(value) for key, value in payload.comparison_metrics.items()},
         "deltas": deltas,
     }
-    experiment.lesson = payload.lesson
+    experiment.interpretation = payload.interpretation
+    experiment.confounding_factors = payload.confounding_factors
+    experiment.lesson = payload.reviewed_lesson
     experiment.status = "completed"
     opportunity.status = "completed"
     await _marketing_audit(
@@ -549,12 +594,17 @@ def _metric_deltas(
 def _opportunity_view(row: MarketingOpportunity) -> dict[str, Any]:
     return {
         "id": str(row.id),
+        "business_id": str(row.business_id),
         "source": row.source,
+        "property": row.property,
         "evidence": row.evidence,
+        "evidence_period": [row.evidence_period_start, row.evidence_period_end],
         "page_or_query": row.page_or_query,
         "baseline_metrics": row.baseline_metrics,
+        "detected_issue": row.detected_issue,
         "recommendation": row.recommendation,
         "expected_outcome": row.expected_outcome,
+        "limitations": row.limitations,
         "confidence": str(row.confidence) if row.confidence is not None else None,
         "status": row.status,
         "approved_by": row.approved_by,
@@ -565,6 +615,7 @@ def _opportunity_view(row: MarketingOpportunity) -> dict[str, Any]:
 def _experiment_view(row: MarketingExperiment) -> dict[str, Any]:
     return {
         "id": str(row.id),
+        "business_id": str(row.business_id),
         "opportunity_id": str(row.opportunity_id),
         "approved_change": row.approved_change,
         "target_page": row.target_page,
@@ -575,7 +626,12 @@ def _experiment_view(row: MarketingExperiment) -> dict[str, Any]:
         "execution_method": row.execution_method,
         "status": row.status,
         "result": row.result,
+        "interpretation": row.interpretation,
+        "confounding_factors": row.confounding_factors,
+        "reviewed_lesson": row.lesson,
         "lesson": row.lesson,
+        "approved_by": row.approved_by,
+        "approved_at": row.approved_at,
     }
 
 
@@ -605,7 +661,7 @@ def _provider_status(
             key="search_console",
             label="Google Search Console",
             configured=google_configured,
-            connected=google_configured and bool(tenant_settings.search_console_property_url),
+            connected=False,
             setup_required=[
                 item
                 for item, ready in [
@@ -618,13 +674,16 @@ def _provider_status(
                 ]
                 if not ready
             ],
-            notes="Uses the existing Google OAuth app plus a tenant-owned verified property.",
+            notes=(
+                "Configuration fields only. No Search Console OAuth property verification or "
+                "synchronization job is implemented; use manual imports."
+            ),
         ),
         MarketingProviderStatus(
             key="blogger",
             label="Blogger",
             configured=google_configured,
-            connected=google_configured and bool(tenant_settings.blogger_blog_id),
+            connected=False,
             setup_required=[
                 item
                 for item, ready in [
@@ -634,13 +693,13 @@ def _provider_status(
                 ]
                 if not ready
             ],
-            notes="Uses Blogger API to read posts and performance metadata for content strategy.",
+            notes="Configuration fields only. No Blogger API pull is implemented; use manual imports.",
         ),
         MarketingProviderStatus(
             key="clarity",
             label="Microsoft Clarity",
             configured=clarity_configured,
-            connected=clarity_configured and bool(tenant_settings.clarity_project_id),
+            connected=False,
             setup_required=[
                 item
                 for item, ready in [
@@ -649,15 +708,15 @@ def _provider_status(
                 ]
                 if not ready
             ],
-            notes="Uses Clarity export data to identify friction, rage clicks, scroll depth, and drop-offs.",
+            notes="Configuration fields only. No Clarity API pull is implemented; use manual imports.",
         ),
         MarketingProviderStatus(
             key="website",
             label="Website / form leads",
             configured=True,
-            connected=bool(tenant_settings.website_url),
+            connected=False,
             setup_required=[] if tenant_settings.website_url else ["Website URL"],
-            notes="Connects the business website identity to BeoOS lead and content analysis.",
+            notes="Website identity plus manual/imported metrics; no analytics connector is implemented.",
         ),
     ]
 

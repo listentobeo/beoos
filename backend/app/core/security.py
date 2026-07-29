@@ -104,6 +104,7 @@ def require_admin(access: BusinessAccess = Depends(require_business_access)) -> 
 class ExternalTokenAccess:
     business_id: UUID
     token_id: UUID
+    owner_user_id: str
     scopes: tuple[str, ...]
 
 
@@ -150,12 +151,21 @@ async def require_external_api_token(
     )
     if business_exists is None:
         raise HTTPException(status_code=401, detail="Token business no longer exists")
+    membership_exists = await session.scalar(
+        select(BusinessMember.id).where(
+            BusinessMember.business_id == token.business_id,
+            BusinessMember.clerk_user_id == token.created_by_user_id,
+        )
+    )
+    if membership_exists is None:
+        raise HTTPException(status_code=401, detail="Token owner no longer has business access")
 
     token.last_used_at = datetime.now(UTC)
     await session.commit()
     return ExternalTokenAccess(
         business_id=token.business_id,
         token_id=token.id,
+        owner_user_id=token.created_by_user_id,
         scopes=tuple(token.scopes or []),
     )
 

@@ -1,38 +1,68 @@
 # BeoOS Remote MCP Server
 
-BeoOS exposes a tenant-scoped MCP-compatible JSON-RPC endpoint so external AI clients can safely read business operating data.
+BeoOS exposes a stateless Streamable HTTP-compatible JSON-RPC endpoint for tenant-scoped
+business intelligence.
 
-## Endpoint
+## Endpoint and authentication
+
+Production endpoint:
 
 ```text
-POST https://beoos-production.up.railway.app/api/v1/mcp
+https://beoos-production.up.railway.app/api/v1/mcp
 ```
 
-Use either header:
+Transport: HTTPS `POST`, JSON-RPC 2.0, MCP protocol `2025-06-18`. The server returns JSON for
+requests and HTTP `202` for notifications. It is stateless and does not provide a server-sent
+event stream.
+
+Use one of these headers:
 
 ```http
-Authorization: Bearer beoos_xxx
+Authorization: Bearer <BEOOS_TOKEN>
+MCP-Protocol-Version: 2025-06-18
 ```
 
 or:
 
 ```http
-X-BeoOS-API-Key: beoos_xxx
+X-BeoOS-API-Key: <BEOOS_TOKEN>
+MCP-Protocol-Version: 2025-06-18
 ```
 
-External tokens are created per business from:
+Create, rotate, and revoke tokens from **Dashboard → Settings → External AI access / MCP**.
+The raw value is shown only when it is created or rotated.
 
-```text
-POST /api/v1/businesses/{business_id}/external-access/tokens
-```
+## Security behavior
 
-The raw token is shown once. BeoOS stores only a hash and prefix.
+- A token belongs to exactly one business.
+- `business_id` is derived from the token and is not accepted in tool inputs.
+- Token use revalidates the creator's current membership in the business.
+- Raw tokens are HMAC-hashed; only the hash and a display prefix are stored.
+- Revoked and expired tokens are rejected.
+- Unknown and wildcard scopes cannot be issued.
+- Read tools require `marketing:read`; proposal tools separately require
+  `marketing:propose`.
+- Valid-token MCP requests are durably audited with tenant, token ID, tool/method,
+  correlation ID, timestamp, status, latency, and safe error details.
+- The default limit is 60 calls per token per rolling minute and 20 seconds per tool call.
+- MCP tools never read connector credentials and never accept a caller-supplied tenant ID.
 
-## First release scope
+## Marketing read tools
 
-This first MCP release is intentionally read-only. It lets ChatGPT, Claude, Cursor, Codex, VS Code, and other MCP-compatible clients inspect tenant data without sending messages or changing records.
+- `marketing.get_summary`
+- `marketing.list_properties`
+- `marketing.get_page_performance`
+- `marketing.get_query_performance`
+- `marketing.get_branded_searches`
+- `marketing.list_opportunities`
+- `marketing.get_opportunity`
+- `marketing.list_experiments`
+- `marketing.get_experiment`
+- `marketing.compare_periods`
+- `marketing.get_content_clusters`
+- `marketing.get_data_freshness`
 
-Available tools:
+Legacy read tools remain available:
 
 - `get_business_profile`
 - `get_operating_summary`
@@ -42,47 +72,50 @@ Available tools:
 - `list_quotes`
 - `list_marketing_metrics`
 
-## Example initialize request
+## Controlled proposal tools
+
+These require an explicitly issued `marketing:propose` scope:
+
+- `marketing.propose_opportunity`
+- `marketing.create_experiment_draft`
+- `marketing.request_experiment_approval`
+- `marketing.record_manual_implementation`
+
+They only create or update internal BeoOS proposals and records. They cannot publish to
+Blogger, edit websites, change Search Console, post to social networks, or spend advertising
+money.
+
+## Generic client configuration
+
+Use this shape in clients that support remote HTTP MCP servers with static headers:
 
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {}
-}
-```
-
-## Example list tools request
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/list",
-  "params": {}
-}
-```
-
-## Example call
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "tools/call",
-  "params": {
-    "name": "get_operating_summary",
-    "arguments": {}
+  "mcpServers": {
+    "beoos": {
+      "type": "http",
+      "url": "https://beoos-production.up.railway.app/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${BEOOS_MCP_TOKEN}"
+      }
+    }
   }
 }
 ```
 
-## Security model
+Keep the token in the client's secret/environment facility rather than committing it to a
+configuration file. Clients that require OAuth discovery and do not support static bearer
+headers need an OAuth gateway before they can connect directly.
 
-- Each token belongs to one BeoOS business tenant.
-- Each token has scopes such as `inbox:read`, `crm:read`, `quotes:read`, and `marketing:read`.
-- Tokens can be revoked.
-- Tokens can expire.
-- Raw token values are never stored.
-- Write/send tools should only be added later with explicit confirmation and audit logs.
+## Secret-free smoke test
+
+```bash
+curl -X POST "$BEOOS_MCP_URL" \
+  -H "Authorization: Bearer $BEOOS_MCP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2025-06-18" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Never paste a real token into logs, screenshots, tickets, documentation, or source control.

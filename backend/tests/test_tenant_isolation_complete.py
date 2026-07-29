@@ -17,6 +17,7 @@ TENANT_TABLES = {
     "external_action_reconciliations": "20260726_0025_failure_reconciliation.py",
     "payment_transactions": "20260726_0026_paystack_transactions.py",
     "payment_webhook_events": "20260726_0026_paystack_transactions.py",
+    "external_api_request_logs": "20260729_0028_mcp_marketing_access.py",
 }
 
 

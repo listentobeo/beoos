@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     durable_job_poll_interval_seconds: int = 5
     durable_job_batch_size: int = 10
     durable_job_lease_seconds: int = 120
+    mcp_rate_limit_per_minute: int = 60
+    mcp_tool_timeout_seconds: int = 20
 
     resend_api_key: str = ""
     alert_from_email: str = "beoos@alerts.beoarts.com"

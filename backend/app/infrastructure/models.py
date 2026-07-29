@@ -190,11 +190,16 @@ class MarketingOpportunity(Base, TimestampMixin):
         ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
     )
     source: Mapped[str] = mapped_column(String(80), nullable=False)
+    property: Mapped[str] = mapped_column(Text, default="", nullable=False)
     evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    evidence_period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     page_or_query: Mapped[str] = mapped_column(Text, nullable=False)
     baseline_metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    detected_issue: Mapped[str] = mapped_column(Text, default="", nullable=False)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
     expected_outcome: Mapped[str] = mapped_column(Text, nullable=False)
+    limitations: Mapped[str] = mapped_column(Text, default="", nullable=False)
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(7, 4))
     status: Mapped[str] = mapped_column(String(40), default="pending_approval", nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String(255))
@@ -229,7 +234,11 @@ class MarketingExperiment(Base, TimestampMixin):
     approved_tool_call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tool_calls.id"))
     status: Mapped[str] = mapped_column(String(40), default="approved", nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    interpretation: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    confounding_factors: Mapped[str] = mapped_column(Text, default="", nullable=False)
     lesson: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Business(Base, TimestampMixin):
@@ -274,6 +283,33 @@ class ExternalAPIToken(Base, TimestampMixin):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ExternalAPIRequestLog(Base):
+    __tablename__ = "external_api_request_logs"
+    __table_args__ = (
+        Index("ix_external_api_requests_token_created", "token_id", "created_at"),
+        Index("ix_external_api_requests_business_created", "business_id", "created_at"),
+        Index("ix_external_api_requests_correlation", "correlation_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    business_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    token_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("external_api_tokens.id", ondelete="CASCADE"), nullable=False
+    )
+    correlation_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    method: Mapped[str] = mapped_column(String(120), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_message_safe: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class WhatsAppConnection(Base, TimestampMixin):
