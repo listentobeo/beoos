@@ -22,7 +22,13 @@ function display(metric: ValueMetric) {
   if (metric.value === null) return "Not measured";
   const value = Number(metric.value);
   if (metric.unit === "ratio") return `${(value * 100).toFixed(1)}%`;
-  if (metric.unit === "currency") return `₦${value.toLocaleString()}`;
+  if (metric.unit === "currency" || /^[A-Z]{3}$/.test(metric.unit)) {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: metric.unit === "currency" ? "NGN" : metric.unit,
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
   if (metric.unit === "minutes") return `${value.toFixed(1)} min`;
   return value.toLocaleString();
 }
@@ -50,6 +56,16 @@ export default async function ValuePage() {
         </div>
       </div>
 
+      {dashboard.evidence.workflow_runs === 0 && (
+        <Card className="mt-6 p-5">
+          <h2 className="font-bold">No workflow evidence yet</h2>
+          <p className="mt-2 text-sm leading-6 text-[#747973]">
+            Business value measures the commission enquiry workflow. Metrics will appear as
+            enquiries are processed and outcomes are recorded. Existing quotes and inbox activity
+            can be viewed in Analytics.
+          </p>
+        </Card>
+      )}
       {dashboard.baseline && (
         <Card className="mt-6 flex flex-wrap items-center gap-3 p-4">
           <Badge className="bg-amber-50 text-amber-800">User estimate</Badge>

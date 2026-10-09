@@ -663,7 +663,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { ...init?.headers, Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`BeoOS API request failed (${response.status})`);
+  if (!response.ok) throw new Error(`BeoOS API request failed (${response.status}): ${path}`);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

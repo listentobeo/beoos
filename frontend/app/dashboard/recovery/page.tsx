@@ -1,6 +1,7 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { RecoveryActions } from "@/components/dashboard/recovery-actions";
 import { activeBusiness, beoApi } from "@/lib/api";
 
 export const metadata = { title: "Recovery" };
@@ -8,9 +9,13 @@ export const metadata = { title: "Recovery" };
 function Items({
   title,
   rows,
+  businessId,
+  kind,
 }: {
   title: string;
   rows: Array<Record<string, unknown>>;
+  businessId: string;
+  kind: "job" | "tool" | "reconciliation";
 }) {
   return (
     <Card className="p-5">
@@ -32,6 +37,7 @@ function Items({
               <p className="mt-3 text-sm font-semibold">
                 {String(row.type ?? row.action_type ?? row.id)}
               </p>
+              <RecoveryActions businessId={businessId} row={row} kind={kind} />
               <p className="mt-1 text-xs leading-5 text-[#747973]">
                 {String(row.user_message ?? row.last_error ?? row.error ?? "")}
               </p>
@@ -75,9 +81,9 @@ export default async function RecoveryPage() {
         </Card>
       )}
       <div className="mt-6 grid gap-5 xl:grid-cols-3">
-        <Items title="Durable jobs" rows={queue.durable_jobs} />
-        <Items title="Tool calls" rows={queue.tool_calls} />
-        <Items title="Reconciliations" rows={queue.reconciliations} />
+        <Items title="Durable jobs" rows={queue.durable_jobs} businessId={business.id} kind="job" />
+        <Items title="Tool calls" rows={queue.tool_calls} businessId={business.id} kind="tool" />
+        <Items title="Reconciliations" rows={queue.reconciliations} businessId={business.id} kind="reconciliation" />
       </div>
     </div>
   );

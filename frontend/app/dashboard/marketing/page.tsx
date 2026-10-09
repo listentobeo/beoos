@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { MarketingConnectionPanel } from "@/components/dashboard/marketing-connection-panel";
 import { MarketingImportForm } from "@/components/dashboard/marketing-import-form";
+import { DataUnavailable } from "@/components/dashboard/data-unavailable";
 import { SetupGuide } from "@/components/dashboard/setup-guide";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -317,6 +318,7 @@ function MarketingContent({
   connections,
   opportunities,
   experiments,
+  unavailable,
 }: {
   businessName: string;
   summary: MarketingSummary;
@@ -324,6 +326,7 @@ function MarketingContent({
   connections: MarketingConnectionStatus;
   opportunities: MarketingOpportunityRecord[];
   experiments: MarketingExperimentRecord[];
+  unavailable: string[];
 }) {
   const hasData = total(summary, "rows") > 0;
   return (
@@ -381,7 +384,17 @@ function MarketingContent({
         <PagePanel pages={summary.top_pages} />
       </section>
 
-      <ExperimentLoop opportunities={opportunities} experiments={experiments} />
+      {unavailable.length > 0 ? (
+        <div className="mt-5">
+          <DataUnavailable
+            title="Some marketing records could not load"
+            message={`Your marketing signals are available, but we could not retrieve ${unavailable.join(", ")}. Try again to restore these records.`}
+          />
+        </div>
+      ) : null}
+      {unavailable.length === 0 && (
+        <ExperimentLoop opportunities={opportunities} experiments={experiments} />
+      )}
 
       <section className="mt-5">
         <MarketingImportForm businessId={businessId} />
@@ -411,39 +424,33 @@ export default async function MarketingPage() {
         </div>
       );
     }
-    const [summary, connections, opportunities, experiments] = await Promise.all([
+    const results = await Promise.allSettled([
       beoApi.marketing(business.id),
       beoApi.marketingConnections(business.id),
       beoApi.marketingOpportunities(business.id),
       beoApi.marketingExperiments(business.id),
     ]);
+    if (results[0].status === "rejected") throw results[0].reason;
+    if (results[1].status === "rejected") throw results[1].reason;
+    const unavailable: string[] = [];
+    if (results[2].status === "rejected") unavailable.push("opportunities");
+    if (results[3].status === "rejected") unavailable.push("experiments");
     return (
       <MarketingContent
         businessName={business.name}
-        summary={summary}
+        summary={results[0].value}
         businessId={business.id}
-        connections={connections}
-        opportunities={opportunities}
-        experiments={experiments}
+        connections={results[1].value}
+        opportunities={results[2].status === "fulfilled" ? results[2].value : []}
+        experiments={results[3].status === "fulfilled" ? results[3].value : []}
+        unavailable={unavailable}
       />
     );
-  } catch {
+  } catch (error) {
+    console.error("Marketing intelligence could not load", error);
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-5 md:px-8">
-        <Card className="p-8">
-          <div className="flex items-start gap-4">
-            <div className="grid size-11 place-items-center rounded-2xl bg-red-50 text-red-700">
-              <Megaphone className="size-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Marketing intelligence could not load</h1>
-              <p className="mt-2 text-sm leading-6 text-[#747973]">
-                Confirm the backend deployment is up to date and that your user has access to the
-                selected business.
-              </p>
-            </div>
-          </div>
-        </Card>
+        <DataUnavailable title="Marketing intelligence could not load" />
       </div>
     );
   }

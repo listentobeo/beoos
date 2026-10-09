@@ -23,3 +23,8 @@ class RecoveryDecision(BaseModel):
     action: Literal["retry", "cancel", "mark_reconciled", "mark_failed"]
     reason: str = Field(min_length=3, max_length=2_000)
     provider_reference: str | None = Field(default=None, max_length=255)
+
+
+class JobRecoveryDecision(BaseModel):
+    action: Literal["retry", "cancel"]
+    reason: str = Field(min_length=3, max_length=2_000)

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AIQuoteStudio } from "@/components/dashboard/ai-quote-studio";
 import { FlexibleQuoteForm } from "@/components/dashboard/flexible-quote-form";
 import { QuoteTemplateManager } from "@/components/dashboard/quote-template-manager";
+import { DataUnavailable } from "@/components/dashboard/data-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { activeBusiness, beoApi, type CRMLead, type PriceItem, type Quote, type QuoteTemplate } from "@/lib/api";
@@ -47,20 +48,36 @@ export default async function QuotesPage() {
   let leads: CRMLead[] = [];
   let businessName = "Current business";
   let businessId: string | null = null;
+  const unavailable: string[] = [];
 
   try {
     const business = await activeBusiness();
     if (business) {
       businessId = business.id;
       businessName = business.name;
-      [quotes, templates, prices, leads] = await Promise.all([
+      const results = await Promise.allSettled([
         beoApi.quotes(business.id),
         beoApi.quoteTemplates(business.id),
         beoApi.prices(business.id),
         beoApi.crmLeads(business.id),
       ]);
+      if (results[0].status === "rejected") throw results[0].reason;
+      quotes = results[0].value;
+      if (results[1].status === "fulfilled") templates = results[1].value;
+      else unavailable.push("quote templates");
+      if (results[2].status === "fulfilled") prices = results[2].value;
+      else unavailable.push("price catalogue");
+      if (results[3].status === "fulfilled") leads = results[3].value;
+      else unavailable.push("CRM leads");
     }
-  } catch {}
+  } catch (error) {
+    console.error("Quotations could not load", error);
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-5 md:px-8">
+        <DataUnavailable title="Quotations could not load" />
+      </div>
+    );
+  }
 
   const stats = quoteStats(quotes);
 
@@ -71,6 +88,14 @@ export default async function QuotesPage() {
       <p className="mt-2 max-w-3xl text-sm leading-6 text-[#747973]">
         Generic quotation engine for service businesses. Today it includes the mural template, but the same system can support any brick-and-mortar service template.
       </p>
+      {unavailable.length > 0 && (
+        <div className="mt-5">
+          <DataUnavailable
+            title="Some quotation tools could not load"
+            message={`Your quotes are available, but we could not retrieve ${unavailable.join(", ")}. Try again to restore these tools.`}
+          />
+        </div>
+      )}
 
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="flex items-center gap-4 p-4">

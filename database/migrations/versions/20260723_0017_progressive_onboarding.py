@@ -34,7 +34,9 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.Column("last_activity_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("draft_specification", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column(
+            "draft_specification", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")
+        ),
         sa.Column("activation_confirmed_by", sa.String(255)),
         sa.Column("activation_confirmed_at", sa.DateTime(timezone=True)),
         sa.Column("deployment_mode", sa.String(40), nullable=False, server_default="experimental"),
@@ -44,9 +46,7 @@ def upgrade() -> None:
         sa.Column(
             "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
-        sa.CheckConstraint(
-            "onboarding_stage BETWEEN 1 AND 10", name="ck_onboarding_session_stage"
-        ),
+        sa.CheckConstraint("onboarding_stage BETWEEN 1 AND 10", name="ck_onboarding_session_stage"),
         sa.CheckConstraint(
             "completion_percentage BETWEEN 0 AND 100",
             name="ck_onboarding_session_completion",
@@ -152,6 +152,12 @@ def upgrade() -> None:
                 RETURN NEW;
             END;
             $$;
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
             CREATE TRIGGER trg_onboarding_responses_tenant_integrity
             BEFORE INSERT OR UPDATE ON onboarding_responses
             FOR EACH ROW EXECUTE FUNCTION beoos_assert_onboarding_tenant();

@@ -473,12 +473,13 @@ def upgrade() -> None:
                     IF related_business_id IS DISTINCT FROM NEW.business_id THEN
                         RAISE EXCEPTION 'cross-tenant workflow run relationship';
                     END IF;
-                    IF TG_TABLE_NAME = 'approval_requests'
-                       AND NEW.affected_customer_id IS NOT NULL THEN
-                        SELECT business_id INTO related_business_id
-                        FROM contacts WHERE id = NEW.affected_customer_id;
-                        IF related_business_id IS DISTINCT FROM NEW.business_id THEN
-                            RAISE EXCEPTION 'cross-tenant approval customer';
+                    IF TG_TABLE_NAME = 'approval_requests' THEN
+                        IF NEW.affected_customer_id IS NOT NULL THEN
+                            SELECT business_id INTO related_business_id
+                            FROM contacts WHERE id = NEW.affected_customer_id;
+                            IF related_business_id IS DISTINCT FROM NEW.business_id THEN
+                                RAISE EXCEPTION 'cross-tenant approval customer';
+                            END IF;
                         END IF;
                     END IF;
                 ELSIF TG_TABLE_NAME = 'tool_permissions'

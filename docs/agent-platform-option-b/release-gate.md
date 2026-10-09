@@ -81,7 +81,7 @@ frontend production build/typecheck, and whitespace integrity.
 2. Back up PostgreSQL and verify restore access.
 3. Configure unique production secrets, Clerk, provider credentials, Paystack webhook, allowed
    origins, and worker processes; leave global credential fallback disabled.
-4. Apply migrations through `20260727_0027`; confirm the Alembic head.
+4. Apply migrations through `20261009_0029`; confirm the Alembic head.
 5. With the production application role, verify RLS denies cross-tenant reads and writes for every
    tenant table and verify relationship triggers reject cross-tenant references.
 6. Deploy backend and workers together, then the frontend.
@@ -95,11 +95,16 @@ frontend production build/typecheck, and whitespace integrity.
 
 ## Migration and rollback
 
-Deploy schema before application code. The forward path is Alembic head `20260727_0027`.
+Deploy schema before application code. The forward path is Alembic head `20261009_0029`.
 Application rollback should use the deployment record's pinned prior version while retaining the
 new schema when it remains backward compatible. The verified schema rollback is
-`20260727_0027:20260726_0026`, which removes coexistence synchronization and webhook-processing
-state. Stop WhatsApp workers and preserve unresolved sync request IDs before rollback. The older
+`20261009_0029:20260729_0028`. This revision replaces shared tenant trigger functions; its
+downgrade keeps the corrected, backward-compatible bodies rather than restoring runtime bugs.
+The older `20260729_0028:20260727_0027` downgrade removes MCP audit records and the extended
+marketing evidence fields. Preserve these records and stop MCP traffic before that rollback.
+The older `20260727_0027:20260726_0026` downgrade removes coexistence synchronization and
+webhook-processing state. Stop WhatsApp workers and preserve unresolved sync request IDs before
+that rollback. The older
 `20260726_0026:20260726_0025` downgrade removes payment webhook and transaction tables and remains
 data-destructive. Older downgrades must be rehearsed separately on a restored backup. Never
 downgrade a live database merely to clear an alert.

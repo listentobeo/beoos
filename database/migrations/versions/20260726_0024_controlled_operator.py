@@ -170,11 +170,14 @@ def upgrade() -> None:
             CREATE OR REPLACE FUNCTION beoos_assert_operator_tenant()
             RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-                IF TG_TABLE_NAME = 'operator_messages' AND NOT EXISTS (
+                IF TG_TABLE_NAME = 'operator_messages' THEN
+                    IF NOT EXISTS (
                     SELECT 1 FROM operator_conversations
                     WHERE id = NEW.conversation_id AND business_id = NEW.business_id
-                ) THEN RAISE EXCEPTION 'cross-tenant operator conversation';
-                ELSIF TG_TABLE_NAME = 'operator_turns' AND (
+                    ) THEN RAISE EXCEPTION 'cross-tenant operator conversation';
+                    END IF;
+                ELSIF TG_TABLE_NAME = 'operator_turns' THEN
+                    IF (
                     NOT EXISTS (
                         SELECT 1 FROM operator_conversations
                         WHERE id = NEW.conversation_id AND business_id = NEW.business_id
@@ -191,7 +194,8 @@ def upgrade() -> None:
                               AND business_id = NEW.business_id
                         )
                     )
-                ) THEN RAISE EXCEPTION 'invalid operator turn provenance';
+                    ) THEN RAISE EXCEPTION 'invalid operator turn provenance';
+                    END IF;
                 END IF;
                 RETURN NEW;
             END; $$;

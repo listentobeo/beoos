@@ -56,7 +56,12 @@ def upgrade() -> None:
                     ''
                 )
             $$;
-
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
             CREATE OR REPLACE FUNCTION beoos_can_access_business(target_business_id uuid)
             RETURNS boolean
             LANGUAGE sql
@@ -112,10 +117,13 @@ def upgrade() -> None:
                 related_business_id uuid;
                 second_business_id uuid;
             BEGIN
-                IF TG_TABLE_NAME = 'email_threads' AND NEW.contact_id IS NOT NULL THEN
-                    SELECT business_id INTO related_business_id FROM contacts WHERE id = NEW.contact_id;
-                    IF related_business_id IS DISTINCT FROM NEW.business_id THEN
-                        RAISE EXCEPTION 'cross-tenant email_threads.contact_id';
+                IF TG_TABLE_NAME = 'email_threads' THEN
+                    IF NEW.contact_id IS NOT NULL THEN
+                        SELECT business_id INTO related_business_id
+                        FROM contacts WHERE id = NEW.contact_id;
+                        IF related_business_id IS DISTINCT FROM NEW.business_id THEN
+                            RAISE EXCEPTION 'cross-tenant email_threads.contact_id';
+                        END IF;
                     END IF;
                 ELSIF TG_TABLE_NAME = 'email_messages' THEN
                     SELECT business_id INTO related_business_id FROM email_threads WHERE id = NEW.thread_id;
@@ -195,7 +203,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     for table_name in ("email_threads", "email_messages", "crm_leads", "follow_up_tasks", "quotes"):
-        op.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{table_name}_tenant_integrity ON {table_name}"))
+        op.execute(
+            sa.text(f"DROP TRIGGER IF EXISTS trg_{table_name}_tenant_integrity ON {table_name}")
+        )
     op.execute(sa.text("DROP FUNCTION IF EXISTS beoos_assert_tenant_relationships()"))
     for table_name in ALL_TENANT_TABLES:
         op.execute(sa.text(f'DROP POLICY IF EXISTS beoos_tenant_access ON "{table_name}"'))
@@ -211,4 +221,3 @@ def _policy(table_name: str, expression: str) -> None:
             f"FOR ALL USING ({expression}) WITH CHECK ({expression})"
         )
     )
-

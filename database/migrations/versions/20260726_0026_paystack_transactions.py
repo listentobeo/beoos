@@ -132,7 +132,8 @@ def upgrade() -> None:
             CREATE OR REPLACE FUNCTION beoos_assert_payment_tenant()
             RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-                IF TG_TABLE_NAME = 'payment_transactions' AND (
+                IF TG_TABLE_NAME = 'payment_transactions' THEN
+                    IF (
                     NOT EXISTS (
                         SELECT 1 FROM quotes
                         WHERE id = NEW.quote_id AND business_id = NEW.business_id
@@ -140,12 +141,15 @@ def upgrade() -> None:
                         SELECT 1 FROM workflow_runs
                         WHERE id = NEW.workflow_run_id AND business_id = NEW.business_id
                     )
-                ) THEN RAISE EXCEPTION 'cross-tenant payment reference';
-                ELSIF TG_TABLE_NAME = 'payment_webhook_events' AND NOT EXISTS (
+                    ) THEN RAISE EXCEPTION 'cross-tenant payment reference';
+                    END IF;
+                ELSIF TG_TABLE_NAME = 'payment_webhook_events' THEN
+                    IF NOT EXISTS (
                     SELECT 1 FROM payment_transactions
                     WHERE id = NEW.payment_transaction_id
                       AND business_id = NEW.business_id
-                ) THEN RAISE EXCEPTION 'cross-tenant payment webhook';
+                    ) THEN RAISE EXCEPTION 'cross-tenant payment webhook';
+                    END IF;
                 END IF;
                 RETURN NEW;
             END; $$;

@@ -32,7 +32,7 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "Alembic offline upgrade failed."
         }
-        & $python -m alembic downgrade 20260727_0027:20260726_0026 --sql |
+        & $python -m alembic downgrade head:-1 --sql |
             Set-Content -LiteralPath $downgradeSql
         if ($LASTEXITCODE -ne 0) {
             throw "Alembic offline downgrade failed."
@@ -48,6 +48,7 @@ finally {
 
 Push-Location $frontendRoot
 try {
+    Invoke-Checked npm.cmd test
     Invoke-Checked npm.cmd run build
     Invoke-Checked npm.cmd run typecheck
 }

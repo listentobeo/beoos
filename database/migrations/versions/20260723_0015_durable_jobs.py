@@ -110,6 +110,12 @@ def upgrade() -> None:
                 RETURN NEW;
             END;
             $$;
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
             CREATE TRIGGER trg_durable_jobs_tenant_integrity
             BEFORE INSERT OR UPDATE ON durable_jobs
             FOR EACH ROW EXECUTE FUNCTION beoos_assert_durable_job_tenant();

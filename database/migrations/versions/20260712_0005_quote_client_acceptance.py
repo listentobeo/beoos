@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE quotes
-        SET public_token = encode(gen_random_bytes(32), 'hex')
+        SET public_token = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')
         WHERE public_token IS NULL
         """
     )

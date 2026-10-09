@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { isPublicQuoteRequest } from "@/lib/public-quote-route";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -11,6 +12,8 @@ const hopByHopHeaders = new Set([
   "trailer",
   "transfer-encoding",
   "upgrade",
+  "content-encoding",
+  "content-length",
 ]);
 
 type RouteContext = {
@@ -31,8 +34,8 @@ async function proxy(request: Request, context: RouteContext) {
 
   const { getToken } = await auth();
   const token = await getToken();
-  const isPublicQuoteRequest = path[0] === "quotes" && path[1] === "public";
-  if (!token && !isPublicQuoteRequest) {
+  const method = request.method.toUpperCase();
+  if (!token && !isPublicQuoteRequest(path, method)) {
     return Response.json(
       { detail: "You are not signed in. Refresh the page and sign in again." },
       { status: 401 },
@@ -40,13 +43,21 @@ async function proxy(request: Request, context: RouteContext) {
   }
   if (token) headers.set("authorization", `Bearer ${token}`);
 
-  const method = request.method.toUpperCase();
-  const response = await fetch(targetUrl, {
-    method,
-    headers,
-    body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(),
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      method,
+      headers,
+      body: method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer(),
+      cache: "no-store",
+    });
+  } catch (error) {
+    console.error("BeoOS API is unavailable", error);
+    return Response.json(
+      { detail: "The business API is unavailable. Please try again shortly." },
+      { status: 502 },
+    );
+  }
 
   const responseHeaders = new Headers();
   response.headers.forEach((value, key) => {
