@@ -161,47 +161,13 @@ async def operator_start_workflow(
         )
         await session.commit()
         return {"id": str(run.id), "status": run.status}
-    existing = await session.scalar(
-        select(WorkflowRun).where(
-            WorkflowRun.business_id == business_id,
-            WorkflowRun.workflow_definition_id == definition.id,
-            WorkflowRun.idempotency_key == payload.idempotency_key,
-        )
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "This workflow has no executable handler. Choose the commission enquiry "
+            "workflow with an email message reference."
+        ),
     )
-    if existing:
-        return {"id": str(existing.id), "status": existing.status}
-    run = WorkflowRun(
-        business_id=business_id,
-        workflow_definition_id=definition.id,
-        workflow_version=definition.version,
-        trigger_type=definition.trigger_type,
-        trigger_reference_type=payload.trigger_reference_type,
-        trigger_reference_id=payload.trigger_reference_id,
-        correlation_id=payload.correlation_id,
-        idempotency_key=payload.idempotency_key,
-        status="queued",
-        run_metadata={
-            **payload.metadata,
-            "source": "beoos_operator",
-            "deployment_mode": definition.deployment_mode,
-            "external_actions_executed": 0,
-        },
-        initiated_by_user_id=access.user_id,
-    )
-    session.add(run)
-    await session.flush()
-    session.add(
-        AuditLog(
-            business_id=business_id,
-            actor_id=access.user_id,
-            action="operator.workflow_started",
-            resource_type="workflow_run",
-            resource_id=str(run.id),
-            details={"workflow_key": definition.key, "external_actions_executed": 0},
-        )
-    )
-    await session.commit()
-    return {"id": str(run.id), "status": run.status}
 
 
 @router.post("/actions/request-approval", status_code=201)

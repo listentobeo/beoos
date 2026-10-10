@@ -4,17 +4,16 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-import structlog
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.domain.email import EmailTriageResult
+from app.services.replicate_predictions import run_prediction
 
 SYSTEM_PROMPT = (Path(__file__).resolve().parents[2] / "prompts" / "email_triage.md").read_text(
     encoding="utf-8"
 )
-logger = structlog.get_logger()
 
 
 class OpenAIEmailService:
@@ -93,11 +92,19 @@ class OpenAIEmailService:
             "Message payload:\n"
             f"{json.dumps(input_payload, ensure_ascii=False)}"
         )
-        prediction = await self._create_replicate_prediction(
-            prompt=prompt,
-            sender_email=sender_email,
+        prediction = await run_prediction(
+            self._http,
+            token=self._settings.replicate_api_token,
+            model=self._settings.replicate_model,
+            inputs={
+                "prompt": prompt,
+                "reasoning_effort": "low",
+                "verbosity": "low",
+                "max_completion_tokens": 1800,
+            },
+            timeout_seconds=self._settings.replicate_timeout_seconds,
         )
-        output = await self._wait_for_replicate_prediction(str(prediction["id"]))
+        output = prediction.get("output")
         text = self._stringify_replicate_output(output)
         try:
             parsed = EmailTriageResult.model_validate_json(text)
@@ -108,79 +115,6 @@ class OpenAIEmailService:
                 raise RuntimeError("Replicate returned invalid triage JSON") from None
             parsed = EmailTriageResult.model_validate_json(text[start:end])
         return parsed, f"replicate:{prediction['id']}"
-
-    async def _create_replicate_prediction(
-        self,
-        *,
-        prompt: str,
-        sender_email: str,
-    ) -> dict[str, Any]:
-        owner, model = self._settings.replicate_model.split("/", maxsplit=1)
-        url = f"https://api.replicate.com/v1/models/{owner}/{model}/predictions"
-        headers = {
-            "Authorization": f"Bearer {self._settings.replicate_api_token}",
-            "Content-Type": "application/json",
-            "Prefer": "wait=10",
-        }
-        input_payload = {
-            "prompt": prompt,
-            "system_prompt": "You are BeoOS, a structured sales operations AI.",
-            "reasoning_effort": "low",
-            "verbosity": "low",
-            "max_completion_tokens": 1800,
-        }
-        response = await self._http.post(
-            url,
-            headers=headers,
-            json={
-                "input": input_payload,
-                "context": {
-                    "safety_identifier": hashlib.sha256(sender_email.lower().encode()).hexdigest()[
-                        :64
-                    ],
-                },
-            },
-        )
-        if response.status_code == 422:
-            response = await self._http.post(url, headers=headers, json={"input": input_payload})
-        try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError:
-            logger.exception(
-                "replicate_prediction_create_failed",
-                status_code=response.status_code,
-                response_text=response.text[:1000],
-                model=self._settings.replicate_model,
-            )
-            raise
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise ValueError("Replicate returned a non-object prediction response")
-        return payload
-
-    async def _wait_for_replicate_prediction(self, prediction_id: str) -> Any:
-        attempts = max(1, self._settings.replicate_timeout_seconds // 3)
-        for _ in range(attempts):
-            response = await self._http.get(
-                f"https://api.replicate.com/v1/predictions/{prediction_id}",
-                headers={"Authorization": f"Bearer {self._settings.replicate_api_token}"},
-            )
-            try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError:
-                logger.exception(
-                    "replicate_prediction_poll_failed",
-                    status_code=response.status_code,
-                    response_text=response.text[:1000],
-                    prediction_id=prediction_id,
-                )
-                raise
-            prediction = response.json()
-            if prediction.get("status") == "succeeded":
-                return prediction.get("output")
-            if prediction.get("status") in {"failed", "canceled"}:
-                raise RuntimeError(f"Replicate prediction {prediction.get('status')}")
-        raise RuntimeError("Replicate prediction timed out")
 
     def _stringify_replicate_output(self, output: Any) -> str:
         if isinstance(output, str):

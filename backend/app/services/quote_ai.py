@@ -29,6 +29,7 @@ from app.infrastructure.models import (
     QuoteTemplateType,
 )
 from app.services.quote_engine import default_mural_input
+from app.services.replicate_predictions import run_prediction
 
 logger = structlog.get_logger()
 
@@ -270,8 +271,6 @@ class QuoteAIService:
         context: dict[str, Any],
         user_id: str,
     ) -> QuoteAIDraftResponse:
-        owner, model = self._settings.replicate_model.split("/", maxsplit=1)
-        url = f"https://api.replicate.com/v1/models/{owner}/{model}/predictions"
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"
             "Response JSON schema:\n"
@@ -285,46 +284,19 @@ class QuoteAIService:
             "verbosity": "low",
             "max_completion_tokens": 2200,
         }
-        headers = {
-            "Authorization": f"Bearer {self._settings.replicate_api_token}",
-            "Content-Type": "application/json",
-            "Prefer": "wait=10",
-        }
         async with httpx.AsyncClient(timeout=self._settings.replicate_timeout_seconds) as client:
-            response = await client.post(
-                url,
-                headers=headers,
-                json={
-                    "input": input_payload,
-                    "context": {
-                        "safety_identifier": hashlib.sha256(user_id.encode()).hexdigest()[:64],
-                    },
-                },
+            prediction = await run_prediction(
+                client,
+                token=self._settings.replicate_api_token,
+                model=self._settings.replicate_model,
+                inputs=input_payload,
+                timeout_seconds=self._settings.replicate_timeout_seconds,
             )
-            if response.status_code == 422:
-                response = await client.post(url, headers=headers, json={"input": input_payload})
-            response.raise_for_status()
-            prediction = response.json()
-            output = await self._poll_replicate(client, str(prediction["id"]))
+        output = prediction.get("output")
         draft = _parse_response(_stringify_output(output))
         draft.provider = "replicate"
         draft.model = self._settings.replicate_model
         return draft
-
-    async def _poll_replicate(self, client: httpx.AsyncClient, prediction_id: str) -> Any:
-        attempts = max(1, self._settings.replicate_timeout_seconds // 3)
-        for _ in range(attempts):
-            response = await client.get(
-                f"https://api.replicate.com/v1/predictions/{prediction_id}",
-                headers={"Authorization": f"Bearer {self._settings.replicate_api_token}"},
-            )
-            response.raise_for_status()
-            prediction = response.json()
-            if prediction.get("status") == "succeeded":
-                return prediction.get("output")
-            if prediction.get("status") in {"failed", "canceled"}:
-                raise RuntimeError(f"Replicate prediction {prediction.get('status')}")
-        raise RuntimeError("Replicate prediction timed out")
 
     def _prompt(self, *, payload: QuoteAIDraftRequest, context: dict[str, Any]) -> str:
         return json.dumps(

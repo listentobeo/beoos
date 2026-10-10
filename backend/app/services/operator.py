@@ -42,6 +42,7 @@ from app.infrastructure.models import (
     WorkflowRun,
 )
 from app.services.business_context import build_business_context
+from app.services.replicate_predictions import run_prediction
 
 logger = structlog.get_logger()
 
@@ -145,17 +146,25 @@ class OperatorService:
             mode=mode,
         )
         status = "fallback"
+        error_code: str | None = None
+        timeout_seconds = (
+            max(TURN_TIMEOUT_SECONDS, self._settings.replicate_timeout_seconds)
+            if self._settings.effective_ai_provider == "replicate"
+            else TURN_TIMEOUT_SECONDS
+        )
         if estimated_cost > COST_LIMIT:
+            error_code = "ai_budget_exceeded"
             fallback.warnings.append("Operator cost budget prevented a model call.")
             response = fallback
         elif not self._settings.ai_configured:
+            error_code = "ai_not_configured"
             fallback.warnings.append(
                 "AI provider is not configured; returned deterministic context."
             )
             response = fallback
         else:
             try:
-                async with asyncio.timeout(TURN_TIMEOUT_SECONDS):
+                async with asyncio.timeout(timeout_seconds):
                     response = await self._generate(
                         context=selected_context,
                         message=message,
@@ -167,9 +176,20 @@ class OperatorService:
                     response.read_only_tools_used, selected_tools, role
                 )
                 status = "completed"
-            except Exception:
-                logger.exception("operator_ai_failed", business_id=str(business_id), mode=mode)
-                fallback.warnings.append("AI operator failed; returned deterministic context.")
+            except Exception as exc:
+                error_code = "ai_timeout" if isinstance(exc, TimeoutError) else "ai_provider_failed"
+                if isinstance(exc, httpx.HTTPStatusError):
+                    error_code = f"ai_provider_http_{exc.response.status_code}"
+                logger.exception(
+                    "operator_ai_failed",
+                    business_id=str(business_id),
+                    mode=mode,
+                    error_code=error_code,
+                )
+                fallback.warnings.append(
+                    f"AI generation unavailable ({error_code}); showing business records. "
+                    "Check provider credentials, limits and billing."
+                )
                 response = fallback
         allowed_names = {item["name"] for item in self._tool_manifest()}
         response.recommended_actions = [
@@ -193,7 +213,9 @@ class OperatorService:
             "max_tool_calls": MAX_TOOL_CALLS,
             "loop_count": 1,
             "loop_limit": LOOP_LIMIT,
-            "timeout_seconds": TURN_TIMEOUT_SECONDS,
+            "timeout_seconds": timeout_seconds,
+            "status": status,
+            "error_code": error_code,
             "cost_limit": str(COST_LIMIT),
             "external_actions_executed": 0,
         }
@@ -222,12 +244,13 @@ class OperatorService:
                 max_tool_calls=MAX_TOOL_CALLS,
                 loop_count=1,
                 loop_limit=LOOP_LIMIT,
-                timeout_seconds=TURN_TIMEOUT_SECONDS,
+                timeout_seconds=timeout_seconds,
                 cost_limit=COST_LIMIT,
                 estimated_cost=(
                     min(estimated_cost, COST_LIMIT) if status == "completed" else Decimal("0")
                 ),
                 status=status,
+                error_code=error_code,
                 duration_ms=duration_ms,
             )
         )
@@ -623,8 +646,6 @@ class OperatorService:
     async def _replicate(self, *, payload: dict[str, Any], user_id: str) -> OperatorChatResponse:
         if not self._settings.replicate_api_token:
             raise RuntimeError("Replicate API token is not configured")
-        owner, model = self._settings.replicate_model.split("/", maxsplit=1)
-        url = f"https://api.replicate.com/v1/models/{owner}/{model}/predictions"
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"
             "Response JSON schema:\n"
@@ -639,27 +660,15 @@ class OperatorService:
             "verbosity": "low",
             "max_completion_tokens": 1600,
         }
-        headers = {
-            "Authorization": f"Bearer {self._settings.replicate_api_token}",
-            "Content-Type": "application/json",
-            "Prefer": "wait=10",
-        }
         async with httpx.AsyncClient(timeout=self._settings.replicate_timeout_seconds) as client:
-            response = await client.post(
-                url,
-                headers=headers,
-                json={
-                    "input": input_payload,
-                    "context": {
-                        "safety_identifier": hashlib.sha256(user_id.encode()).hexdigest()[:64],
-                    },
-                },
+            prediction = await run_prediction(
+                client,
+                token=self._settings.replicate_api_token,
+                model=self._settings.replicate_model,
+                inputs=input_payload,
+                timeout_seconds=self._settings.replicate_timeout_seconds,
             )
-            if response.status_code == 422:
-                response = await client.post(url, headers=headers, json={"input": input_payload})
-            response.raise_for_status()
-            prediction = response.json()
-            output = await self._poll_replicate(client, str(prediction["id"]))
+        output = prediction.get("output")
         text = _stringify_output(output)
         try:
             return OperatorChatResponse.model_validate_json(text)
@@ -669,21 +678,6 @@ class OperatorService:
             if start < 0 or end <= start:
                 raise RuntimeError("Replicate returned invalid operator JSON") from None
             return OperatorChatResponse.model_validate_json(text[start:end])
-
-    async def _poll_replicate(self, client: httpx.AsyncClient, prediction_id: str) -> Any:
-        attempts = max(1, self._settings.replicate_timeout_seconds // 3)
-        for _ in range(attempts):
-            response = await client.get(
-                f"https://api.replicate.com/v1/predictions/{prediction_id}",
-                headers={"Authorization": f"Bearer {self._settings.replicate_api_token}"},
-            )
-            response.raise_for_status()
-            prediction = response.json()
-            if prediction.get("status") == "succeeded":
-                return prediction.get("output")
-            if prediction.get("status") in {"failed", "canceled"}:
-                raise RuntimeError(f"Replicate prediction {prediction.get('status')}")
-        raise RuntimeError("Replicate prediction timed out")
 
     def _fallback_response(
         self,
